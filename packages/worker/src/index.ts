@@ -9,6 +9,7 @@ import { scrapeQueue, ingestQueue, priceDropQueue, allTimeLowQueue, featuredScra
 const connection = { url: process.env.REDIS_URL! };
 const SCRAPE_CRON = process.env.SCRAPE_CRON ?? "0 */6 * * *";
 const FEATURED_SCRAPE_CRON = process.env.FEATURED_SCRAPE_CRON ?? "0 * * * *";
+const EPIC_SCRAPE_CRON = process.env.EPIC_SCRAPE_CRON ?? "0 0 * * *";
 const PORT = Number(process.env.PORT ?? 4000);
 
 // Dead-letter queue for scrape jobs that exhaust all retries
@@ -324,13 +325,14 @@ const ingestWorker = new Worker(
 );
 
 // ─── CRON: schedule scrape jobs per store ─────────────────────────────────────
-async function scheduleScrapers() {
+export async function scheduleScrapers() {
   const allStores = await db.select().from(stores);
   for (const store of allStores) {
+    const pattern = store.slug === "epic-games" ? EPIC_SCRAPE_CRON : SCRAPE_CRON;
     await scrapeQueue.add(
       `scrape-${store.slug}`,
       { retailerDomain: store.slug },
-      { repeat: { pattern: SCRAPE_CRON }, attempts: 3 },
+      { repeat: { pattern }, attempts: 3 },
     );
   }
   // Schedule hourly featured-deal scrape for Steam

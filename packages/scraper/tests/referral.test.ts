@@ -57,6 +57,20 @@ describe("buildReferralUrl", () => {
     });
   });
 
+  describe("Epic Games (epic-games slug)", () => {
+    it("appends epic_creator_id param when EPIC_CREATOR_TAG is set", () => {
+      process.env.EPIC_CREATOR_TAG = "epiccreator";
+      const result = buildReferralUrl("https://store.epicgames.com/en-US/p/fortnite", "epic-games");
+      expect(result).toBe("https://store.epicgames.com/en-US/p/fortnite?epic_creator_id=epiccreator");
+    });
+
+    it("returns URL unchanged when EPIC_CREATOR_TAG is not set", () => {
+      delete process.env.EPIC_CREATOR_TAG;
+      const url = "https://store.epicgames.com/en-US/p/fortnite";
+      expect(buildReferralUrl(url, "epic-games")).toBe(url);
+    });
+  });
+
   describe("Humble Bundle", () => {
     it("appends partner param when HUMBLE_PARTNER_ID is set", () => {
       process.env.HUMBLE_PARTNER_ID = "humblepartner";

@@ -663,5 +663,35 @@ describe("featured scrape worker", () => {
         "No scraper found for retailerDomain: nonexistent-retailer-xyz",
       );
     });
+  it("should schedule epic-games store with EPIC_SCRAPE_CRON (daily default '0 0 * * *')", async () => {
+    const { scheduleScrapers } = await import("../src/index.js");
+    (db.select as ReturnType<typeof vi.fn>).mockReturnValueOnce(
+      buildSelectChain([{ slug: "epic-games" }]),
+    );
+    mockQueueAdd.mockClear();
+
+    await scheduleScrapers();
+
+    expect(mockQueueAdd).toHaveBeenCalledWith(
+      "scrape-epic-games",
+      { retailerDomain: "epic-games" },
+      expect.objectContaining({ repeat: { pattern: process.env.EPIC_SCRAPE_CRON ?? "0 0 * * *" } }),
+    );
+  });
+
+  it("should schedule non-epic stores with SCRAPE_CRON", async () => {
+    const { scheduleScrapers } = await import("../src/index.js");
+    (db.select as ReturnType<typeof vi.fn>).mockReturnValueOnce(
+      buildSelectChain([{ slug: "steam" }]),
+    );
+    mockQueueAdd.mockClear();
+
+    await scheduleScrapers();
+
+    expect(mockQueueAdd).toHaveBeenCalledWith(
+      "scrape-steam",
+      { retailerDomain: "steam" },
+      expect.objectContaining({ repeat: { pattern: process.env.SCRAPE_CRON ?? "0 */6 * * *" } }),
+    );
   });
 });
