@@ -1,13 +1,13 @@
 import { z } from "zod";
 
-export const dealSchema = z.object({
+export const gameSchema = z.object({
   title: z.string().min(1),
-  url: z.string().url(),
-  imageUrl: z.string().url().optional(),
-  originalPrice: z.number().positive().optional(),
-  salePrice: z.number().positive().optional(),
+  slug: z.string().min(1),
+  storeUrl: z.string().url(),
+  price: z.number().nonnegative(),
+  originalPrice: z.number().nonnegative().optional(),
   discountPercent: z.number().min(0).max(100).optional(),
-  retailerDomain: z.string(),
-  categoryName: z.string().optional(),
-  expiresAt: z.date().optional(),
+  currency: z.string().default("USD"),
+  storeSlug: z.string().min(1),
+  storeGameId: z.string().optional(),
 });

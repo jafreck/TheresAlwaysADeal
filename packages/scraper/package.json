@@ -14,6 +14,7 @@
   "dependencies": {
     "@taad/db": "workspace:*",
     "cheerio": "^1.0.0",
+    "drizzle-orm": "^0.39.0",
     "playwright": "^1.49.0",
     "zod": "^3.24.0"
   },
