@@ -68,6 +68,7 @@ describe("schema", () => {
       expect(columns).toContain("storeId");
       expect(columns).toContain("storeUrl");
       expect(columns).toContain("storeGameId");
+      expect(columns).toContain("description");
       expect(columns).toContain("isActive");
       expect(columns).toContain("isAllTimeLow");
       expect(columns).toContain("createdAt");

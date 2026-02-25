@@ -10,4 +10,5 @@ export const gameSchema = z.object({
   currency: z.string().default("USD"),
   storeSlug: z.string().min(1),
   storeGameId: z.string().optional(),
+  choiceIncluded: z.boolean().optional(),
 });

@@ -39,6 +39,7 @@ export const storeListings = pgTable("store_listings", {
   storeId: uuid("store_id").references(() => stores.id).notNull(),
   storeUrl: text("store_url").notNull(),
   storeGameId: varchar("store_game_id", { length: 255 }),
+  description: text("description"),
   isActive: boolean("is_active").default(true).notNull(),
   isAllTimeLow: boolean("is_all_time_low").default(false).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),

@@ -69,6 +69,18 @@ describe("buildReferralUrl", () => {
       const url = "https://www.humblebundle.com/store/game";
       expect(buildReferralUrl(url, "humble")).toBe(url);
     });
+
+    it("appends partner param when using 'humble-bundle' slug", () => {
+      process.env.HUMBLE_PARTNER_ID = "humblepartner";
+      const result = buildReferralUrl("https://www.humblebundle.com/store/game", "humble-bundle");
+      expect(result).toBe("https://www.humblebundle.com/store/game?partner=humblepartner");
+    });
+
+    it("returns URL unchanged when HUMBLE_PARTNER_ID is not set and slug is 'humble-bundle'", () => {
+      delete process.env.HUMBLE_PARTNER_ID;
+      const url = "https://www.humblebundle.com/store/game";
+      expect(buildReferralUrl(url, "humble-bundle")).toBe(url);
+    });
   });
 
   describe("Fanatical", () => {
