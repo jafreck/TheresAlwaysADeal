@@ -15,6 +15,10 @@ export const ingestQueue = new Queue("ingest", { connection });
 /** Emits price-drop events to be consumed by the alert system. */
 export const priceDropQueue = new Queue("price-drop", { connection });
 
+/** Emits all-time-low price events to be consumed by the alert system. */
+export const allTimeLowQueue = new Queue("all-time-low", { connection });
+
 export const scrapeQueueEvents = new QueueEvents("scrape", { connection });
 export const ingestQueueEvents = new QueueEvents("ingest", { connection });
 export const priceDropQueueEvents = new QueueEvents("price-drop", { connection });
+export const allTimeLowQueueEvents = new QueueEvents("all-time-low", { connection });

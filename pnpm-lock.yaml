@@ -50,6 +50,9 @@ importers:
       hono:
         specifier: ^4.6.0
         version: 4.12.2
+      ioredis:
+        specifier: ^5.0.0
+        version: 5.9.3
       zod:
         specifier: ^3.24.0
         version: 3.25.76
