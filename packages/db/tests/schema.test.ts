@@ -46,6 +46,7 @@ describe("schema", () => {
       expect(columns).toContain("slug");
       expect(columns).toContain("logoUrl");
       expect(columns).toContain("baseUrl");
+      expect(columns).toContain("referralParam");
       expect(columns).toContain("createdAt");
     });
 

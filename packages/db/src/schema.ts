@@ -28,6 +28,7 @@ export const stores = pgTable("stores", {
   slug: varchar("slug", { length: 100 }).notNull().unique(),
   logoUrl: text("logo_url"),
   baseUrl: text("base_url").notNull(),
+  referralParam: text("referral_param"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

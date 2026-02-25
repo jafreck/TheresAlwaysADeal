@@ -14,9 +14,11 @@ async function seed() {
   await db
     .insert(schema.stores)
     .values([
-      { name: "Steam", slug: "steam", baseUrl: "https://store.steampowered.com" },
-      { name: "Epic Games", slug: "epic-games", baseUrl: "https://store.epicgames.com" },
-      { name: "GOG", slug: "gog", baseUrl: "https://www.gog.com" },
+      { name: "Steam", slug: "steam", baseUrl: "https://store.steampowered.com", referralParam: "partner=taad" },
+      { name: "Epic Games", slug: "epic-games", baseUrl: "https://store.epicgames.com", referralParam: "epic_creator_id=taad" },
+      { name: "GOG", slug: "gog", baseUrl: "https://www.gog.com", referralParam: "af=taad" },
+      { name: "Humble Bundle", slug: "humble-bundle", baseUrl: "https://www.humblebundle.com", referralParam: "partner=taad" },
+      { name: "Fanatical", slug: "fanatical", baseUrl: "https://www.fanatical.com", referralParam: "ref=taad" },
     ])
     .onConflictDoNothing()
     .returning();
