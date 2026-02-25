@@ -118,6 +118,7 @@ function makeRequest(
 // ─── Module imports & server startup ─────────────────────────────────────────
 let db: Awaited<typeof import("@taad/db")>["db"];
 let Worker: Awaited<typeof import("bullmq")>["Worker"];
+let startupQueueAddCalls: unknown[][] = [];
 
 beforeAll(async () => {
   // Set up DB mock for scheduleScrapers() call that runs on module load
@@ -135,8 +136,11 @@ beforeAll(async () => {
   const bullmq = await import("bullmq");
   Worker = bullmq.Worker;
 
-  // Give the server time to bind
+  // Give the server time to bind and for scheduleScrapers() to complete
   await new Promise((resolve) => setTimeout(resolve, 100));
+
+  // Capture queue.add calls made during startup before any test can clear them
+  startupQueueAddCalls = [...mockQueueAdd.mock.calls];
 });
 
 afterAll(async () => {
@@ -565,5 +569,49 @@ describe("CRON scheduling", () => {
   it("should have queried the stores table on startup", async () => {
     // db.select was called at least once during module load (scheduleScrapers)
     expect(vi.mocked(db.select)).toHaveBeenCalled();
+  });
+
+  it("should have enqueued a featured-scrape-steam job on startup", async () => {
+    // scheduleScrapers always adds a featured-scrape-steam job regardless of store count
+    const featuredCall = startupQueueAddCalls.find(([name]) => name === "featured-scrape-steam");
+    expect(featuredCall).toBeDefined();
+    expect(featuredCall![1]).toEqual({ retailerDomain: "steam" });
+    expect(featuredCall![2]).toMatchObject({ repeat: { pattern: expect.any(String) }, attempts: 3 });
+  });
+});
+
+// ─── Featured Scrape Worker tests ─────────────────────────────────────────────
+describe("featured scrape worker", () => {
+  it("should create a Worker for the 'featured-scrape' queue", () => {
+    const calls = vi.mocked(Worker).mock.calls;
+    const featuredCall = calls.find(([name]) => name === "featured-scrape");
+    expect(featuredCall).toBeDefined();
+  });
+
+  it("should have concurrency 1 for the featured-scrape worker", () => {
+    const calls = vi.mocked(Worker).mock.calls;
+    const featuredCall = calls.find(([name]) => name === "featured-scrape");
+    expect(featuredCall).toBeDefined();
+    // Third argument is options; concurrency should be 1
+    const opts = featuredCall![2] as { concurrency: number };
+    expect(opts.concurrency).toBe(1);
+  });
+
+  describe("featured-scrape worker processor", () => {
+    function getFeaturedScrapeProcessor(): (job: unknown) => Promise<void> {
+      const calls = vi.mocked(Worker).mock.calls;
+      const featuredCall = calls.find(([name]) => name === "featured-scrape");
+      if (!featuredCall) throw new Error("Featured scrape Worker was not created");
+      return featuredCall[1] as (job: unknown) => Promise<void>;
+    }
+
+    it("should throw when scraper module is not found", async () => {
+      const processor = getFeaturedScrapeProcessor();
+      const mockJob = { data: { retailerDomain: "nonexistent-retailer-xyz" } };
+
+      await expect(processor(mockJob)).rejects.toThrow(
+        "No scraper found for retailerDomain: nonexistent-retailer-xyz",
+      );
+    });
   });
 });

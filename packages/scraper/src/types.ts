@@ -102,10 +102,22 @@ export abstract class BaseScraper {
       // Upsert game by slug
       await db
         .insert(games)
-        .values({ title: game.title, slug: game.slug })
+        .values({
+          title: game.title,
+          slug: game.slug,
+          steamAppId: game.steamAppId ?? null,
+          description: game.description ?? null,
+          headerImageUrl: game.headerImageUrl ?? null,
+        })
         .onConflictDoUpdate({
           target: games.slug,
-          set: { title: game.title, updatedAt: new Date() },
+          set: {
+            title: game.title,
+            steamAppId: game.steamAppId ?? null,
+            description: game.description ?? null,
+            headerImageUrl: game.headerImageUrl ?? null,
+            updatedAt: new Date(),
+          },
         });
 
       const [dbGame] = await db

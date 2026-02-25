@@ -4,10 +4,11 @@ import { Redis } from "ioredis";
 import { eq, and, desc } from "drizzle-orm";
 import { db, games, stores, storeListings, priceHistory, storeListingStats } from "@taad/db";
 import { BaseScraper, type ScrapedGame } from "@taad/scraper";
-import { scrapeQueue, ingestQueue, priceDropQueue, allTimeLowQueue } from "./queues.js";
+import { scrapeQueue, ingestQueue, priceDropQueue, allTimeLowQueue, featuredScrapeQueue } from "./queues.js";
 
 const connection = { url: process.env.REDIS_URL! };
 const SCRAPE_CRON = process.env.SCRAPE_CRON ?? "0 */6 * * *";
+const FEATURED_SCRAPE_CRON = process.env.FEATURED_SCRAPE_CRON ?? "0 * * * *";
 const PORT = Number(process.env.PORT ?? 4000);
 
 // Dead-letter queue for scrape jobs that exhaust all retries
@@ -63,6 +64,38 @@ scrapeWorker.on("failed", async (job, err) => {
     await scrapeDlq.add("failed-scrape", { ...job.data, error: err.message });
   }
 });
+
+// ─── Featured Scrape Worker ───────────────────────────────────────────────────
+// Reuses the same scrapeWorker processor logic by forwarding to the scrape queue.
+const featuredScrapeWorker = new Worker(
+  "featured-scrape",
+  async (job) => {
+    const { retailerDomain } = job.data as { retailerDomain: string };
+    const startTime = new Date().toISOString();
+    let recordsFetched = 0;
+    let errorCount = 0;
+
+    const scraper = await loadScraper(retailerDomain);
+    const rawItems = await scraper.fetchGames();
+    const normalized: ScrapedGame[] = [];
+
+    for (const raw of rawItems) {
+      try {
+        normalized.push(scraper.normalizeGame(raw));
+      } catch {
+        errorCount++;
+      }
+    }
+
+    recordsFetched = normalized.length;
+
+    await ingestQueue.add("ingest-deals", { deals: normalized, retailerDomain });
+
+    const endTime = new Date().toISOString();
+    console.log(JSON.stringify({ storeName: retailerDomain, startTime, endTime, recordsFetched, errorCount }));
+  },
+  { connection, concurrency: 1 },
+);
 
 // ─── Stats Refresh ────────────────────────────────────────────────────────────
 async function refreshStoreListingStats(redis: Redis) {
@@ -299,6 +332,12 @@ async function scheduleScrapers() {
       { repeat: { pattern: SCRAPE_CRON }, attempts: 3 },
     );
   }
+  // Schedule hourly featured-deal scrape for Steam
+  await featuredScrapeQueue.add(
+    "featured-scrape-steam",
+    { retailerDomain: "steam" },
+    { repeat: { pattern: FEATURED_SCRAPE_CRON }, attempts: 3 },
+  );
   console.log(JSON.stringify({ event: "cron-scheduled", storeCount: allStores.length, pattern: SCRAPE_CRON }));
 }
 
@@ -360,5 +399,6 @@ process.on("SIGTERM", async () => {
   server.close();
   await scrapeWorker.close();
   await ingestWorker.close();
+  await featuredScrapeWorker.close();
   process.exit(0);
 });
