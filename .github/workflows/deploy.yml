@@ -56,13 +56,13 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Run DB migrations (production)
-        if: github.ref_name == 'main'
+        if: github.ref_name == 'main' && secrets.DATABASE_URL != ''
         run: pnpm --filter @taad/db db:migrate
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
 
       - name: Run DB migrations (staging)
-        if: github.ref_name == 'staging'
+        if: github.ref_name == 'staging' && secrets.STAGING_DATABASE_URL != ''
         run: pnpm --filter @taad/db db:migrate
         env:
           DATABASE_URL: ${{ secrets.STAGING_DATABASE_URL }}
