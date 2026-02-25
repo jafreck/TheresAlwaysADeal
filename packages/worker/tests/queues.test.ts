@@ -11,6 +11,7 @@ import { Queue, QueueEvents } from "bullmq";
 describe("queues", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.resetModules();
   });
 
   describe("Queue instances", () => {

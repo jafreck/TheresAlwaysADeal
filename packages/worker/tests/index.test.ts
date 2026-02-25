@@ -122,10 +122,15 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
+  // Mock process.exit to prevent vitest from seeing it as an unhandled error
+  const exitSpy = vi.spyOn(process, "exit").mockImplementation(() => {
+    return undefined as never;
+  });
   // Allow vitest to exit by signaling SIGTERM via process listeners
   // (not calling process.exit — just close cleanly enough for vitest)
   process.emit("SIGTERM" as NodeJS.Signals);
   await new Promise((resolve) => setTimeout(resolve, 50));
+  exitSpy.mockRestore();
 });
 
 // ─── HTTP Server tests ────────────────────────────────────────────────────────
