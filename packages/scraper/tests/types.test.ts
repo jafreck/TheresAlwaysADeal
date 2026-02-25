@@ -190,6 +190,88 @@ describe("BaseScraper", () => {
       expect((db.insert as ReturnType<typeof vi.fn>)).not.toHaveBeenCalled();
     });
 
+    it("should include saleEndsAt as a Date in priceHistory insert when provided", async () => {
+      const mockDb = db as ReturnType<typeof vi.fn> & typeof db;
+
+      const saleGame: ScrapedGame = { ...validGame, saleEndsAt: "2025-12-31T23:59:59.000Z" };
+
+      const listingInsertChain = {
+        values: vi.fn().mockReturnThis(),
+        returning: vi.fn().mockResolvedValue([{ id: 99 }]),
+      };
+      const gameInsertChain = {
+        values: vi.fn().mockReturnThis(),
+        onConflictDoUpdate: vi.fn().mockReturnThis(),
+        set: vi.fn().mockReturnThis(),
+        where: vi.fn().mockReturnThis(),
+        limit: vi.fn().mockResolvedValue([{ id: 1, slug: "test-game" }]),
+        returning: vi.fn().mockResolvedValue([{ id: 1, slug: "test-game" }]),
+      };
+
+      const selectForGame = { from: vi.fn().mockReturnThis(), where: vi.fn().mockReturnThis(), limit: vi.fn().mockResolvedValue([{ id: 1, slug: "test-game" }]) };
+      const selectForStore = { from: vi.fn().mockReturnThis(), where: vi.fn().mockReturnThis(), limit: vi.fn().mockResolvedValue([{ id: 2, slug: "steam" }]) };
+      const selectForListing = { from: vi.fn().mockReturnThis(), where: vi.fn().mockReturnThis(), limit: vi.fn().mockResolvedValue([]) };
+
+      const priceHistoryInsertChain = { values: vi.fn().mockReturnThis(), returning: vi.fn().mockResolvedValue([{}]) };
+
+      (mockDb.insert as ReturnType<typeof vi.fn>)
+        .mockReturnValueOnce(gameInsertChain)
+        .mockReturnValueOnce(listingInsertChain)
+        .mockReturnValueOnce(priceHistoryInsertChain);
+
+      (mockDb.select as ReturnType<typeof vi.fn>)
+        .mockReturnValueOnce(selectForGame)
+        .mockReturnValueOnce(selectForStore)
+        .mockReturnValueOnce(selectForListing);
+
+      const scraper = new TestScraper({ retailerDomain: "steam.com" });
+      await scraper.upsertGames([saleGame]);
+
+      const phValuesArg = priceHistoryInsertChain.values.mock.calls[0]?.[0] as { saleEndsAt?: Date } | undefined;
+      expect(phValuesArg?.saleEndsAt).toBeInstanceOf(Date);
+      expect(phValuesArg?.saleEndsAt?.toISOString()).toBe("2025-12-31T23:59:59.000Z");
+    });
+
+    it("should omit saleEndsAt from priceHistory insert when not provided", async () => {
+      const mockDb = db as ReturnType<typeof vi.fn> & typeof db;
+
+      const listingInsertChain = {
+        values: vi.fn().mockReturnThis(),
+        returning: vi.fn().mockResolvedValue([{ id: 99 }]),
+      };
+      const gameInsertChain = {
+        values: vi.fn().mockReturnThis(),
+        onConflictDoUpdate: vi.fn().mockReturnThis(),
+        set: vi.fn().mockReturnThis(),
+        where: vi.fn().mockReturnThis(),
+        limit: vi.fn().mockResolvedValue([{ id: 1, slug: "test-game" }]),
+        returning: vi.fn().mockResolvedValue([{ id: 1, slug: "test-game" }]),
+      };
+
+      const selectForGame = { from: vi.fn().mockReturnThis(), where: vi.fn().mockReturnThis(), limit: vi.fn().mockResolvedValue([{ id: 1, slug: "test-game" }]) };
+      const selectForStore = { from: vi.fn().mockReturnThis(), where: vi.fn().mockReturnThis(), limit: vi.fn().mockResolvedValue([{ id: 2, slug: "steam" }]) };
+      const selectForListing = { from: vi.fn().mockReturnThis(), where: vi.fn().mockReturnThis(), limit: vi.fn().mockResolvedValue([]) };
+
+      const priceHistoryInsertChain = { values: vi.fn().mockReturnThis(), returning: vi.fn().mockResolvedValue([{}]) };
+
+      (mockDb.insert as ReturnType<typeof vi.fn>)
+        .mockReturnValueOnce(gameInsertChain)
+        .mockReturnValueOnce(listingInsertChain)
+        .mockReturnValueOnce(priceHistoryInsertChain);
+
+      (mockDb.select as ReturnType<typeof vi.fn>)
+        .mockReturnValueOnce(selectForGame)
+        .mockReturnValueOnce(selectForStore)
+        .mockReturnValueOnce(selectForListing);
+
+      const scraper = new TestScraper({ retailerDomain: "steam.com" });
+      // validGame has no saleEndsAt
+      await scraper.upsertGames([validGame]);
+
+      const phValuesArg = priceHistoryInsertChain.values.mock.calls[0]?.[0] as { saleEndsAt?: Date } | undefined;
+      expect(phValuesArg?.saleEndsAt).toBeUndefined();
+    });
+
     it("should apply referral URL when inserting a new store listing with affiliate env var set", async () => {
       const mockDb = db as ReturnType<typeof vi.fn> & typeof db;
       const originalTag = process.env.STEAM_AFFILIATE_TAG;

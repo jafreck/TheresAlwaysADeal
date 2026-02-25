@@ -168,6 +168,7 @@ export abstract class BaseScraper {
         originalPrice: game.originalPrice != null ? String(game.originalPrice) : undefined,
         currency: game.currency,
         discount: game.discountPercent != null ? String(game.discountPercent) : undefined,
+        saleEndsAt: game.saleEndsAt != null ? new Date(game.saleEndsAt) : undefined,
       });
     }
   }

@@ -93,6 +93,7 @@ describe("schema", () => {
       expect(columns).toContain("originalPrice");
       expect(columns).toContain("currency");
       expect(columns).toContain("discount");
+      expect(columns).toContain("saleEndsAt");
       expect(columns).toContain("recordedAt");
     });
 
