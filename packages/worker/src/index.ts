@@ -1,5 +1,6 @@
 import http from "node:http";
 import { Worker, Queue } from "bullmq";
+import { Redis } from "ioredis";
 import { eq, and, desc } from "drizzle-orm";
 import { db, games, stores, storeListings, priceHistory, storeListingStats } from "@taad/db";
 import { BaseScraper, type ScrapedGame } from "@taad/scraper";
@@ -64,9 +65,7 @@ scrapeWorker.on("failed", async (job, err) => {
 });
 
 // ─── Stats Refresh ────────────────────────────────────────────────────────────
-type RedisLike = { zadd: (key: string, ...args: unknown[]) => Promise<unknown>; expire: (key: string, ttl: number) => Promise<unknown> };
-
-async function refreshStoreListingStats(redis: RedisLike) {
+async function refreshStoreListingStats(redis: Redis) {
   const allListings = await db.select({ id: storeListings.id }).from(storeListings);
 
   const scoreEntries: Array<{ storeListingId: string; dealScore: number }> = [];
@@ -142,7 +141,7 @@ async function refreshStoreListingStats(redis: RedisLike) {
 
   // Normalize deal scores to 0–100 and write to Redis sorted set
   const maxRaw = Math.max(...scoreEntries.map((e) => e.dealScore), 0);
-  const zaddArgs: unknown[] = [];
+  const zaddArgs: (number | string)[] = [];
 
   for (const { storeListingId, dealScore } of scoreEntries) {
     const normalizedScore = maxRaw > 0 ? (dealScore / maxRaw) * 100 : 0;
@@ -263,6 +262,11 @@ const ingestWorker = new Worker(
               newPrice,
               gameId: dbGame.id,
             });
+          } else {
+            await db
+              .update(storeListings)
+              .set({ isAllTimeLow: false, updatedAt: new Date() })
+              .where(eq(storeListings.id, listing.id));
           }
         }
 
@@ -273,10 +277,10 @@ const ingestWorker = new Worker(
     }
 
     // Refresh stats and update Redis deal-score cache after all deals are processed
-    type RedisClient = { zadd: (key: string, ...args: unknown[]) => Promise<unknown>; expire: (key: string, ttl: number) => Promise<unknown> };
-    const redis = await (ingestQueue as unknown as { client: Promise<RedisClient> }).client;
+    const redis = process.env.REDIS_URL ? new Redis(process.env.REDIS_URL) : null;
     if (redis) {
       await refreshStoreListingStats(redis);
+      redis.disconnect();
     }
 
     const endTime = new Date().toISOString();
