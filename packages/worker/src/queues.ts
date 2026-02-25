@@ -12,5 +12,9 @@ export const scrapeQueue = new Queue("scrape", { connection });
 /** Receives raw scraped deals and upserts them into Postgres. */
 export const ingestQueue = new Queue("ingest", { connection });
 
+/** Emits price-drop events to be consumed by the alert system. */
+export const priceDropQueue = new Queue("price-drop", { connection });
+
 export const scrapeQueueEvents = new QueueEvents("scrape", { connection });
 export const ingestQueueEvents = new QueueEvents("ingest", { connection });
+export const priceDropQueueEvents = new QueueEvents("price-drop", { connection });
