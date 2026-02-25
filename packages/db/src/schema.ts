@@ -39,6 +39,7 @@ export const storeListings = pgTable("store_listings", {
   storeUrl: text("store_url").notNull(),
   storeGameId: varchar("store_game_id", { length: 255 }),
   isActive: boolean("is_active").default(true).notNull(),
+  isAllTimeLow: boolean("is_all_time_low").default(false).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
@@ -81,6 +82,20 @@ export const priceAlerts = pgTable("price_alerts", {
   targetPrice: decimal("target_price", { precision: 10, scale: 2 }).notNull(),
   isActive: boolean("is_active").default(true).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+// ─── Store Listing Stats ──────────────────────────────────────────────────────
+export const storeListingStats = pgTable("store_listing_stats", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  storeListingId: uuid("store_listing_id").references(() => storeListings.id).notNull(),
+  allTimeLowPrice: decimal("all_time_low_price", { precision: 10, scale: 2 }),
+  allTimeLowDiscount: decimal("all_time_low_discount", { precision: 5, scale: 2 }),
+  avg30DayPrice: decimal("avg_30_day_price", { precision: 10, scale: 2 }),
+  avg90DayPrice: decimal("avg_90_day_price", { precision: 10, scale: 2 }),
+  isAllTimeLow: boolean("is_all_time_low").default(false).notNull(),
+  allTimeLowLastSeenAt: timestamp("all_time_low_last_seen_at"),
+  dealScore: decimal("deal_score", { precision: 5, scale: 2 }),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
