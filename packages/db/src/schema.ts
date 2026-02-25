@@ -54,6 +54,7 @@ export const priceHistory = pgTable("price_history", {
   originalPrice: decimal("original_price", { precision: 10, scale: 2 }),
   currency: varchar("currency", { length: 10 }).default("USD").notNull(),
   discount: decimal("discount", { precision: 5, scale: 2 }),
+  saleEndsAt: timestamp("sale_ends_at"),
   recordedAt: timestamp("recorded_at").defaultNow().notNull(),
 });
 

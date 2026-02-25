@@ -75,6 +75,20 @@ describe("gameSchema", () => {
     expect(result.success).toBe(true);
   });
 
+  it("should accept an optional saleEndsAt as an ISO datetime string", () => {
+    const result = gameSchema.safeParse({
+      ...validGame,
+      saleEndsAt: "2025-12-31T23:59:59.000Z",
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("should parse successfully when saleEndsAt is omitted", () => {
+    const { ...withoutSaleEndsAt } = validGame;
+    const result = gameSchema.safeParse(withoutSaleEndsAt);
+    expect(result.success).toBe(true);
+  });
+
   it("should require storeSlug", () => {
     const result = gameSchema.safeParse({ ...validGame, storeSlug: "" });
     expect(result.success).toBe(false);

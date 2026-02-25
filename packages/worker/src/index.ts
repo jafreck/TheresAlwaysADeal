@@ -262,6 +262,7 @@ const ingestWorker = new Worker(
             originalPrice: deal.originalPrice != null ? String(deal.originalPrice) : undefined,
             currency: deal.currency,
             discount: newDiscount != null ? String(newDiscount) : undefined,
+            saleEndsAt: deal.saleEndsAt != null ? new Date(deal.saleEndsAt) : undefined,
           });
 
           // Emit price-drop event when the new price is lower than the previous

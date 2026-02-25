@@ -15,4 +15,5 @@ export const gameSchema = z.object({
   headerImageUrl: z.string().url().optional(),
   genres: z.array(z.string()).optional(),
   steamAppId: z.number().optional(),
+  saleEndsAt: z.string().datetime().nullable().optional(),
 });
