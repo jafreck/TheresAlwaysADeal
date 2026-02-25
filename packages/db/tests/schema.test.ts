@@ -71,6 +71,7 @@ describe("schema", () => {
       expect(columns).toContain("description");
       expect(columns).toContain("isActive");
       expect(columns).toContain("isAllTimeLow");
+      expect(columns).toContain("expiresAt");
       expect(columns).toContain("createdAt");
       expect(columns).toContain("updatedAt");
     });
