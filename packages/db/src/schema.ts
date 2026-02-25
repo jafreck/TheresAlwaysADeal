@@ -42,6 +42,7 @@ export const storeListings = pgTable("store_listings", {
   description: text("description"),
   isActive: boolean("is_active").default(true).notNull(),
   isAllTimeLow: boolean("is_all_time_low").default(false).notNull(),
+  expiresAt: timestamp("expires_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
