@@ -23,18 +23,6 @@ describe('BuyButton', () => {
     expect(element.props.rel).toBe('noopener noreferrer');
   });
 
-  it('should render "Buy on " text and the storeName as children', () => {
-    const element = BuyButton({ href: 'https://gog.com', storeName: 'GOG' });
-    const children = element.props.children;
-    expect(Array.isArray(children) ? children.join('') : children).toBe('Buy on GOG');
-  });
-
-  it('should use the storeName prop in the link text', () => {
-    const element = BuyButton({ href: 'https://example.com', storeName: 'Humble Bundle' });
-    const children = element.props.children;
-    expect(Array.isArray(children) ? children.join('') : children).toBe('Buy on Humble Bundle');
-  });
-
   it('should handle different store names correctly', () => {
     const stores = ['Steam', 'GOG', 'Epic Games', 'Humble Bundle', 'Fanatical'];
     for (const storeName of stores) {
