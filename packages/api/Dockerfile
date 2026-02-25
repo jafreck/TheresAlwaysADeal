@@ -6,14 +6,14 @@ WORKDIR /repo
 RUN corepack enable && corepack prepare pnpm@9.15.0 --activate
 
 # Copy workspace manifests for dependency install caching
-COPY package.json pnpm-workspace.yaml tsconfig.json ./
+COPY package.json pnpm-workspace.yaml pnpm-lock.yaml tsconfig.json ./
 COPY packages/api/package.json packages/api/
 COPY packages/db/package.json packages/db/
 COPY packages/scraper/package.json packages/scraper/
 COPY packages/worker/package.json packages/worker/
 COPY packages/web/package.json packages/web/
 
-RUN pnpm install
+RUN pnpm install --frozen-lockfile
 
 # Copy source files for packages needed to build api
 COPY packages/api packages/api
