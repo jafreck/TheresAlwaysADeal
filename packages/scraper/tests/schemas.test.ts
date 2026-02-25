@@ -79,4 +79,19 @@ describe("gameSchema", () => {
     const result = gameSchema.safeParse({ ...validGame, storeSlug: "" });
     expect(result.success).toBe(false);
   });
+
+  it("should allow choiceIncluded to be omitted", () => {
+    const result = gameSchema.safeParse(validGame);
+    expect(result.success).toBe(true);
+  });
+
+  it("should accept choiceIncluded as true", () => {
+    const result = gameSchema.safeParse({ ...validGame, choiceIncluded: true });
+    expect(result.success).toBe(true);
+  });
+
+  it("should accept choiceIncluded as false", () => {
+    const result = gameSchema.safeParse({ ...validGame, choiceIncluded: false });
+    expect(result.success).toBe(true);
+  });
 });

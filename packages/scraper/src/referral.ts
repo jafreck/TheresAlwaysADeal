@@ -3,6 +3,7 @@ const STORE_CONFIGS: Record<string, { envVar: string; paramKey: string }> = {
   gog: { envVar: "GOG_AFFILIATE_ID", paramKey: "affiliate_id" },
   epic: { envVar: "EPIC_CREATOR_TAG", paramKey: "epic_creator_id" },
   humble: { envVar: "HUMBLE_PARTNER_ID", paramKey: "partner" },
+  "humble-bundle": { envVar: "HUMBLE_PARTNER_ID", paramKey: "partner" },
   fanatical: { envVar: "FANATICAL_REF", paramKey: "ref" },
 };
 
