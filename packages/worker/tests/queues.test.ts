@@ -40,6 +40,12 @@ describe("queues", () => {
       const allTimeLowCall = vi.mocked(Queue).mock.calls.find(([name]) => name === "all-time-low");
       expect(allTimeLowCall).toBeDefined();
     });
+
+    it("should create featuredScrapeQueue with name 'featured-scrape'", async () => {
+      await import("../src/queues.js");
+      const featuredCall = vi.mocked(Queue).mock.calls.find(([name]) => name === "featured-scrape");
+      expect(featuredCall).toBeDefined();
+    });
   });
 
   describe("QueueEvents instances", () => {
@@ -87,6 +93,11 @@ describe("queues", () => {
       const { allTimeLowQueue, allTimeLowQueueEvents } = await import("../src/queues.js");
       expect(allTimeLowQueue).toBeDefined();
       expect(allTimeLowQueueEvents).toBeDefined();
+    });
+
+    it("should export featuredScrapeQueue", async () => {
+      const { featuredScrapeQueue } = await import("../src/queues.js");
+      expect(featuredScrapeQueue).toBeDefined();
     });
   });
 });

@@ -18,6 +18,9 @@ export const priceDropQueue = new Queue("price-drop", { connection });
 /** Emits all-time-low price events to be consumed by the alert system. */
 export const allTimeLowQueue = new Queue("all-time-low", { connection });
 
+/** High-frequency queue for featured-deal scrapes (e.g. hourly Steam). */
+export const featuredScrapeQueue = new Queue("featured-scrape", { connection });
+
 export const scrapeQueueEvents = new QueueEvents("scrape", { connection });
 export const ingestQueueEvents = new QueueEvents("ingest", { connection });
 export const priceDropQueueEvents = new QueueEvents("price-drop", { connection });
