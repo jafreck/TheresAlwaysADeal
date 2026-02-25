@@ -1,0 +1,54 @@
+{
+  "projectName": "theresalwaysadeal",
+  "repository": "jafreck/TheresAlwaysADeal",
+  "repoPath": ".",
+  "baseBranch": "main",
+  "issues": {
+    "query": {
+      "state": "open",
+      "limit": 50
+    }
+  },
+  "commands": {
+    "install": "pnpm install",
+    "build": "pnpm run build",
+    "test": "pnpm run test"
+  },
+  "commits": {
+    "conventional": true,
+    "commitPerPhase": true,
+    "squashBeforePR": false
+  },
+  "pullRequest": {
+    "autoCreate": true,
+    "draft": true,
+    "labels": ["cadre-generated"],
+    "linkIssue": true
+  },
+  "options": {
+    "maxParallelIssues": 3,
+    "maxParallelAgents": 3,
+    "maxRetriesPerTask": 3,
+    "buildVerification": true,
+    "testVerification": true,
+    "perTaskBuildCheck": true,
+    "maxBuildFixRounds": 2,
+    "maxIntegrationFixRounds": 1
+  },
+  "dag": {
+    "enabled": true,
+    "verifyDepsBuild": false,
+    "autoMerge": false
+  },
+  "agent": {
+    "backend": "claude",
+    "claude": {
+      "cliCommand": "claude"
+    }
+  },
+  "github": {
+    "auth": {
+      "token": "${GITHUB_TOKEN}"
+    }
+  }
+}
