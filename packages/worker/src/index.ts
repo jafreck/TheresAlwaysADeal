@@ -1,9 +1,10 @@
 import http from "node:http";
 import { Worker, Queue } from "bullmq";
+import { Redis } from "ioredis";
 import { eq, and, desc } from "drizzle-orm";
-import { db, games, stores, storeListings, priceHistory } from "@taad/db";
+import { db, games, stores, storeListings, priceHistory, storeListingStats } from "@taad/db";
 import { BaseScraper, type ScrapedGame } from "@taad/scraper";
-import { scrapeQueue, ingestQueue, priceDropQueue } from "./queues.js";
+import { scrapeQueue, ingestQueue, priceDropQueue, allTimeLowQueue } from "./queues.js";
 
 const connection = { url: process.env.REDIS_URL! };
 const SCRAPE_CRON = process.env.SCRAPE_CRON ?? "0 */6 * * *";
@@ -62,6 +63,102 @@ scrapeWorker.on("failed", async (job, err) => {
     await scrapeDlq.add("failed-scrape", { ...job.data, error: err.message });
   }
 });
+
+// ─── Stats Refresh ────────────────────────────────────────────────────────────
+async function refreshStoreListingStats(redis: Redis) {
+  const allListings = await db.select({ id: storeListings.id }).from(storeListings);
+
+  const scoreEntries: Array<{ storeListingId: string; dealScore: number }> = [];
+
+  for (const listing of allListings) {
+    const history = await db
+      .select()
+      .from(priceHistory)
+      .where(eq(priceHistory.storeListingId, listing.id));
+
+    if (history.length === 0) continue;
+
+    // All-time low computation
+    let allTimeLowPrice = Infinity;
+    let allTimeLowDiscount: number | null = null;
+    let allTimeLowLastSeenAt: Date | null = null;
+    for (const row of history) {
+      const p = Number(row.price);
+      if (p < allTimeLowPrice) {
+        allTimeLowPrice = p;
+        allTimeLowDiscount = row.discount != null ? Number(row.discount) : null;
+        allTimeLowLastSeenAt = new Date(row.recordedAt);
+      }
+    }
+
+    // 30-day and 90-day averages
+    const now = Date.now();
+    const ms30 = 30 * 24 * 60 * 60 * 1000;
+    const ms90 = 90 * 24 * 60 * 60 * 1000;
+    const h30 = history.filter((h) => new Date(h.recordedAt).getTime() >= now - ms30);
+    const h90 = history.filter((h) => new Date(h.recordedAt).getTime() >= now - ms90);
+    const avg30 = h30.length > 0 ? h30.reduce((s, h) => s + Number(h.price), 0) / h30.length : null;
+    const avg90 = h90.length > 0 ? h90.reduce((s, h) => s + Number(h.price), 0) / h90.length : null;
+
+    // Deal score using the most-recent record
+    const latest = [...history].sort(
+      (a, b) => new Date(b.recordedAt).getTime() - new Date(a.recordedAt).getTime(),
+    )[0];
+    const discountPercent = latest.discount != null ? Number(latest.discount) : 0;
+    const originalPriceDollars =
+      latest.originalPrice != null ? Number(latest.originalPrice) : Number(latest.price);
+    const rawDealScore = discountPercent * Math.log(originalPriceDollars + 1);
+
+    const latestPrice = Number(latest.price);
+    const isAtAllTimeLow = latestPrice <= allTimeLowPrice;
+
+    scoreEntries.push({ storeListingId: listing.id, dealScore: rawDealScore });
+
+    await db
+      .insert(storeListingStats)
+      .values({
+        storeListingId: listing.id,
+        allTimeLowPrice: String(allTimeLowPrice),
+        allTimeLowDiscount: allTimeLowDiscount != null ? String(allTimeLowDiscount) : undefined,
+        avg30DayPrice: avg30 != null ? String(avg30) : undefined,
+        avg90DayPrice: avg90 != null ? String(avg90) : undefined,
+        isAllTimeLow: isAtAllTimeLow,
+        allTimeLowLastSeenAt: allTimeLowLastSeenAt ?? undefined,
+      })
+      .onConflictDoUpdate({
+        target: storeListingStats.storeListingId,
+        set: {
+          allTimeLowPrice: String(allTimeLowPrice),
+          allTimeLowDiscount: allTimeLowDiscount != null ? String(allTimeLowDiscount) : undefined,
+          avg30DayPrice: avg30 != null ? String(avg30) : undefined,
+          avg90DayPrice: avg90 != null ? String(avg90) : undefined,
+          isAllTimeLow: isAtAllTimeLow,
+          allTimeLowLastSeenAt: allTimeLowLastSeenAt ?? undefined,
+          updatedAt: new Date(),
+        },
+      });
+  }
+
+  // Normalize deal scores to 0–100 and write to Redis sorted set
+  const maxRaw = Math.max(...scoreEntries.map((e) => e.dealScore), 0);
+  const zaddArgs: (number | string)[] = [];
+
+  for (const { storeListingId, dealScore } of scoreEntries) {
+    const normalizedScore = maxRaw > 0 ? (dealScore / maxRaw) * 100 : 0;
+
+    await db
+      .update(storeListingStats)
+      .set({ dealScore: String(normalizedScore), updatedAt: new Date() })
+      .where(eq(storeListingStats.storeListingId, storeListingId));
+
+    zaddArgs.push(normalizedScore, storeListingId);
+  }
+
+  if (zaddArgs.length > 0) {
+    await redis.zadd("deal_scores", ...zaddArgs);
+    await redis.expire("deal_scores", 3600);
+  }
+}
 
 // ─── Ingest Worker ────────────────────────────────────────────────────────────
 const ingestWorker = new Worker(
@@ -143,12 +240,47 @@ const ingestWorker = new Worker(
               gameId: dbGame.id,
             });
           }
+
+          // All-time-low detection
+          const [currentStats] = await db
+            .select()
+            .from(storeListingStats)
+            .where(eq(storeListingStats.storeListingId, listing.id))
+            .limit(1);
+
+          const isNewAllTimeLow =
+            !currentStats?.allTimeLowPrice || newPrice < Number(currentStats.allTimeLowPrice);
+
+          if (isNewAllTimeLow) {
+            await db
+              .update(storeListings)
+              .set({ isAllTimeLow: true, updatedAt: new Date() })
+              .where(eq(storeListings.id, listing.id));
+
+            await allTimeLowQueue.add("PRICE_ALL_TIME_LOW", {
+              storeListingId: listing.id,
+              newPrice,
+              gameId: dbGame.id,
+            });
+          } else {
+            await db
+              .update(storeListings)
+              .set({ isAllTimeLow: false, updatedAt: new Date() })
+              .where(eq(storeListings.id, listing.id));
+          }
         }
 
         recordsFetched++;
       } catch {
         errorCount++;
       }
+    }
+
+    // Refresh stats and update Redis deal-score cache after all deals are processed
+    const redis = process.env.REDIS_URL ? new Redis(process.env.REDIS_URL) : null;
+    if (redis) {
+      await refreshStoreListingStats(redis);
+      redis.disconnect();
     }
 
     const endTime = new Date().toISOString();

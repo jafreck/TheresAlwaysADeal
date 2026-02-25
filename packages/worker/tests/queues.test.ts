@@ -34,6 +34,12 @@ describe("queues", () => {
       const priceDropCall = vi.mocked(Queue).mock.calls.find(([name]) => name === "price-drop");
       expect(priceDropCall).toBeDefined();
     });
+
+    it("should create allTimeLowQueue with name 'all-time-low'", async () => {
+      await import("../src/queues.js");
+      const allTimeLowCall = vi.mocked(Queue).mock.calls.find(([name]) => name === "all-time-low");
+      expect(allTimeLowCall).toBeDefined();
+    });
   });
 
   describe("QueueEvents instances", () => {
@@ -54,6 +60,12 @@ describe("queues", () => {
       const call = vi.mocked(QueueEvents).mock.calls.find(([name]) => name === "price-drop");
       expect(call).toBeDefined();
     });
+
+    it("should create allTimeLowQueueEvents for 'all-time-low'", async () => {
+      await import("../src/queues.js");
+      const call = vi.mocked(QueueEvents).mock.calls.find(([name]) => name === "all-time-low");
+      expect(call).toBeDefined();
+    });
   });
 
   describe("exports", () => {
@@ -69,6 +81,12 @@ describe("queues", () => {
       expect(scrapeQueueEvents).toBeDefined();
       expect(ingestQueueEvents).toBeDefined();
       expect(priceDropQueueEvents).toBeDefined();
+    });
+
+    it("should export allTimeLowQueue and allTimeLowQueueEvents", async () => {
+      const { allTimeLowQueue, allTimeLowQueueEvents } = await import("../src/queues.js");
+      expect(allTimeLowQueue).toBeDefined();
+      expect(allTimeLowQueueEvents).toBeDefined();
     });
   });
 });

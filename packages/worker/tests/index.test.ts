@@ -14,6 +14,17 @@ const mockQueueGetCompleted = vi.fn().mockResolvedValue(50);
 const mockQueueGetFailed = vi.fn().mockResolvedValue(2);
 const mockWorkerClose = vi.fn().mockResolvedValue(undefined);
 
+// ─── Redis mock ───────────────────────────────────────────────────────────────
+const mockRedisZadd = vi.fn().mockResolvedValue(1);
+const mockRedisExpire = vi.fn().mockResolvedValue(1);
+const mockRedisDisconnect = vi.fn();
+const mockRedisClient = { zadd: mockRedisZadd, expire: mockRedisExpire, disconnect: mockRedisDisconnect };
+
+vi.mock("ioredis", () => {
+  const Redis = vi.fn().mockImplementation(() => mockRedisClient);
+  return { Redis };
+});
+
 function makeMockQueueInstance() {
   return {
     add: mockQueueAdd,
@@ -21,6 +32,7 @@ function makeMockQueueInstance() {
     getActiveCount: mockQueueGetActive,
     getCompletedCount: mockQueueGetCompleted,
     getFailedCount: mockQueueGetFailed,
+    client: Promise.resolve(mockRedisClient),
   };
 }
 
@@ -47,6 +59,7 @@ vi.mock("@taad/db", () => {
     stores: { slug: "slug_col", id: "id_col" },
     storeListings: { gameId: "gameId_col", storeId: "storeId_col", id: "id_col" },
     priceHistory: { storeListingId: "sl_col", recordedAt: "ra_col" },
+    storeListingStats: { storeListingId: "sl_stats_col" },
   };
 });
 
@@ -62,12 +75,17 @@ vi.mock("@taad/scraper", () => ({
 
 // ─── Helper to build fluent DB select chain ───────────────────────────────────
 function buildSelectChain(result: unknown[]) {
-  return {
+  const chain: Record<string, unknown> & PromiseLike<unknown[]> = {
     from: vi.fn().mockReturnThis(),
     where: vi.fn().mockReturnThis(),
     orderBy: vi.fn().mockReturnThis(),
     limit: vi.fn().mockResolvedValue(result),
-  };
+    // Make the chain itself thenable so `await db.select().from(table)` resolves
+    // to the result array (used by refreshStoreListingStats which has no .limit() call).
+    then: (resolve: (v: unknown[]) => unknown, reject?: (e: unknown) => unknown) =>
+      Promise.resolve(result).then(resolve, reject),
+  } as unknown as Record<string, unknown> & PromiseLike<unknown[]>;
+  return chain;
 }
 
 // ─── HTTP helper ──────────────────────────────────────────────────────────────
@@ -377,6 +395,99 @@ describe("ingest worker processor", () => {
     const processor = getIngestProcessor();
     const mockJob = { data: { deals: [], retailerDomain: "steam" } };
     await expect(processor(mockJob)).resolves.toBeUndefined();
+  });
+
+  it("should emit PRICE_ALL_TIME_LOW when new price is lower than stored allTimeLowPrice", async () => {
+    const previousPriceRecord = { id: 13, storeListingId: 3, price: "15.99", discount: null };
+    // allTimeLowPrice is 20.00 > newPrice (9.99) → new all-time low
+    const currentStatsRecord = { storeListingId: 3, allTimeLowPrice: "20.00" };
+
+    (db.select as ReturnType<typeof vi.fn>)
+      .mockReturnValueOnce(buildSelectChain([mockGame]))
+      .mockReturnValueOnce(buildSelectChain([mockStore]))
+      .mockReturnValueOnce(buildSelectChain([mockListing]))
+      .mockReturnValueOnce(buildSelectChain([previousPriceRecord])) // latestPrice: 15.99
+      .mockReturnValueOnce(buildSelectChain([currentStatsRecord])); // allTimeLowPrice: 20.00
+
+    const insertChain = buildInsertChain([mockListing]);
+    (db.insert as ReturnType<typeof vi.fn>).mockReturnValue(insertChain);
+    (db.update as ReturnType<typeof vi.fn>).mockReturnValue(buildUpdateChain());
+    mockQueueAdd.mockClear();
+
+    const processor = getIngestProcessor();
+    const mockJob = { data: { deals: [validDeal], retailerDomain: "steam" } };
+
+    await processor(mockJob);
+
+    expect(mockQueueAdd).toHaveBeenCalledWith(
+      "PRICE_ALL_TIME_LOW",
+      expect.objectContaining({
+        storeListingId: mockListing.id,
+        newPrice: validDeal.price,
+        gameId: mockGame.id,
+      }),
+    );
+  });
+
+  it("should NOT emit PRICE_ALL_TIME_LOW when new price is not a new all-time low", async () => {
+    const previousPriceRecord = { id: 14, storeListingId: 3, price: "15.99", discount: null };
+    // allTimeLowPrice is 4.99 < newPrice (9.99) → NOT a new all-time low
+    const currentStatsRecord = { storeListingId: 3, allTimeLowPrice: "4.99" };
+
+    (db.select as ReturnType<typeof vi.fn>)
+      .mockReturnValueOnce(buildSelectChain([mockGame]))
+      .mockReturnValueOnce(buildSelectChain([mockStore]))
+      .mockReturnValueOnce(buildSelectChain([mockListing]))
+      .mockReturnValueOnce(buildSelectChain([previousPriceRecord])) // latestPrice: 15.99
+      .mockReturnValueOnce(buildSelectChain([currentStatsRecord])); // allTimeLowPrice: 4.99
+
+    const insertChain = buildInsertChain([mockListing]);
+    (db.insert as ReturnType<typeof vi.fn>).mockReturnValue(insertChain);
+    (db.update as ReturnType<typeof vi.fn>).mockReturnValue(buildUpdateChain());
+    mockQueueAdd.mockClear();
+
+    const processor = getIngestProcessor();
+    const mockJob = { data: { deals: [validDeal], retailerDomain: "steam" } };
+
+    await processor(mockJob);
+
+    const allTimeLowCalls = mockQueueAdd.mock.calls.filter(
+      ([name]: [string]) => name === "PRICE_ALL_TIME_LOW",
+    );
+    expect(allTimeLowCalls).toHaveLength(0);
+  });
+
+  it("should write to Redis sorted set 'deal_scores' with a 1-hour TTL after processing", async () => {
+    const listingForRefresh = { id: "listing-refresh-1" };
+    const priceRow = {
+      price: "9.99",
+      originalPrice: "19.99",
+      discount: "50",
+      recordedAt: new Date().toISOString(),
+    };
+
+    // Empty deals → skip deal loop; refreshStoreListingStats selects listings then history
+    (db.select as ReturnType<typeof vi.fn>)
+      .mockReturnValueOnce(buildSelectChain([listingForRefresh])) // allListings
+      .mockReturnValueOnce(buildSelectChain([priceRow])); // priceHistory for the listing
+
+    const insertChain = buildInsertChain([]);
+    (db.insert as ReturnType<typeof vi.fn>).mockReturnValue(insertChain);
+    (db.update as ReturnType<typeof vi.fn>).mockReturnValue(buildUpdateChain());
+    mockRedisZadd.mockClear();
+    mockRedisExpire.mockClear();
+
+    const processor = getIngestProcessor();
+    const mockJob = { data: { deals: [], retailerDomain: "steam" } };
+
+    await processor(mockJob);
+
+    expect(mockRedisZadd).toHaveBeenCalledWith(
+      "deal_scores",
+      expect.any(Number),
+      listingForRefresh.id,
+    );
+    expect(mockRedisExpire).toHaveBeenCalledWith("deal_scores", 3600);
   });
 });
 

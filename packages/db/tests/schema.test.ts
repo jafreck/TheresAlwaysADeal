@@ -9,6 +9,7 @@ import {
   wishlists,
   priceAlerts,
   alertNotifications,
+  storeListingStats,
 } from "../src/schema.js";
 
 describe("schema", () => {
@@ -68,6 +69,7 @@ describe("schema", () => {
       expect(columns).toContain("storeUrl");
       expect(columns).toContain("storeGameId");
       expect(columns).toContain("isActive");
+      expect(columns).toContain("isAllTimeLow");
       expect(columns).toContain("createdAt");
       expect(columns).toContain("updatedAt");
     });
@@ -174,6 +176,30 @@ describe("schema", () => {
 
     it("should have the correct table name", () => {
       expect(getTableName(alertNotifications)).toBe("alert_notifications");
+    });
+  });
+
+  describe("storeListingStats", () => {
+    it("should export the storeListingStats table", () => {
+      expect(storeListingStats).toBeDefined();
+    });
+
+    it("should have the correct table name", () => {
+      expect(getTableName(storeListingStats)).toBe("store_listing_stats");
+    });
+
+    it("should have the correct columns", () => {
+      const columns = Object.keys(storeListingStats);
+      expect(columns).toContain("id");
+      expect(columns).toContain("storeListingId");
+      expect(columns).toContain("allTimeLowPrice");
+      expect(columns).toContain("allTimeLowDiscount");
+      expect(columns).toContain("avg30DayPrice");
+      expect(columns).toContain("avg90DayPrice");
+      expect(columns).toContain("isAllTimeLow");
+      expect(columns).toContain("allTimeLowLastSeenAt");
+      expect(columns).toContain("dealScore");
+      expect(columns).toContain("updatedAt");
     });
   });
 
