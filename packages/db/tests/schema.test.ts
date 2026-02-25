@@ -29,7 +29,7 @@ describe("schema", () => {
     });
 
     it("should have the correct table name", () => {
-      expect((games as any)[Symbol.for("drizzle:Name")]).toBe("games");
+      expect(getTableName(games)).toBe("games");
     });
   });
 
@@ -49,7 +49,7 @@ describe("schema", () => {
     });
 
     it("should have the correct table name", () => {
-      expect((stores as any)[Symbol.for("drizzle:Name")]).toBe("stores");
+      expect(getTableName(stores)).toBe("stores");
     });
   });
 
@@ -71,7 +71,7 @@ describe("schema", () => {
     });
 
     it("should have the correct table name", () => {
-      expect((storeListings as any)[Symbol.for("drizzle:Name")]).toBe("store_listings");
+      expect(getTableName(storeListings)).toBe("store_listings");
     });
   });
 
@@ -92,7 +92,7 @@ describe("schema", () => {
     });
 
     it("should have the correct table name", () => {
-      expect((priceHistory as any)[Symbol.for("drizzle:Name")]).toBe("price_history");
+      expect(getTableName(priceHistory)).toBe("price_history");
     });
   });
 
@@ -113,7 +113,7 @@ describe("schema", () => {
     });
 
     it("should have the correct table name", () => {
-      expect((users as any)[Symbol.for("drizzle:Name")]).toBe("users");
+      expect(getTableName(users)).toBe("users");
     });
   });
 
@@ -131,7 +131,7 @@ describe("schema", () => {
     });
 
     it("should have the correct table name", () => {
-      expect((wishlists as any)[Symbol.for("drizzle:Name")]).toBe("wishlists");
+      expect(getTableName(wishlists)).toBe("wishlists");
     });
   });
 
@@ -152,7 +152,7 @@ describe("schema", () => {
     });
 
     it("should have the correct table name", () => {
-      expect((priceAlerts as any)[Symbol.for("drizzle:Name")]).toBe("price_alerts");
+      expect(getTableName(priceAlerts)).toBe("price_alerts");
     });
   });
 
@@ -171,7 +171,7 @@ describe("schema", () => {
     });
 
     it("should have the correct table name", () => {
-      expect((alertNotifications as any)[Symbol.for("drizzle:Name")]).toBe("alert_notifications");
+      expect(getTableName(alertNotifications)).toBe("alert_notifications");
     });
   });
 
