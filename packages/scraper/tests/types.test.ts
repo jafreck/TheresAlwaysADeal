@@ -191,10 +191,4 @@ describe("BaseScraper", () => {
     });
   });
 
-  describe("IScraper (deprecated alias)", () => {
-    it("should be a type alias for BaseScraper (runtime check via instanceof)", () => {
-      const scraper = new TestScraper({ retailerDomain: "test.com" });
-      expect(scraper).toBeInstanceOf(BaseScraper);
-    });
-  });
 });

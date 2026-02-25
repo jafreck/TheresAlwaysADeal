@@ -23,13 +23,6 @@ describe("index re-exports", () => {
     expect(BaseScraper).toBeDefined();
   });
 
-  it("should export IScraper as a type (same as BaseScraper at runtime)", () => {
-    // IScraper is a type alias; this just ensures the named export exists
-    // We verify indirectly by checking the export is the same constructor
-    expect(BaseScraper).toBeDefined();
-    // The type IScraper = BaseScraper — no separate runtime value to check
-  });
-
   it("should export gameSchema", () => {
     expect(gameSchema).toBeDefined();
   });
