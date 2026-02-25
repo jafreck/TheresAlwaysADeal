@@ -30,7 +30,7 @@ FROM node:20-alpine AS runner
 
 WORKDIR /app
 
-COPY --from=builder /app/deploy/dist ./dist
+COPY --from=builder /repo/packages/worker/dist ./dist
 COPY --from=builder /app/deploy/node_modules ./node_modules
 
 CMD ["node", "dist/index.js"]
