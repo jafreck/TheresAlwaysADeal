@@ -401,6 +401,56 @@ describe("ingest worker processor", () => {
     await expect(processor(mockJob)).resolves.toBeUndefined();
   });
 
+  it("should include saleEndsAt as a Date in priceHistory insert when deal provides it", async () => {
+    const dealWithSaleEndsAt = { ...validDeal, saleEndsAt: "2025-06-30T12:00:00.000Z" };
+
+    (db.select as ReturnType<typeof vi.fn>)
+      .mockReturnValueOnce(buildSelectChain([mockGame]))
+      .mockReturnValueOnce(buildSelectChain([mockStore]))
+      .mockReturnValueOnce(buildSelectChain([mockListing]))
+      .mockReturnValueOnce(buildSelectChain([])); // no prior price history
+
+    const priceHistoryValuesChain = { values: vi.fn().mockReturnThis(), returning: vi.fn().mockResolvedValue([{}]) };
+    const gameInsertChain = buildInsertChain([mockListing]);
+    (db.insert as ReturnType<typeof vi.fn>)
+      .mockReturnValueOnce(gameInsertChain)  // game upsert
+      .mockReturnValueOnce(priceHistoryValuesChain); // priceHistory insert
+    (db.update as ReturnType<typeof vi.fn>).mockReturnValue(buildUpdateChain());
+
+    const processor = getIngestProcessor();
+    const mockJob = { data: { deals: [dealWithSaleEndsAt], retailerDomain: "steam" } };
+
+    await processor(mockJob);
+
+    const phValuesArg = priceHistoryValuesChain.values.mock.calls[0]?.[0] as { saleEndsAt?: Date } | undefined;
+    expect(phValuesArg?.saleEndsAt).toBeInstanceOf(Date);
+    expect(phValuesArg?.saleEndsAt?.toISOString()).toBe("2025-06-30T12:00:00.000Z");
+  });
+
+  it("should omit saleEndsAt from priceHistory insert when deal does not provide it", async () => {
+    (db.select as ReturnType<typeof vi.fn>)
+      .mockReturnValueOnce(buildSelectChain([mockGame]))
+      .mockReturnValueOnce(buildSelectChain([mockStore]))
+      .mockReturnValueOnce(buildSelectChain([mockListing]))
+      .mockReturnValueOnce(buildSelectChain([])); // no prior price history
+
+    const priceHistoryValuesChain = { values: vi.fn().mockReturnThis(), returning: vi.fn().mockResolvedValue([{}]) };
+    const gameInsertChain = buildInsertChain([mockListing]);
+    (db.insert as ReturnType<typeof vi.fn>)
+      .mockReturnValueOnce(gameInsertChain)
+      .mockReturnValueOnce(priceHistoryValuesChain);
+    (db.update as ReturnType<typeof vi.fn>).mockReturnValue(buildUpdateChain());
+
+    const processor = getIngestProcessor();
+    // validDeal has no saleEndsAt
+    const mockJob = { data: { deals: [validDeal], retailerDomain: "steam" } };
+
+    await processor(mockJob);
+
+    const phValuesArg = priceHistoryValuesChain.values.mock.calls[0]?.[0] as { saleEndsAt?: Date } | undefined;
+    expect(phValuesArg?.saleEndsAt).toBeUndefined();
+  });
+
   it("should emit PRICE_ALL_TIME_LOW when new price is lower than stored allTimeLowPrice", async () => {
     const previousPriceRecord = { id: 13, storeListingId: 3, price: "15.99", discount: null };
     // allTimeLowPrice is 20.00 > newPrice (9.99) → new all-time low
