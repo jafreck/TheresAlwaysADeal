@@ -14,6 +14,11 @@ const mockQueueGetCompleted = vi.fn().mockResolvedValue(50);
 const mockQueueGetFailed = vi.fn().mockResolvedValue(2);
 const mockWorkerClose = vi.fn().mockResolvedValue(undefined);
 
+// ─── Redis mock ───────────────────────────────────────────────────────────────
+const mockRedisZadd = vi.fn().mockResolvedValue(1);
+const mockRedisExpire = vi.fn().mockResolvedValue(1);
+const mockRedisClient = { zadd: mockRedisZadd, expire: mockRedisExpire };
+
 function makeMockQueueInstance() {
   return {
     add: mockQueueAdd,
@@ -21,6 +26,7 @@ function makeMockQueueInstance() {
     getActiveCount: mockQueueGetActive,
     getCompletedCount: mockQueueGetCompleted,
     getFailedCount: mockQueueGetFailed,
+    client: Promise.resolve(mockRedisClient),
   };
 }
 
@@ -47,6 +53,7 @@ vi.mock("@taad/db", () => {
     stores: { slug: "slug_col", id: "id_col" },
     storeListings: { gameId: "gameId_col", storeId: "storeId_col", id: "id_col" },
     priceHistory: { storeListingId: "sl_col", recordedAt: "ra_col" },
+    storeListingStats: { storeListingId: "sl_stats_col" },
   };
 });
 
@@ -62,12 +69,17 @@ vi.mock("@taad/scraper", () => ({
 
 // ─── Helper to build fluent DB select chain ───────────────────────────────────
 function buildSelectChain(result: unknown[]) {
-  return {
+  const chain: Record<string, unknown> & PromiseLike<unknown[]> = {
     from: vi.fn().mockReturnThis(),
     where: vi.fn().mockReturnThis(),
     orderBy: vi.fn().mockReturnThis(),
     limit: vi.fn().mockResolvedValue(result),
-  };
+    // Make the chain itself thenable so `await db.select().from(table)` resolves
+    // to the result array (used by refreshStoreListingStats which has no .limit() call).
+    then: (resolve: (v: unknown[]) => unknown, reject?: (e: unknown) => unknown) =>
+      Promise.resolve(result).then(resolve, reject),
+  } as unknown as Record<string, unknown> & PromiseLike<unknown[]>;
+  return chain;
 }
 
 // ─── HTTP helper ──────────────────────────────────────────────────────────────
