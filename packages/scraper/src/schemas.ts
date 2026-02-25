@@ -11,4 +11,8 @@ export const gameSchema = z.object({
   storeSlug: z.string().min(1),
   storeGameId: z.string().optional(),
   choiceIncluded: z.boolean().optional(),
+  description: z.string().optional(),
+  headerImageUrl: z.string().url().optional(),
+  genres: z.array(z.string()).optional(),
+  steamAppId: z.number().optional(),
 });
