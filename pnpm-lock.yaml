@@ -198,6 +198,9 @@ importers:
       bullmq:
         specifier: ^5.0.0
         version: 5.70.1
+      drizzle-orm:
+        specifier: ^0.39.0
+        version: 0.39.3(@neondatabase/serverless@0.10.4)(@types/pg@8.11.6)(postgres@3.4.8)
       zod:
         specifier: ^3.24.0
         version: 3.25.76

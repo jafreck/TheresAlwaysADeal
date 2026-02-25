@@ -16,6 +16,7 @@
     "@taad/db": "workspace:*",
     "@taad/scraper": "workspace:*",
     "bullmq": "^5.0.0",
+    "drizzle-orm": "^0.39.0",
     "zod": "^3.24.0"
   },
   "devDependencies": {
