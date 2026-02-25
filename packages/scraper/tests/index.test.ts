@@ -15,7 +15,7 @@ vi.mock("drizzle-orm", () => ({
 }));
 
 // Verify all public exports are accessible from the package index
-import { BaseScraper, IScraper, gameSchema } from "../src/index.js";
+import { BaseScraper, IScraper, gameSchema, buildReferralUrl } from "../src/index.js";
 import type { ScrapedGame, ScraperConfig } from "../src/index.js";
 
 describe("index re-exports", () => {
@@ -47,5 +47,21 @@ describe("index re-exports", () => {
       storeSlug: "steam",
     });
     expect(result.success).toBe(true);
+  });
+
+  it("should export buildReferralUrl", () => {
+    expect(buildReferralUrl).toBeDefined();
+    expect(typeof buildReferralUrl).toBe("function");
+  });
+
+  it("should return URL unchanged from buildReferralUrl when no env var is set", () => {
+    const url = "https://store.steampowered.com/app/400";
+    const originalTag = process.env.STEAM_AFFILIATE_TAG;
+    delete process.env.STEAM_AFFILIATE_TAG;
+    try {
+      expect(buildReferralUrl(url, "steam")).toBe(url);
+    } finally {
+      if (originalTag !== undefined) process.env.STEAM_AFFILIATE_TAG = originalTag;
+    }
   });
 });

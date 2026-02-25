@@ -189,6 +189,56 @@ describe("BaseScraper", () => {
       await expect(scraper.upsertGames([])).resolves.toBeUndefined();
       expect((db.insert as ReturnType<typeof vi.fn>)).not.toHaveBeenCalled();
     });
+
+    it("should apply referral URL when inserting a new store listing with affiliate env var set", async () => {
+      const mockDb = db as ReturnType<typeof vi.fn> & typeof db;
+      const originalTag = process.env.STEAM_AFFILIATE_TAG;
+      process.env.STEAM_AFFILIATE_TAG = "testpartner";
+
+      try {
+        const listingInsertChain = {
+          values: vi.fn().mockReturnThis(),
+          returning: vi.fn().mockResolvedValue([{ id: 99 }]),
+        };
+        const gameInsertChain = {
+          values: vi.fn().mockReturnThis(),
+          onConflictDoUpdate: vi.fn().mockReturnThis(),
+          set: vi.fn().mockReturnThis(),
+          where: vi.fn().mockReturnThis(),
+          limit: vi.fn().mockResolvedValue([{ id: 1, slug: "test-game" }]),
+          returning: vi.fn().mockResolvedValue([{ id: 1, slug: "test-game" }]),
+        };
+
+        const selectForGame = { from: vi.fn().mockReturnThis(), where: vi.fn().mockReturnThis(), limit: vi.fn().mockResolvedValue([{ id: 1, slug: "test-game" }]) };
+        const selectForStore = { from: vi.fn().mockReturnThis(), where: vi.fn().mockReturnThis(), limit: vi.fn().mockResolvedValue([{ id: 2, slug: "steam" }]) };
+        const selectForListing = { from: vi.fn().mockReturnThis(), where: vi.fn().mockReturnThis(), limit: vi.fn().mockResolvedValue([]) }; // no existing listing
+
+        const priceHistoryInsertChain = { values: vi.fn().mockReturnThis(), returning: vi.fn().mockResolvedValue([{}]) };
+
+        (mockDb.insert as ReturnType<typeof vi.fn>)
+          .mockReturnValueOnce(gameInsertChain)
+          .mockReturnValueOnce(listingInsertChain)
+          .mockReturnValueOnce(priceHistoryInsertChain);
+
+        (mockDb.select as ReturnType<typeof vi.fn>)
+          .mockReturnValueOnce(selectForGame)
+          .mockReturnValueOnce(selectForStore)
+          .mockReturnValueOnce(selectForListing);
+
+        const scraper = new TestScraper({ retailerDomain: "steam.com" });
+        await scraper.upsertGames([validGame]);
+
+        // Verify that the storeUrl passed to the listing insert includes the referral param
+        const listingValuesArg = listingInsertChain.values.mock.calls[0]?.[0] as { storeUrl: string } | undefined;
+        expect(listingValuesArg?.storeUrl).toContain("partner=testpartner");
+      } finally {
+        if (originalTag !== undefined) {
+          process.env.STEAM_AFFILIATE_TAG = originalTag;
+        } else {
+          delete process.env.STEAM_AFFILIATE_TAG;
+        }
+      }
+    });
   });
 
 });

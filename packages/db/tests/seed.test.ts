@@ -118,9 +118,9 @@ describe("seed", () => {
         name: string;
         slug: string;
       }>;
-      expect(storesValuesArg).toHaveLength(3);
+      expect(storesValuesArg).toHaveLength(5);
       expect(storesValuesArg.map((s) => s.slug)).toEqual(
-        expect.arrayContaining(["steam", "epic-games", "gog"]),
+        expect.arrayContaining(["steam", "epic-games", "gog", "humble-bundle", "fanatical"]),
       );
     });
 

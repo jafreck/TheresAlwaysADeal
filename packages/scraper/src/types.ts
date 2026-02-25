@@ -2,6 +2,7 @@ import { z } from "zod";
 import { eq, and } from "drizzle-orm";
 import { db, games, stores, storeListings, priceHistory } from "@taad/db";
 import { gameSchema } from "./schemas.js";
+import { buildReferralUrl } from "./referral.js";
 
 export type ScrapedGame = z.infer<typeof gameSchema>;
 
@@ -135,14 +136,14 @@ export abstract class BaseScraper {
           .values({
             gameId: dbGame.id,
             storeId: store.id,
-            storeUrl: game.storeUrl,
+            storeUrl: buildReferralUrl(game.storeUrl, game.storeSlug),
             storeGameId: game.storeGameId,
           })
           .returning();
       } else {
         await db
           .update(storeListings)
-          .set({ storeUrl: game.storeUrl, storeGameId: game.storeGameId, updatedAt: new Date() })
+          .set({ storeUrl: buildReferralUrl(game.storeUrl, game.storeSlug), storeGameId: game.storeGameId, updatedAt: new Date() })
           .where(eq(storeListings.id, listing.id));
       }
 

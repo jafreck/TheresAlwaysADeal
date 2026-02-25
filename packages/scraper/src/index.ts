@@ -11,3 +11,4 @@
 export { BaseScraper, IScraper } from "./types.js";
 export type { ScrapedGame, ScraperConfig } from "./types.js";
 export { gameSchema } from "./schemas.js";
+export { buildReferralUrl } from "./referral.js";
