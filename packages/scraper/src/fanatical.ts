@@ -68,6 +68,9 @@ export class FanaticalScraper extends BaseScraper {
           body: JSON.stringify({ filters, hitsPerPage: 200, page }),
         })
       );
+      if (!res.ok) {
+        throw new Error(`Algolia request failed: ${res.status} ${res.statusText}`);
+      }
       const data = (await res.json()) as FanaticalAlgoliaResponse;
       hits.push(...data.hits);
       nbPages = data.nbPages;

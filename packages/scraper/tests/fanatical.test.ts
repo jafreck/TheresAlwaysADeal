@@ -175,10 +175,12 @@ describe("FanaticalScraper", () => {
 
       const mockFetch = vi.fn()
         .mockResolvedValueOnce({
+          ok: true,
           status: 200,
           json: async () => ({ hits: [onSaleHit], page: 0, nbPages: 1 }),
         })
         .mockResolvedValueOnce({
+          ok: true,
           status: 200,
           json: async () => ({ hits: [bundleHit], page: 0, nbPages: 1 }),
         });
@@ -201,11 +203,11 @@ describe("FanaticalScraper", () => {
       const mockFetch = vi.fn().mockImplementation((_url: string, init: RequestInit) => {
         const body = JSON.parse(init.body as string) as { filters: string; page: number };
         if (body.filters === "on_sale=1") {
-          if (body.page === 0) return Promise.resolve({ status: 200, json: async () => ({ hits: [page0Hit], page: 0, nbPages: 2 }) });
-          if (body.page === 1) return Promise.resolve({ status: 200, json: async () => ({ hits: [page1Hit], page: 1, nbPages: 2 }) });
+          if (body.page === 0) return Promise.resolve({ ok: true, status: 200, json: async () => ({ hits: [page0Hit], page: 0, nbPages: 2 }) });
+          if (body.page === 1) return Promise.resolve({ ok: true, status: 200, json: async () => ({ hits: [page1Hit], page: 1, nbPages: 2 }) });
         }
         // type:bundle: one page (no results)
-        return Promise.resolve({ status: 200, json: async () => ({ hits: [], page: 0, nbPages: 1 }) });
+        return Promise.resolve({ ok: true, status: 200, json: async () => ({ hits: [], page: 0, nbPages: 1 }) });
       });
 
       vi.stubGlobal("fetch", mockFetch);
@@ -222,10 +224,12 @@ describe("FanaticalScraper", () => {
 
       const mockFetch = vi.fn()
         .mockResolvedValueOnce({
+          ok: true,
           status: 200,
           json: async () => ({ hits: [sharedHit], page: 0, nbPages: 1 }),
         })
         .mockResolvedValueOnce({
+          ok: true,
           status: 200,
           json: async () => ({ hits: [sharedHit], page: 0, nbPages: 1 }),
         });
@@ -239,6 +243,7 @@ describe("FanaticalScraper", () => {
 
     it("POSTs to the correct Algolia endpoint", async () => {
       const mockFetch = vi.fn().mockResolvedValue({
+        ok: true,
         status: 200,
         json: async () => ({ hits: [], page: 0, nbPages: 1 }),
       });
