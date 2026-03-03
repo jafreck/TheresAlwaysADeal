@@ -9,6 +9,10 @@ const nextConfig: NextConfig = {
       { protocol: "https", hostname: "**.amazon.com" },
       { protocol: "https", hostname: "**.bestbuy.com" },
       { protocol: "https", hostname: "**.walmart.com" },
+      { protocol: "https", hostname: "**.steamstatic.com" },
+      { protocol: "https", hostname: "**.steampowered.com" },
+      { protocol: "https", hostname: "**.gog.com" },
+      { protocol: "https", hostname: "**.epicgames.com" },
     ],
   },
 };
