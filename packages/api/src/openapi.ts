@@ -16,9 +16,9 @@ const spec = {
         parameters: [
           { name: "page", in: "query", schema: { type: "integer", default: 1 } },
           { name: "limit", in: "query", schema: { type: "integer", default: 20, maximum: 100 } },
-          { name: "store", in: "query", schema: { type: "string" }, description: "Filter by store slug" },
+          { name: "store", in: "query", schema: { type: "string" }, description: "Comma-separated store slugs" },
           { name: "genre", in: "query", schema: { type: "string" }, description: "Comma-separated genre slugs" },
-          { name: "sort", in: "query", schema: { type: "string", enum: ["discount", "deal_score", "price", "release_date"] } },
+          { name: "sort", in: "query", schema: { type: "string", enum: ["release_date"] } },
         ],
         responses: {
           "200": { description: "Paginated list of games", content: { "application/json": { schema: { $ref: "#/components/schemas/EnvelopeResponse" } } } },

@@ -33,13 +33,24 @@ app.get("/", cacheMiddleware(300, getRedis), async (c) => {
 
   const conditions = [];
   if (store) {
-    conditions.push(
-      sql`${games.id} IN (
-        SELECT ${storeListings.gameId} FROM ${storeListings}
-        JOIN ${stores} ON ${stores.id} = ${storeListings.storeId}
-        WHERE ${stores.slug} = ${store}
-      )`,
-    );
+    const storeSlugs = store.split(",").map((s) => s.trim()).filter(Boolean);
+    if (storeSlugs.length === 1) {
+      conditions.push(
+        sql`${games.id} IN (
+          SELECT ${storeListings.gameId} FROM ${storeListings}
+          JOIN ${stores} ON ${stores.id} = ${storeListings.storeId}
+          WHERE ${stores.slug} = ${storeSlugs[0]}
+        )`,
+      );
+    } else if (storeSlugs.length > 1) {
+      conditions.push(
+        sql`${games.id} IN (
+          SELECT ${storeListings.gameId} FROM ${storeListings}
+          JOIN ${stores} ON ${stores.id} = ${storeListings.storeId}
+          WHERE ${inArray(stores.slug, storeSlugs)}
+        )`,
+      );
+    }
   }
   if (genre) {
     const genreSlugs = genre.split(",").map((s) => s.trim()).filter(Boolean);
