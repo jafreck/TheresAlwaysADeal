@@ -9,6 +9,7 @@ import { cacheMiddleware } from "./middleware/cache.js";
 import { createGamesApp } from "./routes/games.js";
 import { createDealsApp } from "./routes/deals.js";
 import { storesApp } from "./routes/stores.js";
+import { openApiApp } from "./openapi.js";
 
 const app = new Hono();
 
@@ -35,6 +36,9 @@ app.get("/api/health", (c) => c.json({ status: "ok", timestamp: new Date().toISO
 
 // Swagger UI
 app.get("/api/docs", swaggerUI({ url: "/api/docs/openapi.json" }));
+
+// OpenAPI spec
+app.route("/api/docs", openApiApp);
 
 // Versioned API router
 const v1 = new Hono();
