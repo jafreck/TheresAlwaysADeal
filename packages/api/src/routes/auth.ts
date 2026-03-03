@@ -42,6 +42,34 @@ function setRefreshCookie(c: any, token: string) {
   });
 }
 
+async function incrementBruteForce(
+  redis: RedisClient | null,
+  bruteKey: string,
+  ip: string,
+) {
+  if (redis) {
+    try {
+      const attempts = await redis.incr(bruteKey);
+      if (attempts === 1) {
+        await redis.expire(bruteKey, BRUTE_FORCE_WINDOW);
+      }
+      return;
+    } catch {
+      // Fall through to in-memory
+    }
+  }
+  const now = Date.now();
+  const entry = bruteForceMemory.get(ip);
+  if (entry && now < entry.resetAt) {
+    entry.count++;
+  } else {
+    bruteForceMemory.set(ip, {
+      count: 1,
+      resetAt: now + BRUTE_FORCE_WINDOW * 1000,
+    });
+  }
+}
+
 export function createAuthApp(getRedis: () => RedisClient | null) {
   const app = new Hono();
 
@@ -120,44 +148,25 @@ export function createAuthApp(getRedis: () => RedisClient | null) {
     const bruteKey = `brute:${ip}`;
     const redis = getRedis();
 
+    // Check current attempt count (without incrementing)
     if (redis) {
       try {
-        const attempts = await redis.incr(bruteKey);
-        if (attempts === 1) {
-          await redis.expire(bruteKey, BRUTE_FORCE_WINDOW);
-        }
-        if (attempts > BRUTE_FORCE_MAX_ATTEMPTS) {
+        const current = await redis.get(bruteKey);
+        if (current && Number(current) > BRUTE_FORCE_MAX_ATTEMPTS) {
           return c.json({ error: "Too many login attempts" }, 429);
         }
       } catch {
-        // Fall through to in-memory
         const now = Date.now();
         const entry = bruteForceMemory.get(ip);
-        if (entry && now < entry.resetAt) {
-          entry.count++;
-          if (entry.count > BRUTE_FORCE_MAX_ATTEMPTS) {
-            return c.json({ error: "Too many login attempts" }, 429);
-          }
-        } else {
-          bruteForceMemory.set(ip, {
-            count: 1,
-            resetAt: now + BRUTE_FORCE_WINDOW * 1000,
-          });
+        if (entry && now < entry.resetAt && entry.count > BRUTE_FORCE_MAX_ATTEMPTS) {
+          return c.json({ error: "Too many login attempts" }, 429);
         }
       }
     } else {
       const now = Date.now();
       const entry = bruteForceMemory.get(ip);
-      if (entry && now < entry.resetAt) {
-        entry.count++;
-        if (entry.count > BRUTE_FORCE_MAX_ATTEMPTS) {
-          return c.json({ error: "Too many login attempts" }, 429);
-        }
-      } else {
-        bruteForceMemory.set(ip, {
-          count: 1,
-          resetAt: now + BRUTE_FORCE_WINDOW * 1000,
-        });
+      if (entry && now < entry.resetAt && entry.count > BRUTE_FORCE_MAX_ATTEMPTS) {
+        return c.json({ error: "Too many login attempts" }, 429);
       }
     }
 
@@ -172,11 +181,13 @@ export function createAuthApp(getRedis: () => RedisClient | null) {
       .limit(1);
 
     if (!user || !user.passwordHash) {
+      await incrementBruteForce(redis, bruteKey, ip);
       return c.json({ error: "Invalid email or password" }, 401);
     }
 
     const valid = await verifyPassword(password, user.passwordHash);
     if (!valid) {
+      await incrementBruteForce(redis, bruteKey, ip);
       return c.json({ error: "Invalid email or password" }, 401);
     }
 
