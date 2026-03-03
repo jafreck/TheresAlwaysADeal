@@ -35,10 +35,29 @@ const spec = {
           { name: "q", in: "query", required: true, schema: { type: "string", minLength: 1 }, description: "Search query" },
           { name: "page", in: "query", schema: { type: "integer", default: 1 } },
           { name: "limit", in: "query", schema: { type: "integer", default: 20, maximum: 100 } },
+          { name: "store", in: "query", schema: { type: "string" }, description: "Comma-separated store slugs" },
+          { name: "genre", in: "query", schema: { type: "string" }, description: "Comma-separated genre slugs" },
+          { name: "min_price", in: "query", schema: { type: "number" }, description: "Minimum price filter" },
+          { name: "max_price", in: "query", schema: { type: "number" }, description: "Maximum price filter" },
+          { name: "min_discount", in: "query", schema: { type: "number" }, description: "Minimum discount percentage" },
         ],
         responses: {
           "200": { description: "Search results", content: { "application/json": { schema: { $ref: "#/components/schemas/EnvelopeResponse" } } } },
           "400": { description: "Invalid query parameters", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
+          "429": { description: "Rate limit exceeded", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
+        },
+      },
+    },
+    "/games/autocomplete": {
+      get: {
+        summary: "Autocomplete game titles",
+        tags: ["Games"],
+        parameters: [
+          { name: "q", in: "query", required: true, schema: { type: "string", minLength: 1 }, description: "Autocomplete query" },
+        ],
+        responses: {
+          "200": { description: "Autocomplete suggestions", content: { "application/json": { schema: { type: "object", properties: { data: { type: "array", items: { type: "object", properties: { id: { type: "string" }, title: { type: "string" }, slug: { type: "string" } } } } } } } } },
+          "400": { description: "Missing or empty query parameter", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
           "429": { description: "Rate limit exceeded", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
         },
       },

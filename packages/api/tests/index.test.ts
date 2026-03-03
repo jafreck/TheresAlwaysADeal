@@ -22,7 +22,7 @@ function createBuilder() {
   };
   return builder;
 }
-const mockDb = { select: vi.fn() };
+const mockDb = { select: vi.fn(), insert: vi.fn(() => ({ values: vi.fn(() => Promise.resolve()) })) };
 const stubTable = (cols: Record<string, string>) => cols;
 vi.mock("@taad/db", () => ({
   db: mockDb,
@@ -35,6 +35,7 @@ vi.mock("@taad/db", () => ({
   gameGenres: stubTable({ gameId: "gameId", genreId: "genreId" }),
   platforms: stubTable({ id: "id", name: "name", slug: "slug" }),
   gamePlatforms: stubTable({ gameId: "gameId", platformId: "platformId" }),
+  searchAnalytics: stubTable({ id: "id", query: "query", resultCount: "resultCount", searchedAt: "searchedAt" }),
 }));
 
 // Mock ioredis
@@ -211,6 +212,51 @@ describe("GET /api/v1/games/search", () => {
     const body = await res.json();
     expect(body).toHaveProperty("data");
     expect(body).toHaveProperty("meta");
+  });
+
+  it("returns 200 with filter parameters", async () => {
+    const res = await app.request("/api/v1/games/search?q=test&store=steam&genre=rpg&min_price=5&max_price=30&min_discount=25");
+    expect(res.status).toBe(200);
+
+    const body = await res.json();
+    expect(body).toHaveProperty("data");
+    expect(body).toHaveProperty("meta");
+  });
+});
+
+describe("GET /api/v1/games/autocomplete", () => {
+  beforeEach(() => {
+    mockDbResult = [];
+    mockDb.select.mockReturnValue(createBuilder());
+    mockExec.mockResolvedValue([[null, 1], [null, -1]]);
+  });
+
+  it("returns 400 when q parameter is missing", async () => {
+    const res = await app.request("/api/v1/games/autocomplete");
+    expect(res.status).toBe(400);
+
+    const body = await res.json();
+    expect(body).toHaveProperty("error");
+  });
+
+  it("returns 400 when q parameter is empty", async () => {
+    const res = await app.request("/api/v1/games/autocomplete?q=");
+    expect(res.status).toBe(400);
+
+    const body = await res.json();
+    expect(body).toHaveProperty("error");
+  });
+
+  it("returns 200 with data array when q is provided", async () => {
+    mockDbResult = [{ id: "1", title: "Portal", slug: "portal" }];
+    mockDb.select.mockReturnValue(createBuilder());
+
+    const res = await app.request("/api/v1/games/autocomplete?q=port");
+    expect(res.status).toBe(200);
+
+    const body = await res.json();
+    expect(body).toHaveProperty("data");
+    expect(Array.isArray(body.data)).toBe(true);
   });
 });
 
