@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { eq, sql, desc, and, count } from "drizzle-orm";
+import { eq, sql, desc, and, count, inArray } from "drizzle-orm";
 import type { Redis as RedisClient } from "ioredis";
 import {
   db,
@@ -31,25 +31,36 @@ export function createDealsApp(getRedis: () => RedisClient | null) {
     const conditions = [];
 
     if (store) {
-      conditions.push(eq(stores.slug, store));
+      const storeSlugs = store.split(",").map((s) => s.trim()).filter(Boolean);
+      if (storeSlugs.length === 1) {
+        conditions.push(eq(stores.slug, storeSlugs[0]!));
+      } else if (storeSlugs.length > 1) {
+        conditions.push(inArray(stores.slug, storeSlugs));
+      }
     }
     if (genre) {
-      conditions.push(
-        sql`${games.id} IN (
-          SELECT ${gameGenres.gameId} FROM ${gameGenres}
-          JOIN ${genres} ON ${genres.id} = ${gameGenres.genreId}
-          WHERE ${genres.slug} = ${genre}
-        )`,
-      );
+      const genreSlugs = genre.split(",").map((s) => s.trim()).filter(Boolean);
+      if (genreSlugs.length > 0) {
+        conditions.push(
+          sql`${games.id} IN (
+            SELECT ${gameGenres.gameId} FROM ${gameGenres}
+            JOIN ${genres} ON ${genres.id} = ${gameGenres.genreId}
+            WHERE ${inArray(genres.slug, genreSlugs)}
+          )`,
+        );
+      }
     }
     if (platform) {
-      conditions.push(
-        sql`${games.id} IN (
-          SELECT ${gamePlatforms.gameId} FROM ${gamePlatforms}
-          JOIN ${platforms} ON ${platforms.id} = ${gamePlatforms.platformId}
-          WHERE ${platforms.slug} = ${platform}
-        )`,
-      );
+      const platformSlugs = platform.split(",").map((s) => s.trim()).filter(Boolean);
+      if (platformSlugs.length > 0) {
+        conditions.push(
+          sql`${games.id} IN (
+            SELECT ${gamePlatforms.gameId} FROM ${gamePlatforms}
+            JOIN ${platforms} ON ${platforms.id} = ${gamePlatforms.platformId}
+            WHERE ${inArray(platforms.slug, platformSlugs)}
+          )`,
+        );
+      }
     }
     if (min_discount !== undefined) {
       conditions.push(sql`${priceHistory.discount} >= ${min_discount}`);
@@ -209,6 +220,8 @@ export function createDealsApp(getRedis: () => RedisClient | null) {
         storeName: stores.name,
         storeSlug: stores.slug,
         storeUrl: storeListings.storeUrl,
+        currentPrice: priceHistory.price,
+        originalPrice: priceHistory.originalPrice,
         allTimeLowPrice: storeListingStats.allTimeLowPrice,
         dealScore: storeListingStats.dealScore,
       })
@@ -216,6 +229,14 @@ export function createDealsApp(getRedis: () => RedisClient | null) {
       .innerJoin(games, eq(games.id, storeListings.gameId))
       .innerJoin(stores, eq(stores.id, storeListings.storeId))
       .innerJoin(storeListingStats, eq(storeListingStats.storeListingId, storeListings.id))
+      .innerJoin(
+        priceHistory,
+        sql`${priceHistory.storeListingId} = ${storeListings.id}
+            AND ${priceHistory.recordedAt} = (
+              SELECT MAX(ph2.recorded_at) FROM price_history ph2
+              WHERE ph2.store_listing_id = ${storeListings.id}
+            )`,
+      )
       .where(atlCondition)
       .orderBy(desc(storeListingStats.dealScore))
       .limit(limit)
