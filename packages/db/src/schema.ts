@@ -5,6 +5,7 @@ import {
   pgTable,
   text,
   timestamp,
+  unique,
   uuid,
   varchar,
 } from "drizzle-orm/pg-core";
@@ -102,6 +103,40 @@ export const storeListingStats = pgTable("store_listing_stats", {
   dealScore: decimal("deal_score", { precision: 5, scale: 2 }),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
+
+// ─── Genres ───────────────────────────────────────────────────────────────────
+export const genres = pgTable("genres", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  name: varchar("name", { length: 100 }).notNull(),
+  slug: varchar("slug", { length: 100 }).notNull().unique(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// ─── Platforms ────────────────────────────────────────────────────────────────
+export const platforms = pgTable("platforms", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  name: varchar("name", { length: 100 }).notNull(),
+  slug: varchar("slug", { length: 100 }).notNull().unique(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// ─── Game Genres (join table) ─────────────────────────────────────────────────
+export const gameGenres = pgTable("game_genres", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  gameId: uuid("game_id").references(() => games.id).notNull(),
+  genreId: uuid("genre_id").references(() => genres.id).notNull(),
+}, (t) => [
+  unique().on(t.gameId, t.genreId),
+]);
+
+// ─── Game Platforms (join table) ──────────────────────────────────────────────
+export const gamePlatforms = pgTable("game_platforms", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  gameId: uuid("game_id").references(() => games.id).notNull(),
+  platformId: uuid("platform_id").references(() => platforms.id).notNull(),
+}, (t) => [
+  unique().on(t.gameId, t.platformId),
+]);
 
 // ─── Alert Notifications ──────────────────────────────────────────────────────
 export const alertNotifications = pgTable("alert_notifications", {

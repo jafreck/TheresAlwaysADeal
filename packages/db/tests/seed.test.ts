@@ -30,14 +30,34 @@ const mockGames = [
   { id: "g5", slug: "hollow-knight", steamAppId: 367520 },
 ];
 
+const mockGenres = [
+  { id: "gen1", slug: "rpg", name: "RPG" },
+  { id: "gen2", slug: "action", name: "Action" },
+  { id: "gen3", slug: "adventure", name: "Adventure" },
+  { id: "gen4", slug: "roguelike", name: "Roguelike" },
+  { id: "gen5", slug: "metroidvania", name: "Metroidvania" },
+  { id: "gen6", slug: "co-op", name: "Co-op" },
+];
+
+const mockPlatforms = [
+  { id: "plat1", slug: "pc", name: "PC" },
+  { id: "plat2", slug: "playstation", name: "PlayStation" },
+  { id: "plat3", slug: "xbox", name: "Xbox" },
+  { id: "plat4", slug: "nintendo-switch", name: "Nintendo Switch" },
+];
+
 const mockStoresFindMany = vi.fn().mockResolvedValue(mockStores);
 const mockGamesFindMany = vi.fn().mockResolvedValue(mockGames);
+const mockGenresFindMany = vi.fn().mockResolvedValue(mockGenres);
+const mockPlatformsFindMany = vi.fn().mockResolvedValue(mockPlatforms);
 
 const mockDb = {
   insert: mockInsert,
   query: {
     stores: { findMany: mockStoresFindMany },
     games: { findMany: mockGamesFindMany },
+    genres: { findMany: mockGenresFindMany },
+    platforms: { findMany: mockPlatformsFindMany },
   },
 };
 
@@ -58,6 +78,8 @@ describe("seed", () => {
     mockInsert.mockReturnValue({ values: mockValues });
     mockStoresFindMany.mockResolvedValue(mockStores);
     mockGamesFindMany.mockResolvedValue(mockGames);
+    mockGenresFindMany.mockResolvedValue(mockGenres);
+    mockPlatformsFindMany.mockResolvedValue(mockPlatforms);
     mockEnd.mockResolvedValue(undefined);
 
     if (originalEnv === undefined) {
@@ -164,8 +186,8 @@ describe("seed", () => {
       await vi.waitFor(() => expect(mockEnd).toHaveBeenCalled(), {
         timeout: 5000,
       });
-      // All 3 inserts use onConflictDoNothing
-      expect(mockOnConflictDoNothing).toHaveBeenCalledTimes(3);
+      // 7 inserts: stores, games, storeListings, genres, platforms, gameGenres, gamePlatforms
+      expect(mockOnConflictDoNothing).toHaveBeenCalledTimes(7);
     });
 
     it("should query stores after inserting to get IDs", async () => {
@@ -182,6 +204,86 @@ describe("seed", () => {
         timeout: 5000,
       });
       expect(mockGamesFindMany).toHaveBeenCalledTimes(1);
+    });
+
+    it("should insert genres", async () => {
+      await import("../src/seed.js");
+      await vi.waitFor(() => expect(mockEnd).toHaveBeenCalled(), {
+        timeout: 5000,
+      });
+      // Fourth insert call is for genres
+      const genresValuesArg = mockValues.mock.calls[3][0] as Array<{
+        name: string;
+        slug: string;
+      }>;
+      expect(genresValuesArg).toHaveLength(6);
+      expect(genresValuesArg.map((g) => g.slug)).toEqual(
+        expect.arrayContaining(["rpg", "action", "adventure", "roguelike", "metroidvania", "co-op"]),
+      );
+    });
+
+    it("should insert platforms", async () => {
+      await import("../src/seed.js");
+      await vi.waitFor(() => expect(mockEnd).toHaveBeenCalled(), {
+        timeout: 5000,
+      });
+      // Fifth insert call is for platforms
+      const platformsValuesArg = mockValues.mock.calls[4][0] as Array<{
+        name: string;
+        slug: string;
+      }>;
+      expect(platformsValuesArg).toHaveLength(4);
+      expect(platformsValuesArg.map((p) => p.slug)).toEqual(
+        expect.arrayContaining(["pc", "playstation", "xbox", "nintendo-switch"]),
+      );
+    });
+
+    it("should query genres after inserting to get IDs", async () => {
+      await import("../src/seed.js");
+      await vi.waitFor(() => expect(mockEnd).toHaveBeenCalled(), {
+        timeout: 5000,
+      });
+      expect(mockGenresFindMany).toHaveBeenCalledTimes(1);
+    });
+
+    it("should query platforms after inserting to get IDs", async () => {
+      await import("../src/seed.js");
+      await vi.waitFor(() => expect(mockEnd).toHaveBeenCalled(), {
+        timeout: 5000,
+      });
+      expect(mockPlatformsFindMany).toHaveBeenCalledTimes(1);
+    });
+
+    it("should insert game-genre associations", async () => {
+      await import("../src/seed.js");
+      await vi.waitFor(() => expect(mockEnd).toHaveBeenCalled(), {
+        timeout: 5000,
+      });
+      // Sixth insert call is for gameGenres
+      const gameGenresArg = mockValues.mock.calls[5][0] as Array<{
+        gameId: string;
+        genreId: string;
+      }>;
+      // 2 per game × 5 games = 10 associations
+      expect(gameGenresArg).toHaveLength(10);
+      expect(gameGenresArg[0]).toHaveProperty("gameId");
+      expect(gameGenresArg[0]).toHaveProperty("genreId");
+    });
+
+    it("should insert game-platform associations", async () => {
+      await import("../src/seed.js");
+      await vi.waitFor(() => expect(mockEnd).toHaveBeenCalled(), {
+        timeout: 5000,
+      });
+      // Seventh insert call is for gamePlatforms
+      const gamePlatformsArg = mockValues.mock.calls[6][0] as Array<{
+        gameId: string;
+        platformId: string;
+      }>;
+      // 18 associations total based on seed data
+      expect(gamePlatformsArg).toHaveLength(18);
+      expect(gamePlatformsArg[0]).toHaveProperty("gameId");
+      expect(gamePlatformsArg[0]).toHaveProperty("platformId");
     });
 
     it("should log error and exit with code 1 when seed fails", async () => {

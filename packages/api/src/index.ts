@@ -2,9 +2,14 @@ import { serve } from "@hono/node-server";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { logger } from "hono/logger";
-import { desc, eq } from "drizzle-orm";
+import { swaggerUI } from "@hono/swagger-ui";
 import { Redis, type Redis as RedisClient } from "ioredis";
-import { db, storeListingStats } from "@taad/db";
+import { rateLimiter } from "./middleware/rate-limit.js";
+import { cacheMiddleware } from "./middleware/cache.js";
+import { createGamesApp } from "./routes/games.js";
+import { createDealsApp } from "./routes/deals.js";
+import { storesApp } from "./routes/stores.js";
+import { openApiApp } from "./openapi.js";
 
 const app = new Hono();
 
@@ -26,61 +31,35 @@ function getRedis(): RedisClient | null {
   return _redis;
 }
 
-// Health check
-app.get("/health", (c) => c.json({ status: "ok", timestamp: new Date().toISOString() }));
+// Health check (outside versioned router)
+app.get("/api/health", (c) => c.json({ status: "ok", timestamp: new Date().toISOString() }));
 
-// GET /deals/rankings — returns deal score rankings (Redis → DB fallback)
-app.get("/deals/rankings", async (c) => {
-  const limit = Number(c.req.query("limit") ?? 20);
-  const offset = Number(c.req.query("offset") ?? 0);
+// Swagger UI
+app.get("/api/docs", swaggerUI({ url: "/api/docs/openapi.json" }));
 
-  const redis = getRedis();
-  if (redis) {
-    const results = await redis.zrevrangebyscore(
-      "deal_scores",
-      "+inf",
-      "-inf",
-      "WITHSCORES",
-      "LIMIT",
-      offset,
-      limit,
-    );
-    if (results.length > 0) {
-      const rankings: { storeListingId: string; dealScore: number }[] = [];
-      for (let i = 0; i < results.length; i += 2) {
-        rankings.push({ storeListingId: results[i]!, dealScore: Number(results[i + 1]) });
-      }
-      return c.json(rankings);
-    }
-  }
+// OpenAPI spec
+app.route("/api/docs", openApiApp);
 
-  // Cache miss — fall back to DB
-  const rows = await db
-    .select({ storeListingId: storeListingStats.storeListingId, dealScore: storeListingStats.dealScore })
-    .from(storeListingStats)
-    .orderBy(desc(storeListingStats.dealScore))
-    .limit(limit)
-    .offset(offset);
+// Versioned API router
+const v1 = new Hono();
 
-  return c.json(rows.map((r) => ({ storeListingId: r.storeListingId, dealScore: Number(r.dealScore ?? 0) })));
-});
+// Apply rate limiting to all v1 routes
+v1.use("*", rateLimiter(getRedis));
 
-// GET /deals/:storeListingId/stats — returns full storeListingStats row
-app.get("/deals/:storeListingId/stats", async (c) => {
-  const { storeListingId } = c.req.param();
+// Mount games routes (caching applied per-route within createGamesApp)
+v1.route("/games", createGamesApp(getRedis));
 
-  const [stats] = await db
-    .select()
-    .from(storeListingStats)
-    .where(eq(storeListingStats.storeListingId, storeListingId))
-    .limit(1);
+// Mount deals routes with 5 min cache
+const dealsRouter = new Hono();
+dealsRouter.use("*", cacheMiddleware(300, getRedis));
+dealsRouter.route("/", createDealsApp(getRedis));
+v1.route("/deals", dealsRouter);
 
-  if (!stats) {
-    return c.json({ error: "Not found" }, 404);
-  }
+// Mount stores routes
+v1.route("/stores", storesApp);
 
-  return c.json(stats);
-});
+// Mount versioned router
+app.route("/api/v1", v1);
 
 export { app };
 
