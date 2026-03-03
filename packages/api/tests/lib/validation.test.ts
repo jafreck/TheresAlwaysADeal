@@ -7,6 +7,7 @@ import {
   commonQuerySchema,
   dealsQuerySchema,
   searchQuerySchema,
+  autocompleteQuerySchema,
   priceHistoryQuerySchema,
 } from "../../src/lib/validation.js";
 
@@ -199,6 +200,110 @@ describe("searchQuerySchema", () => {
 
   it("should inherit pagination validation (reject negative page)", () => {
     expect(() => searchQuerySchema.parse({ q: "test", page: -1 })).toThrow();
+  });
+
+  it("should parse optional store filter", () => {
+    const result = searchQuerySchema.parse({ q: "witcher", store: "steam" });
+    expect(result.store).toBe("steam");
+  });
+
+  it("should parse optional genre filter", () => {
+    const result = searchQuerySchema.parse({ q: "witcher", genre: "rpg" });
+    expect(result.genre).toBe("rpg");
+  });
+
+  it("should parse optional min_discount as a number", () => {
+    const result = searchQuerySchema.parse({ q: "witcher", min_discount: "25" });
+    expect(result.min_discount).toBe(25);
+  });
+
+  it("should parse optional max_price as a number", () => {
+    const result = searchQuerySchema.parse({ q: "witcher", max_price: "9.99" });
+    expect(result.max_price).toBe(9.99);
+  });
+
+  it("should leave filter fields undefined when omitted", () => {
+    const result = searchQuerySchema.parse({ q: "witcher" });
+    expect(result.store).toBeUndefined();
+    expect(result.genre).toBeUndefined();
+    expect(result.min_discount).toBeUndefined();
+    expect(result.max_price).toBeUndefined();
+  });
+
+  it("should parse all filter fields together", () => {
+    const result = searchQuerySchema.parse({
+      q: "witcher",
+      page: "2",
+      limit: "10",
+      store: "steam",
+      genre: "rpg",
+      min_discount: "25",
+      max_price: "15.99",
+    });
+    expect(result).toEqual({
+      q: "witcher",
+      page: 2,
+      limit: 10,
+      store: "steam",
+      genre: "rpg",
+      min_discount: 25,
+      max_price: 15.99,
+    });
+  });
+
+  it("should inherit pagination validation (reject limit > 100)", () => {
+    expect(() => searchQuerySchema.parse({ q: "test", limit: 101 })).toThrow();
+  });
+});
+
+describe("autocompleteQuerySchema", () => {
+  it("should parse q with default limit", () => {
+    const result = autocompleteQuerySchema.parse({ q: "witc" });
+    expect(result).toEqual({ q: "witc", limit: 5 });
+  });
+
+  it("should reject missing q parameter", () => {
+    expect(() => autocompleteQuerySchema.parse({})).toThrow();
+  });
+
+  it("should reject empty q parameter", () => {
+    expect(() => autocompleteQuerySchema.parse({ q: "" })).toThrow();
+  });
+
+  it("should accept custom limit", () => {
+    const result = autocompleteQuerySchema.parse({ q: "test", limit: "3" });
+    expect(result.limit).toBe(3);
+  });
+
+  it("should reject limit greater than 10", () => {
+    expect(() => autocompleteQuerySchema.parse({ q: "test", limit: 11 })).toThrow();
+  });
+
+  it("should reject non-positive limit", () => {
+    expect(() => autocompleteQuerySchema.parse({ q: "test", limit: 0 })).toThrow();
+  });
+
+  it("should reject non-integer limit", () => {
+    expect(() => autocompleteQuerySchema.parse({ q: "test", limit: 2.5 })).toThrow();
+  });
+
+  it("should accept limit of exactly 10", () => {
+    const result = autocompleteQuerySchema.parse({ q: "test", limit: 10 });
+    expect(result.limit).toBe(10);
+  });
+
+  it("should accept limit of exactly 1", () => {
+    const result = autocompleteQuerySchema.parse({ q: "test", limit: 1 });
+    expect(result.limit).toBe(1);
+  });
+
+  it("should coerce string limit to number", () => {
+    const result = autocompleteQuerySchema.parse({ q: "test", limit: "7" });
+    expect(result.limit).toBe(7);
+  });
+
+  it("should reject negative limit", () => {
+    expect(() => autocompleteQuerySchema.parse({ q: "test", limit: -1 })).toThrow();
   });
 });
 

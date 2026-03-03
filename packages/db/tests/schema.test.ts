@@ -14,6 +14,7 @@ import {
   platforms,
   gameGenres,
   gamePlatforms,
+  searchAnalytics,
 } from "../src/schema.js";
 
 describe("schema", () => {
@@ -32,6 +33,7 @@ describe("schema", () => {
       expect(columns).toContain("steamAppId");
       expect(columns).toContain("createdAt");
       expect(columns).toContain("updatedAt");
+      expect(columns).toContain("searchVector");
     });
 
     it("should have the correct table name", () => {
@@ -299,6 +301,43 @@ describe("schema", () => {
     it("should not export dealStatusEnum", async () => {
       const schema = await import("../src/schema.js");
       expect((schema as any).dealStatusEnum).toBeUndefined();
+    });
+  });
+
+  describe("searchAnalytics", () => {
+    it("should export the searchAnalytics table", () => {
+      expect(searchAnalytics).toBeDefined();
+    });
+
+    it("should have the correct table name", () => {
+      expect(getTableName(searchAnalytics)).toBe("search_analytics");
+    });
+
+    it("should have the correct columns", () => {
+      const columns = Object.keys(searchAnalytics);
+      expect(columns).toContain("id");
+      expect(columns).toContain("query");
+      expect(columns).toContain("resultCount");
+      expect(columns).toContain("searchedAt");
+    });
+
+    it("should not export removed tables", async () => {
+      const schema = await import("../src/schema.js");
+      expect((schema as any).searchLogs).toBeUndefined();
+    });
+  });
+
+  describe("games searchVector column", () => {
+    it("should include searchVector in games columns", () => {
+      const columns = Object.keys(games);
+      expect(columns).toContain("searchVector");
+    });
+
+    it("should have searchVector alongside all other games columns", () => {
+      const columns = Object.keys(games);
+      expect(columns).toContain("searchVector");
+      expect(columns).toContain("title");
+      expect(columns).toContain("slug");
     });
   });
 });
