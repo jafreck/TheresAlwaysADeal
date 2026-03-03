@@ -336,6 +336,22 @@ describe("GET /api/v1/stores", () => {
   });
 });
 
+describe("GET /api/docs/openapi.json", () => {
+  beforeEach(() => {
+    mockExec.mockResolvedValue([[null, 1], [null, -1]]);
+  });
+
+  it("returns 200 with OpenAPI spec", async () => {
+    const res = await app.request("/api/docs/openapi.json");
+    expect(res.status).toBe(200);
+
+    const body = await res.json();
+    expect(body.openapi).toBe("3.0.3");
+    expect(body.info.title).toBe("TheresAlwaysADeal API");
+    expect(body.paths).toBeDefined();
+  });
+});
+
 describe("GET /api/v1/stores", () => {
   beforeEach(() => {
     mockDbResult = [];
