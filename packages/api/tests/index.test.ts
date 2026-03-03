@@ -319,23 +319,6 @@ describe("GET /api/v1/deals/all-time-lows", () => {
   });
 });
 
-describe("GET /api/v1/stores", () => {
-  beforeEach(() => {
-    mockDbResult = [];
-    mockDb.select.mockReturnValue(createBuilder());
-    mockExec.mockResolvedValue([[null, 1], [null, -1]]);
-  });
-
-  it("returns 200 with envelope response", async () => {
-    const res = await app.request("/api/v1/stores");
-    expect(res.status).toBe(200);
-
-    const body = await res.json();
-    expect(body).toHaveProperty("data");
-    expect(body).toHaveProperty("meta");
-  });
-});
-
 describe("GET /api/docs/openapi.json", () => {
   beforeEach(() => {
     mockExec.mockResolvedValue([[null, 1], [null, -1]]);

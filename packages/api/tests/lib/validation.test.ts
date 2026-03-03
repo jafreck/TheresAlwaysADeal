@@ -71,9 +71,15 @@ describe("sortSchema", () => {
   });
 
   it("should accept valid sort values", () => {
-    for (const val of ["discount", "deal_score", "price", "release_date"]) {
+    for (const val of ["release_date"]) {
       const result = sortSchema.parse({ sort: val });
       expect(result.sort).toBe(val);
+    }
+  });
+
+  it("should reject removed sort values", () => {
+    for (const val of ["discount", "deal_score", "price"]) {
+      expect(() => sortSchema.parse({ sort: val })).toThrow();
     }
   });
 
@@ -100,14 +106,14 @@ describe("commonQuerySchema", () => {
       limit: "10",
       store: "steam",
       genre: "rpg",
-      sort: "price",
+      sort: "release_date",
     });
     expect(result).toEqual({
       page: 2,
       limit: 10,
       store: "steam",
       genre: "rpg",
-      sort: "price",
+      sort: "release_date",
     });
   });
 });

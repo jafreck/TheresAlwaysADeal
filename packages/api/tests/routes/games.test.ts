@@ -144,9 +144,19 @@ describe("GET / (games list)", () => {
     mockDb.select.mockReturnValue(createBuilder());
     mockDbResult = [{ total: 0 }];
 
-    for (const sort of ["discount", "deal_score", "price", "release_date"]) {
+    for (const sort of ["release_date"]) {
       const res = await app.request(`/?sort=${sort}`);
       expect(res.status).toBe(200);
+    }
+  });
+
+  it("should reject removed sort values (price, discount, deal_score)", async () => {
+    mockDb.select.mockReturnValue(createBuilder());
+    mockDbResult = [{ total: 0 }];
+
+    for (const sort of ["discount", "deal_score", "price"]) {
+      const res = await app.request(`/?sort=${sort}`);
+      expect(res.status).toBe(400);
     }
   });
 

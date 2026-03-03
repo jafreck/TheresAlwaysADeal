@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { eq, ilike, sql, desc, asc, and, count, inArray } from "drizzle-orm";
+import { eq, ilike, sql, desc, and, count, inArray } from "drizzle-orm";
 import type { Redis as RedisClient } from "ioredis";
 import {
   db,
@@ -60,13 +60,6 @@ app.get("/", cacheMiddleware(300, getRedis), async (c) => {
   switch (sort) {
     case "release_date":
       orderBy = desc(games.createdAt);
-      break;
-    case "price":
-      orderBy = asc(games.title);
-      break;
-    case "discount":
-    case "deal_score":
-      orderBy = desc(games.updatedAt);
       break;
     default:
       orderBy = desc(games.createdAt);

@@ -14,7 +14,7 @@ export const genreFilterSchema = z.object({
 });
 
 export const sortSchema = z.object({
-  sort: z.enum(["discount", "deal_score", "price", "release_date"]).optional(),
+  sort: z.enum(["release_date"]).optional(),
 });
 
 export const commonQuerySchema = paginationSchema
