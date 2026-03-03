@@ -457,6 +457,17 @@ describe("GET /rankings", () => {
     expect(res.status).toBe(200);
     expect(mockDb.select).toHaveBeenCalled();
   });
+
+  it("should handle dealScore with null gracefully", async () => {
+    const statsRow = { storeListingId: "sl1", dealScore: null };
+    mockDbResult = [statsRow];
+
+    const res = await app.request("/rankings");
+    expect(res.status).toBe(200);
+
+    const body = await res.json();
+    expect(body).toEqual([{ storeListingId: "sl1", dealScore: 0 }]);
+  });
 });
 
 describe("GET /:storeListingId/stats", () => {

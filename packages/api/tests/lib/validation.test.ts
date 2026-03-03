@@ -5,6 +5,9 @@ import {
   genreFilterSchema,
   sortSchema,
   commonQuerySchema,
+  dealsQuerySchema,
+  searchQuerySchema,
+  priceHistoryQuerySchema,
 } from "../../src/lib/validation.js";
 
 describe("paginationSchema", () => {
@@ -115,5 +118,98 @@ describe("commonQuerySchema", () => {
       genre: "rpg",
       sort: "release_date",
     });
+  });
+});
+
+describe("dealsQuerySchema", () => {
+  it("should use defaults when no values provided", () => {
+    const result = dealsQuerySchema.parse({});
+    expect(result).toEqual({
+      page: 1,
+      limit: 20,
+      store: undefined,
+      genre: undefined,
+      sort: undefined,
+      min_discount: undefined,
+      max_price: undefined,
+      platform: undefined,
+    });
+  });
+
+  it("should parse min_discount as a number", () => {
+    const result = dealsQuerySchema.parse({ min_discount: "50" });
+    expect(result.min_discount).toBe(50);
+  });
+
+  it("should parse max_price as a number", () => {
+    const result = dealsQuerySchema.parse({ max_price: "9.99" });
+    expect(result.max_price).toBe(9.99);
+  });
+
+  it("should accept platform as optional string", () => {
+    const result = dealsQuerySchema.parse({ platform: "pc" });
+    expect(result.platform).toBe("pc");
+  });
+
+  it("should parse all deals-specific fields together", () => {
+    const result = dealsQuerySchema.parse({
+      page: "2",
+      limit: "10",
+      store: "steam",
+      genre: "rpg",
+      platform: "pc",
+      min_discount: "25",
+      max_price: "15",
+    });
+    expect(result).toEqual({
+      page: 2,
+      limit: 10,
+      store: "steam",
+      genre: "rpg",
+      sort: undefined,
+      platform: "pc",
+      min_discount: 25,
+      max_price: 15,
+    });
+  });
+
+  it("should inherit pagination validation (reject limit > 100)", () => {
+    expect(() => dealsQuerySchema.parse({ limit: 101 })).toThrow();
+  });
+});
+
+describe("searchQuerySchema", () => {
+  it("should parse q with pagination defaults", () => {
+    const result = searchQuerySchema.parse({ q: "witcher" });
+    expect(result).toEqual({ q: "witcher", page: 1, limit: 20 });
+  });
+
+  it("should reject missing q parameter", () => {
+    expect(() => searchQuerySchema.parse({})).toThrow();
+  });
+
+  it("should reject empty q parameter", () => {
+    expect(() => searchQuerySchema.parse({ q: "" })).toThrow();
+  });
+
+  it("should accept pagination with q", () => {
+    const result = searchQuerySchema.parse({ q: "test", page: "3", limit: "10" });
+    expect(result).toEqual({ q: "test", page: 3, limit: 10 });
+  });
+
+  it("should inherit pagination validation (reject negative page)", () => {
+    expect(() => searchQuerySchema.parse({ q: "test", page: -1 })).toThrow();
+  });
+});
+
+describe("priceHistoryQuerySchema", () => {
+  it("should accept empty object", () => {
+    const result = priceHistoryQuerySchema.parse({});
+    expect(result).toEqual({ store: undefined });
+  });
+
+  it("should accept optional store parameter", () => {
+    const result = priceHistoryQuerySchema.parse({ store: "steam" });
+    expect(result.store).toBe("steam");
   });
 });
