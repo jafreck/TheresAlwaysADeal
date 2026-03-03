@@ -243,3 +243,37 @@ describe("GET /api/v1/games/:slug/price-history", () => {
     expect(body).toEqual({ error: "Not found" });
   });
 });
+
+describe("GET /api/v1/stores", () => {
+  beforeEach(() => {
+    mockDbResult = [];
+    mockDb.select.mockReturnValue(createBuilder());
+    mockExec.mockResolvedValue([[null, 1], [null, -1]]);
+  });
+
+  it("returns 200 with stores in envelope format", async () => {
+    const storeRow = { id: "s1", name: "Steam", slug: "steam", logoUrl: "https://steam.com/logo.png", baseUrl: "https://store.steampowered.com" };
+    mockDbResult = [storeRow];
+    mockDb.select.mockReturnValue(createBuilder());
+
+    const res = await app.request("/api/v1/stores");
+    expect(res.status).toBe(200);
+
+    const body = await res.json();
+    expect(body).toHaveProperty("data");
+    expect(body).toHaveProperty("meta");
+    expect(body.data).toEqual([storeRow]);
+  });
+
+  it("returns 200 with empty data when no stores exist", async () => {
+    mockDbResult = [];
+    mockDb.select.mockReturnValue(createBuilder());
+
+    const res = await app.request("/api/v1/stores");
+    expect(res.status).toBe(200);
+
+    const body = await res.json();
+    expect(body.data).toEqual([]);
+    expect(body.meta.total).toBe(0);
+  });
+});
