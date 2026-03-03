@@ -9,6 +9,7 @@ import { cacheMiddleware } from "./middleware/cache.js";
 import { createGamesApp } from "./routes/games.js";
 import { createDealsApp } from "./routes/deals.js";
 import { storesApp } from "./routes/stores.js";
+import { createAuthApp } from "./routes/auth.js";
 import { openApiApp } from "./openapi.js";
 
 const app = new Hono();
@@ -57,6 +58,9 @@ v1.route("/deals", dealsRouter);
 
 // Mount stores routes
 v1.route("/stores", storesApp);
+
+// Mount auth routes
+v1.route("/auth", createAuthApp(getRedis));
 
 // Mount versioned router
 app.route("/api/v1", v1);
