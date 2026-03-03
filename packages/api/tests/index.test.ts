@@ -29,8 +29,19 @@ vi.mock("@taad/db", () => ({
 
 // Mock ioredis
 const mockZrevrangebyscore = vi.fn();
+const mockIncr = vi.fn();
+const mockPttl = vi.fn();
+const mockPexpire = vi.fn();
+const mockMulti = vi.fn();
+const mockExec = vi.fn();
 vi.mock("ioredis", () => ({
-  Redis: vi.fn().mockImplementation(() => ({ zrevrangebyscore: mockZrevrangebyscore })),
+  Redis: vi.fn().mockImplementation(() => ({
+    zrevrangebyscore: mockZrevrangebyscore,
+    incr: mockIncr,
+    pttl: mockPttl,
+    pexpire: mockPexpire,
+    multi: mockMulti.mockReturnValue({ incr: mockIncr.mockReturnThis(), pttl: mockPttl.mockReturnThis(), exec: mockExec }),
+  })),
 }));
 
 // ─── App under test ───────────────────────────────────────────────────────────
@@ -43,16 +54,28 @@ const { app } = await import("../src/index.js");
 
 // ─── Tests ────────────────────────────────────────────────────────────────────
 
-describe("GET /deals/rankings", () => {
+describe("GET /api/health", () => {
+  it("returns 200 with status ok and timestamp", async () => {
+    const res = await app.request("/api/health");
+    expect(res.status).toBe(200);
+
+    const body = await res.json();
+    expect(body).toHaveProperty("status", "ok");
+    expect(body).toHaveProperty("timestamp");
+  });
+});
+
+describe("GET /api/v1/deals/rankings", () => {
   beforeEach(() => {
     mockDb.select.mockReturnValue(createBuilder());
     mockZrevrangebyscore.mockReset();
+    mockExec.mockResolvedValue([[null, 1], [null, -1]]);
   });
 
   it("returns 200 with deal score objects when Redis has data", async () => {
     mockZrevrangebyscore.mockResolvedValue(["listing-a", "95.5", "listing-b", "80.0"]);
 
-    const res = await app.request("/deals/rankings");
+    const res = await app.request("/api/v1/deals/rankings");
     expect(res.status).toBe(200);
 
     const body = await res.json();
@@ -69,7 +92,7 @@ describe("GET /deals/rankings", () => {
       { storeListingId: "listing-d", dealScore: "55.00" },
     ];
 
-    const res = await app.request("/deals/rankings");
+    const res = await app.request("/api/v1/deals/rankings");
     expect(res.status).toBe(200);
 
     const body = await res.json();
@@ -82,7 +105,7 @@ describe("GET /deals/rankings", () => {
   it("passes limit and offset query parameters to Redis", async () => {
     mockZrevrangebyscore.mockResolvedValue(["listing-e", "60.0"]);
 
-    const res = await app.request("/deals/rankings?limit=5&offset=10");
+    const res = await app.request("/api/v1/deals/rankings?limit=5&offset=10");
     expect(res.status).toBe(200);
 
     expect(mockZrevrangebyscore).toHaveBeenCalledWith(
@@ -97,10 +120,11 @@ describe("GET /deals/rankings", () => {
   });
 });
 
-describe("GET /deals/:storeListingId/stats", () => {
+describe("GET /api/v1/deals/:storeListingId/stats", () => {
   beforeEach(() => {
     mockDb.select.mockReturnValue(createBuilder());
     mockDbResult = [];
+    mockExec.mockResolvedValue([[null, 1], [null, -1]]);
   });
 
   it("returns 200 with the stats object when the listing exists", async () => {
@@ -112,7 +136,7 @@ describe("GET /deals/:storeListingId/stats", () => {
     };
     mockDbResult = [statsRow];
 
-    const res = await app.request("/deals/listing-f/stats");
+    const res = await app.request("/api/v1/deals/listing-f/stats");
     expect(res.status).toBe(200);
 
     const body = await res.json();
@@ -122,7 +146,7 @@ describe("GET /deals/:storeListingId/stats", () => {
   it("returns 404 when the listing is not found in storeListingStats", async () => {
     mockDbResult = [];
 
-    const res = await app.request("/deals/nonexistent/stats");
+    const res = await app.request("/api/v1/deals/nonexistent/stats");
     expect(res.status).toBe(404);
 
     const body = await res.json();

@@ -1,0 +1,113 @@
+import { describe, it, expect } from "vitest";
+import {
+  paginationSchema,
+  storeFilterSchema,
+  genreFilterSchema,
+  sortSchema,
+  commonQuerySchema,
+} from "../../src/lib/validation.js";
+
+describe("paginationSchema", () => {
+  it("should use defaults when no values provided", () => {
+    const result = paginationSchema.parse({});
+    expect(result).toEqual({ page: 1, limit: 20 });
+  });
+
+  it("should coerce string values to numbers", () => {
+    const result = paginationSchema.parse({ page: "3", limit: "50" });
+    expect(result).toEqual({ page: 3, limit: 50 });
+  });
+
+  it("should reject page of 0", () => {
+    expect(() => paginationSchema.parse({ page: 0 })).toThrow();
+  });
+
+  it("should reject negative page", () => {
+    expect(() => paginationSchema.parse({ page: -1 })).toThrow();
+  });
+
+  it("should reject limit greater than 100", () => {
+    expect(() => paginationSchema.parse({ limit: 101 })).toThrow();
+  });
+
+  it("should accept limit of exactly 100", () => {
+    const result = paginationSchema.parse({ limit: 100 });
+    expect(result.limit).toBe(100);
+  });
+
+  it("should reject non-integer page", () => {
+    expect(() => paginationSchema.parse({ page: 1.5 })).toThrow();
+  });
+});
+
+describe("storeFilterSchema", () => {
+  it("should accept store as optional string", () => {
+    const result = storeFilterSchema.parse({});
+    expect(result.store).toBeUndefined();
+  });
+
+  it("should parse store value", () => {
+    const result = storeFilterSchema.parse({ store: "steam" });
+    expect(result.store).toBe("steam");
+  });
+});
+
+describe("genreFilterSchema", () => {
+  it("should accept genre as optional string", () => {
+    const result = genreFilterSchema.parse({});
+    expect(result.genre).toBeUndefined();
+  });
+
+  it("should parse genre value", () => {
+    const result = genreFilterSchema.parse({ genre: "rpg" });
+    expect(result.genre).toBe("rpg");
+  });
+});
+
+describe("sortSchema", () => {
+  it("should accept sort as optional", () => {
+    const result = sortSchema.parse({});
+    expect(result.sort).toBeUndefined();
+  });
+
+  it("should accept valid sort values", () => {
+    for (const val of ["discount", "deal_score", "price", "release_date"]) {
+      const result = sortSchema.parse({ sort: val });
+      expect(result.sort).toBe(val);
+    }
+  });
+
+  it("should reject invalid sort values", () => {
+    expect(() => sortSchema.parse({ sort: "invalid" })).toThrow();
+  });
+});
+
+describe("commonQuerySchema", () => {
+  it("should merge all schemas with defaults", () => {
+    const result = commonQuerySchema.parse({});
+    expect(result).toEqual({
+      page: 1,
+      limit: 20,
+      store: undefined,
+      genre: undefined,
+      sort: undefined,
+    });
+  });
+
+  it("should parse all fields together", () => {
+    const result = commonQuerySchema.parse({
+      page: "2",
+      limit: "10",
+      store: "steam",
+      genre: "rpg",
+      sort: "price",
+    });
+    expect(result).toEqual({
+      page: 2,
+      limit: 10,
+      store: "steam",
+      genre: "rpg",
+      sort: "price",
+    });
+  });
+});

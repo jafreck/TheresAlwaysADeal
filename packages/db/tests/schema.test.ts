@@ -10,6 +10,10 @@ import {
   priceAlerts,
   alertNotifications,
   storeListingStats,
+  genres,
+  platforms,
+  gameGenres,
+  gamePlatforms,
 } from "../src/schema.js";
 
 describe("schema", () => {
@@ -203,6 +207,76 @@ describe("schema", () => {
       expect(columns).toContain("allTimeLowLastSeenAt");
       expect(columns).toContain("dealScore");
       expect(columns).toContain("updatedAt");
+    });
+  });
+
+  describe("genres", () => {
+    it("should export the genres table", () => {
+      expect(genres).toBeDefined();
+    });
+
+    it("should have the correct columns", () => {
+      const columns = Object.keys(genres);
+      expect(columns).toContain("id");
+      expect(columns).toContain("name");
+      expect(columns).toContain("slug");
+      expect(columns).toContain("createdAt");
+    });
+
+    it("should have the correct table name", () => {
+      expect(getTableName(genres)).toBe("genres");
+    });
+  });
+
+  describe("platforms", () => {
+    it("should export the platforms table", () => {
+      expect(platforms).toBeDefined();
+    });
+
+    it("should have the correct columns", () => {
+      const columns = Object.keys(platforms);
+      expect(columns).toContain("id");
+      expect(columns).toContain("name");
+      expect(columns).toContain("slug");
+      expect(columns).toContain("createdAt");
+    });
+
+    it("should have the correct table name", () => {
+      expect(getTableName(platforms)).toBe("platforms");
+    });
+  });
+
+  describe("gameGenres", () => {
+    it("should export the gameGenres table", () => {
+      expect(gameGenres).toBeDefined();
+    });
+
+    it("should have the correct columns", () => {
+      const columns = Object.keys(gameGenres);
+      expect(columns).toContain("id");
+      expect(columns).toContain("gameId");
+      expect(columns).toContain("genreId");
+    });
+
+    it("should have the correct table name", () => {
+      expect(getTableName(gameGenres)).toBe("game_genres");
+    });
+  });
+
+  describe("gamePlatforms", () => {
+    it("should export the gamePlatforms table", () => {
+      expect(gamePlatforms).toBeDefined();
+    });
+
+    it("should have the correct columns", () => {
+      const columns = Object.keys(gamePlatforms);
+      expect(columns).toContain("id");
+      expect(columns).toContain("gameId");
+      expect(columns).toContain("platformId");
+    });
+
+    it("should have the correct table name", () => {
+      expect(getTableName(gamePlatforms)).toBe("game_platforms");
     });
   });
 
