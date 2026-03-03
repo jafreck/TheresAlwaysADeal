@@ -148,17 +148,21 @@ app.get("/search", cacheMiddleware(300, getRedis), async (c) => {
   if (min_price !== undefined || max_price !== undefined) {
     const priceConditions = [];
     if (min_price !== undefined) {
-      priceConditions.push(sql`ph.price >= ${min_price}`);
+      priceConditions.push(sql`latest.price >= ${min_price}`);
     }
     if (max_price !== undefined) {
-      priceConditions.push(sql`ph.price <= ${max_price}`);
+      priceConditions.push(sql`latest.price <= ${max_price}`);
     }
     conditions.push(
       sql`${games.id} IN (
-        SELECT sl.game_id FROM store_listings sl
-        JOIN price_history ph ON ph.store_listing_id = sl.id
-        WHERE sl.is_active = true
-        AND ${sql.join(priceConditions, sql` AND `)}
+        SELECT latest.game_id FROM (
+          SELECT DISTINCT ON (sl.id) sl.game_id, ph.price
+          FROM store_listings sl
+          JOIN price_history ph ON ph.store_listing_id = sl.id
+          WHERE sl.is_active = true
+          ORDER BY sl.id, ph.recorded_at DESC
+        ) latest
+        WHERE ${sql.join(priceConditions, sql` AND `)}
       )`,
     );
   }
@@ -166,9 +170,14 @@ app.get("/search", cacheMiddleware(300, getRedis), async (c) => {
   if (min_discount !== undefined) {
     conditions.push(
       sql`${games.id} IN (
-        SELECT sl.game_id FROM store_listings sl
-        JOIN price_history ph ON ph.store_listing_id = sl.id
-        WHERE sl.is_active = true AND ph.discount >= ${min_discount}
+        SELECT latest.game_id FROM (
+          SELECT DISTINCT ON (sl.id) sl.game_id, ph.discount
+          FROM store_listings sl
+          JOIN price_history ph ON ph.store_listing_id = sl.id
+          WHERE sl.is_active = true
+          ORDER BY sl.id, ph.recorded_at DESC
+        ) latest
+        WHERE latest.discount >= ${min_discount}
       )`,
     );
   }
@@ -196,10 +205,14 @@ app.get("/search", cacheMiddleware(300, getRedis), async (c) => {
         + similarity(${games.title}, ${q})
       )`.as("relevance_score"),
       bestPrice: sql<string>`(
-        SELECT MIN(ph.price)
-        FROM store_listings sl
-        JOIN price_history ph ON ph.store_listing_id = sl.id
-        WHERE sl.game_id = ${games.id} AND sl.is_active = true
+        SELECT MIN(latest.price)
+        FROM (
+          SELECT DISTINCT ON (sl.id) ph.price
+          FROM store_listings sl
+          JOIN price_history ph ON ph.store_listing_id = sl.id
+          WHERE sl.game_id = ${games.id} AND sl.is_active = true
+          ORDER BY sl.id, ph.recorded_at DESC
+        ) latest
       )`.as("best_price"),
     })
     .from(games)
