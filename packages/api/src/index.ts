@@ -5,6 +5,8 @@ import { logger } from "hono/logger";
 import { desc, eq } from "drizzle-orm";
 import { Redis, type Redis as RedisClient } from "ioredis";
 import { db, storeListingStats } from "@taad/db";
+import { auth } from "./routes/auth.js";
+import { rateLimit } from "./middleware/rate-limit.js";
 
 const app = new Hono();
 
@@ -17,6 +19,12 @@ app.use(
     credentials: true,
   }),
 );
+
+// Rate-limit auth routes
+app.use("/auth/*", rateLimit({ maxAttempts: 20, windowSeconds: 60 }));
+
+// Mount auth routes
+app.route("/auth", auth);
 
 // Lazy Redis client — only created when REDIS_URL is present
 let _redis: RedisClient | null = null;

@@ -4,6 +4,15 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 vi.mock("@hono/node-server", () => ({ serve: vi.fn() }));
 
+// Mock auth routes and rate-limit middleware
+vi.mock("../src/routes/auth.js", () => {
+  const { Hono } = require("hono");
+  return { auth: new Hono() };
+});
+vi.mock("../src/middleware/rate-limit.js", () => ({
+  rateLimit: () => async (_c: any, next: any) => next(),
+}));
+
 // Mock db builder: thenable so `await builder` resolves, and has .offset() for chained pagination
 let mockDbResult: any[] = [];
 function createBuilder() {
