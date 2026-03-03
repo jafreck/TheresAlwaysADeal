@@ -161,3 +161,85 @@ describe("GET /api/v1/deals/:storeListingId/stats", () => {
     expect(body).toEqual({ error: "Not found" });
   });
 });
+
+describe("GET /api/v1/games", () => {
+  beforeEach(() => {
+    mockDbResult = [{ total: 0 }];
+    mockDb.select.mockReturnValue(createBuilder());
+    mockExec.mockResolvedValue([[null, 1], [null, -1]]);
+  });
+
+  it("returns 200 with envelope response", async () => {
+    const res = await app.request("/api/v1/games");
+    expect(res.status).toBe(200);
+
+    const body = await res.json();
+    expect(body).toHaveProperty("data");
+    expect(body).toHaveProperty("meta");
+  });
+
+  it("returns 400 for invalid pagination", async () => {
+    const res = await app.request("/api/v1/games?page=-1");
+    expect(res.status).toBe(400);
+
+    const body = await res.json();
+    expect(body).toHaveProperty("error", "Invalid query parameters");
+  });
+});
+
+describe("GET /api/v1/games/search", () => {
+  beforeEach(() => {
+    mockDbResult = [{ total: 0 }];
+    mockDb.select.mockReturnValue(createBuilder());
+    mockExec.mockResolvedValue([[null, 1], [null, -1]]);
+  });
+
+  it("returns 400 when q parameter is missing", async () => {
+    const res = await app.request("/api/v1/games/search");
+    expect(res.status).toBe(400);
+
+    const body = await res.json();
+    expect(body).toHaveProperty("error", "Invalid query parameters");
+  });
+
+  it("returns 200 with results when q is provided", async () => {
+    const res = await app.request("/api/v1/games/search?q=test");
+    expect(res.status).toBe(200);
+
+    const body = await res.json();
+    expect(body).toHaveProperty("data");
+    expect(body).toHaveProperty("meta");
+  });
+});
+
+describe("GET /api/v1/games/:slug", () => {
+  beforeEach(() => {
+    mockDbResult = [];
+    mockDb.select.mockReturnValue(createBuilder());
+    mockExec.mockResolvedValue([[null, 1], [null, -1]]);
+  });
+
+  it("returns 404 for unknown slug", async () => {
+    const res = await app.request("/api/v1/games/unknown-game");
+    expect(res.status).toBe(404);
+
+    const body = await res.json();
+    expect(body).toEqual({ error: "Not found" });
+  });
+});
+
+describe("GET /api/v1/games/:slug/price-history", () => {
+  beforeEach(() => {
+    mockDbResult = [];
+    mockDb.select.mockReturnValue(createBuilder());
+    mockExec.mockResolvedValue([[null, 1], [null, -1]]);
+  });
+
+  it("returns 404 for unknown game slug", async () => {
+    const res = await app.request("/api/v1/games/unknown-game/price-history");
+    expect(res.status).toBe(404);
+
+    const body = await res.json();
+    expect(body).toEqual({ error: "Not found" });
+  });
+});

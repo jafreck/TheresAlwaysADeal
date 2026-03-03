@@ -1,5 +1,6 @@
 import { Hono } from "hono";
-import { eq, ilike, sql, desc, asc, and, count } from "drizzle-orm";
+import { eq, ilike, sql, desc, asc, and, count, inArray } from "drizzle-orm";
+import type { Redis as RedisClient } from "ioredis";
 import {
   db,
   games,
@@ -16,11 +17,13 @@ import {
   priceHistoryQuerySchema,
 } from "../lib/validation.js";
 import { buildEnvelopeResponse } from "../lib/response.js";
+import { cacheMiddleware } from "../middleware/cache.js";
 
+export function createGamesApp(getRedis: () => RedisClient | null) {
 const app = new Hono();
 
-// GET / — paginated games list with filtering, sorting, pagination
-app.get("/", async (c) => {
+// GET / — paginated games list with filtering, sorting, pagination (5-min cache)
+app.get("/", cacheMiddleware(300, getRedis), async (c) => {
   const parsed = commonQuerySchema.safeParse(c.req.query());
   if (!parsed.success) {
     return c.json({ error: "Invalid query parameters", details: parsed.error.flatten() }, 400);
@@ -39,11 +42,12 @@ app.get("/", async (c) => {
     );
   }
   if (genre) {
+    const genreSlugs = genre.split(",").map((s) => s.trim()).filter(Boolean);
     conditions.push(
       sql`${games.id} IN (
         SELECT ${gameGenres.gameId} FROM ${gameGenres}
         JOIN ${genres} ON ${genres.id} = ${gameGenres.genreId}
-        WHERE ${genres.slug} = ${genre}
+        WHERE ${inArray(genres.slug, genreSlugs)}
       )`,
     );
   }
@@ -83,8 +87,8 @@ app.get("/", async (c) => {
   return c.json(buildEnvelopeResponse(rows, total, page, limit));
 });
 
-// GET /search — case-insensitive title search
-app.get("/search", async (c) => {
+// GET /search — case-insensitive title search (5-min cache)
+app.get("/search", cacheMiddleware(300, getRedis), async (c) => {
   const parsed = searchQuerySchema.safeParse(c.req.query());
   if (!parsed.success) {
     return c.json({ error: "Invalid query parameters", details: parsed.error.flatten() }, 400);
@@ -111,8 +115,8 @@ app.get("/search", async (c) => {
   return c.json(buildEnvelopeResponse(rows, total, page, limit));
 });
 
-// GET /:slug — game detail with store listings and price stats
-app.get("/:slug", async (c) => {
+// GET /:slug — game detail with store listings and price stats (1-min cache)
+app.get("/:slug", cacheMiddleware(60, getRedis), async (c) => {
   const { slug } = c.req.param();
 
   const [game] = await db
@@ -152,8 +156,8 @@ app.get("/:slug", async (c) => {
   return c.json({ data: { ...game, storeListings: listings, priceStats: stats } });
 });
 
-// GET /:slug/price-history — price history for a game
-app.get("/:slug/price-history", async (c) => {
+// GET /:slug/price-history — price history for a game (1-min cache)
+app.get("/:slug/price-history", cacheMiddleware(60, getRedis), async (c) => {
   const { slug } = c.req.param();
 
   const parsed = priceHistoryQuerySchema.safeParse(c.req.query());
@@ -200,4 +204,5 @@ app.get("/:slug/price-history", async (c) => {
   return c.json({ data: rows });
 });
 
-export { app as gamesApp };
+return app;
+}
