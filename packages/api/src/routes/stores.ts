@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import { db, stores } from "@taad/db";
+import { buildEnvelopeResponse } from "../lib/response.js";
 
 const app = new Hono();
 
@@ -15,7 +16,7 @@ app.get("/", async (c) => {
     })
     .from(stores);
 
-  return c.json({ data: rows });
+  return c.json(buildEnvelopeResponse(rows, rows.length, 1, rows.length || 1));
 });
 
 export { app as storesApp };

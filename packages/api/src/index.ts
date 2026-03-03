@@ -6,7 +6,7 @@ import { swaggerUI } from "@hono/swagger-ui";
 import { Redis, type Redis as RedisClient } from "ioredis";
 import { rateLimiter } from "./middleware/rate-limit.js";
 import { cacheMiddleware } from "./middleware/cache.js";
-import { gamesApp } from "./routes/games.js";
+import { createGamesApp } from "./routes/games.js";
 import { createDealsApp } from "./routes/deals.js";
 import { storesApp } from "./routes/stores.js";
 
@@ -42,19 +42,8 @@ const v1 = new Hono();
 // Apply rate limiting to all v1 routes
 v1.use("*", rateLimiter(getRedis));
 
-// Mount games routes with caching (5 min for lists, 1 min for detail)
-const gamesList = new Hono();
-gamesList.use("*", cacheMiddleware(300, getRedis));
-gamesList.route("/", gamesApp);
-
-const gamesDetail = new Hono();
-gamesDetail.use("*", cacheMiddleware(60, getRedis));
-
-// Detail and price-history routes with 1 min cache
-gamesDetail.get("/:slug", (c) => gamesApp.fetch(c.req.raw));
-gamesDetail.get("/:slug/price-history", (c) => gamesApp.fetch(c.req.raw));
-
-v1.route("/games", gamesList);
+// Mount games routes (caching applied per-route within createGamesApp)
+v1.route("/games", createGamesApp(getRedis));
 
 // Mount deals routes with 5 min cache
 const dealsRouter = new Hono();
