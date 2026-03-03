@@ -244,6 +244,98 @@ describe("GET /api/v1/games/:slug/price-history", () => {
   });
 });
 
+describe("GET /api/v1/deals", () => {
+  beforeEach(() => {
+    mockDbResult = [{ total: 0 }];
+    mockDb.select.mockReturnValue(createBuilder());
+    mockExec.mockResolvedValue([[null, 1], [null, -1]]);
+  });
+
+  it("returns 200 with envelope response", async () => {
+    const res = await app.request("/api/v1/deals");
+    expect(res.status).toBe(200);
+
+    const body = await res.json();
+    expect(body).toHaveProperty("data");
+    expect(body).toHaveProperty("meta");
+  });
+
+  it("returns 400 for invalid pagination", async () => {
+    const res = await app.request("/api/v1/deals?page=-1");
+    expect(res.status).toBe(400);
+
+    const body = await res.json();
+    expect(body).toHaveProperty("error", "Invalid query parameters");
+  });
+});
+
+describe("GET /api/v1/deals/free", () => {
+  beforeEach(() => {
+    mockDbResult = [{ total: 0 }];
+    mockDb.select.mockReturnValue(createBuilder());
+    mockExec.mockResolvedValue([[null, 1], [null, -1]]);
+  });
+
+  it("returns 200 with envelope response", async () => {
+    const res = await app.request("/api/v1/deals/free");
+    expect(res.status).toBe(200);
+
+    const body = await res.json();
+    expect(body).toHaveProperty("data");
+    expect(body).toHaveProperty("meta");
+  });
+
+  it("returns 400 for invalid pagination", async () => {
+    const res = await app.request("/api/v1/deals/free?page=-1");
+    expect(res.status).toBe(400);
+
+    const body = await res.json();
+    expect(body).toHaveProperty("error", "Invalid query parameters");
+  });
+});
+
+describe("GET /api/v1/deals/all-time-lows", () => {
+  beforeEach(() => {
+    mockDbResult = [{ total: 0 }];
+    mockDb.select.mockReturnValue(createBuilder());
+    mockExec.mockResolvedValue([[null, 1], [null, -1]]);
+  });
+
+  it("returns 200 with envelope response", async () => {
+    const res = await app.request("/api/v1/deals/all-time-lows");
+    expect(res.status).toBe(200);
+
+    const body = await res.json();
+    expect(body).toHaveProperty("data");
+    expect(body).toHaveProperty("meta");
+  });
+
+  it("returns 400 for invalid pagination", async () => {
+    const res = await app.request("/api/v1/deals/all-time-lows?page=-1");
+    expect(res.status).toBe(400);
+
+    const body = await res.json();
+    expect(body).toHaveProperty("error", "Invalid query parameters");
+  });
+});
+
+describe("GET /api/v1/stores", () => {
+  beforeEach(() => {
+    mockDbResult = [];
+    mockDb.select.mockReturnValue(createBuilder());
+    mockExec.mockResolvedValue([[null, 1], [null, -1]]);
+  });
+
+  it("returns 200 with envelope response", async () => {
+    const res = await app.request("/api/v1/stores");
+    expect(res.status).toBe(200);
+
+    const body = await res.json();
+    expect(body).toHaveProperty("data");
+    expect(body).toHaveProperty("meta");
+  });
+});
+
 describe("GET /api/v1/stores", () => {
   beforeEach(() => {
     mockDbResult = [];
