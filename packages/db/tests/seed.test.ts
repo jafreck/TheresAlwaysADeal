@@ -30,14 +30,34 @@ const mockGames = [
   { id: "g5", slug: "hollow-knight", steamAppId: 367520 },
 ];
 
+const mockGenres = [
+  { id: "gen1", slug: "rpg", name: "RPG" },
+  { id: "gen2", slug: "action", name: "Action" },
+  { id: "gen3", slug: "adventure", name: "Adventure" },
+  { id: "gen4", slug: "roguelike", name: "Roguelike" },
+  { id: "gen5", slug: "metroidvania", name: "Metroidvania" },
+  { id: "gen6", slug: "co-op", name: "Co-op" },
+];
+
+const mockPlatforms = [
+  { id: "plat1", slug: "pc", name: "PC" },
+  { id: "plat2", slug: "playstation", name: "PlayStation" },
+  { id: "plat3", slug: "xbox", name: "Xbox" },
+  { id: "plat4", slug: "nintendo-switch", name: "Nintendo Switch" },
+];
+
 const mockStoresFindMany = vi.fn().mockResolvedValue(mockStores);
 const mockGamesFindMany = vi.fn().mockResolvedValue(mockGames);
+const mockGenresFindMany = vi.fn().mockResolvedValue(mockGenres);
+const mockPlatformsFindMany = vi.fn().mockResolvedValue(mockPlatforms);
 
 const mockDb = {
   insert: mockInsert,
   query: {
     stores: { findMany: mockStoresFindMany },
     games: { findMany: mockGamesFindMany },
+    genres: { findMany: mockGenresFindMany },
+    platforms: { findMany: mockPlatformsFindMany },
   },
 };
 
