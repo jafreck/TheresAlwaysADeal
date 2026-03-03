@@ -64,6 +64,8 @@ export const users = pgTable("users", {
   id: uuid("id").defaultRandom().primaryKey(),
   email: varchar("email", { length: 255 }).notNull().unique(),
   name: varchar("name", { length: 255 }),
+  passwordHash: text("password_hash"),
+  emailVerified: boolean("email_verified").default(false).notNull(),
   steamId: varchar("steam_id", { length: 100 }),
   steamAccessToken: text("steam_access_token"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -101,6 +103,36 @@ export const storeListingStats = pgTable("store_listing_stats", {
   allTimeLowLastSeenAt: timestamp("all_time_low_last_seen_at"),
   dealScore: decimal("deal_score", { precision: 5, scale: 2 }),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+// ─── Refresh Tokens ──────────────────────────────────────────────────────────
+export const refreshTokens = pgTable("refresh_tokens", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  userId: uuid("user_id").references(() => users.id).notNull(),
+  token: text("token").notNull().unique(),
+  expiresAt: timestamp("expires_at").notNull(),
+  revokedAt: timestamp("revoked_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// ─── Password Reset Tokens ──────────────────────────────────────────────────
+export const passwordResetTokens = pgTable("password_reset_tokens", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  userId: uuid("user_id").references(() => users.id).notNull(),
+  token: text("token").notNull().unique(),
+  expiresAt: timestamp("expires_at").notNull(),
+  usedAt: timestamp("used_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// ─── Email Verification Tokens ──────────────────────────────────────────────
+export const emailVerificationTokens = pgTable("email_verification_tokens", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  userId: uuid("user_id").references(() => users.id).notNull(),
+  token: text("token").notNull().unique(),
+  expiresAt: timestamp("expires_at").notNull(),
+  usedAt: timestamp("used_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
 // ─── Alert Notifications ──────────────────────────────────────────────────────

@@ -10,6 +10,9 @@ import {
   priceAlerts,
   alertNotifications,
   storeListingStats,
+  refreshTokens,
+  passwordResetTokens,
+  emailVerificationTokens,
 } from "../src/schema.js";
 
 describe("schema", () => {
@@ -113,6 +116,8 @@ describe("schema", () => {
       expect(columns).toContain("id");
       expect(columns).toContain("email");
       expect(columns).toContain("name");
+      expect(columns).toContain("passwordHash");
+      expect(columns).toContain("emailVerified");
       expect(columns).toContain("steamId");
       expect(columns).toContain("steamAccessToken");
       expect(columns).toContain("createdAt");
@@ -121,6 +126,16 @@ describe("schema", () => {
 
     it("should have the correct table name", () => {
       expect(getTableName(users)).toBe("users");
+    });
+
+    it("should have passwordHash as nullable", () => {
+      expect(users.passwordHash.notNull).toBe(false);
+    });
+
+    it("should have emailVerified as not null with default false", () => {
+      expect(users.emailVerified.notNull).toBe(true);
+      expect(users.emailVerified.hasDefault).toBe(true);
+      expect(users.emailVerified.default).toBe(false);
     });
   });
 
@@ -203,6 +218,109 @@ describe("schema", () => {
       expect(columns).toContain("allTimeLowLastSeenAt");
       expect(columns).toContain("dealScore");
       expect(columns).toContain("updatedAt");
+    });
+  });
+
+  describe("refreshTokens", () => {
+    it("should export the refreshTokens table", () => {
+      expect(refreshTokens).toBeDefined();
+    });
+
+    it("should have the correct table name", () => {
+      expect(getTableName(refreshTokens)).toBe("refresh_tokens");
+    });
+
+    it("should have the correct columns", () => {
+      const columns = Object.keys(refreshTokens);
+      expect(columns).toContain("id");
+      expect(columns).toContain("userId");
+      expect(columns).toContain("token");
+      expect(columns).toContain("expiresAt");
+      expect(columns).toContain("revokedAt");
+      expect(columns).toContain("createdAt");
+    });
+
+    it("should have token as unique and not null", () => {
+      expect(refreshTokens.token.isUnique).toBe(true);
+      expect(refreshTokens.token.notNull).toBe(true);
+    });
+
+    it("should have userId as not null", () => {
+      expect(refreshTokens.userId.notNull).toBe(true);
+    });
+
+    it("should have expiresAt as not null", () => {
+      expect(refreshTokens.expiresAt.notNull).toBe(true);
+    });
+
+    it("should have revokedAt as nullable", () => {
+      expect(refreshTokens.revokedAt.notNull).toBe(false);
+    });
+  });
+
+  describe("passwordResetTokens", () => {
+    it("should export the passwordResetTokens table", () => {
+      expect(passwordResetTokens).toBeDefined();
+    });
+
+    it("should have the correct table name", () => {
+      expect(getTableName(passwordResetTokens)).toBe("password_reset_tokens");
+    });
+
+    it("should have the correct columns", () => {
+      const columns = Object.keys(passwordResetTokens);
+      expect(columns).toContain("id");
+      expect(columns).toContain("userId");
+      expect(columns).toContain("token");
+      expect(columns).toContain("expiresAt");
+      expect(columns).toContain("usedAt");
+      expect(columns).toContain("createdAt");
+    });
+
+    it("should have token as unique and not null", () => {
+      expect(passwordResetTokens.token.isUnique).toBe(true);
+      expect(passwordResetTokens.token.notNull).toBe(true);
+    });
+
+    it("should have usedAt as nullable", () => {
+      expect(passwordResetTokens.usedAt.notNull).toBe(false);
+    });
+
+    it("should have userId as not null", () => {
+      expect(passwordResetTokens.userId.notNull).toBe(true);
+    });
+  });
+
+  describe("emailVerificationTokens", () => {
+    it("should export the emailVerificationTokens table", () => {
+      expect(emailVerificationTokens).toBeDefined();
+    });
+
+    it("should have the correct table name", () => {
+      expect(getTableName(emailVerificationTokens)).toBe("email_verification_tokens");
+    });
+
+    it("should have the correct columns", () => {
+      const columns = Object.keys(emailVerificationTokens);
+      expect(columns).toContain("id");
+      expect(columns).toContain("userId");
+      expect(columns).toContain("token");
+      expect(columns).toContain("expiresAt");
+      expect(columns).toContain("usedAt");
+      expect(columns).toContain("createdAt");
+    });
+
+    it("should have token as unique and not null", () => {
+      expect(emailVerificationTokens.token.isUnique).toBe(true);
+      expect(emailVerificationTokens.token.notNull).toBe(true);
+    });
+
+    it("should have usedAt as nullable", () => {
+      expect(emailVerificationTokens.usedAt.notNull).toBe(false);
+    });
+
+    it("should have userId as not null", () => {
+      expect(emailVerificationTokens.userId.notNull).toBe(true);
     });
   });
 
