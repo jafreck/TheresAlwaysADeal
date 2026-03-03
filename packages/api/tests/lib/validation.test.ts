@@ -318,3 +318,98 @@ describe("priceHistoryQuerySchema", () => {
     expect(result.store).toBe("steam");
   });
 });
+
+// ─── Auth Schemas ─────────────────────────────────────────────────────────────
+
+import {
+  registerSchema,
+  loginSchema,
+  forgotPasswordSchema,
+  resetPasswordSchema,
+} from "../../src/lib/validation.js";
+
+describe("registerSchema", () => {
+  it("should parse valid email and password", () => {
+    const result = registerSchema.parse({ email: "user@example.com", password: "securepass" });
+    expect(result).toEqual({ email: "user@example.com", password: "securepass" });
+  });
+
+  it("should reject invalid email", () => {
+    expect(() => registerSchema.parse({ email: "not-an-email", password: "securepass" })).toThrow();
+  });
+
+  it("should reject password shorter than 8 characters", () => {
+    expect(() => registerSchema.parse({ email: "user@example.com", password: "short" })).toThrow();
+  });
+
+  it("should accept password of exactly 8 characters", () => {
+    const result = registerSchema.parse({ email: "user@example.com", password: "12345678" });
+    expect(result.password).toBe("12345678");
+  });
+
+  it("should reject missing email", () => {
+    expect(() => registerSchema.parse({ password: "securepass" })).toThrow();
+  });
+
+  it("should reject missing password", () => {
+    expect(() => registerSchema.parse({ email: "user@example.com" })).toThrow();
+  });
+});
+
+describe("loginSchema", () => {
+  it("should parse valid email and password", () => {
+    const result = loginSchema.parse({ email: "user@example.com", password: "x" });
+    expect(result).toEqual({ email: "user@example.com", password: "x" });
+  });
+
+  it("should reject invalid email", () => {
+    expect(() => loginSchema.parse({ email: "bad", password: "x" })).toThrow();
+  });
+
+  it("should reject empty password", () => {
+    expect(() => loginSchema.parse({ email: "user@example.com", password: "" })).toThrow();
+  });
+
+  it("should accept password of 1 character", () => {
+    const result = loginSchema.parse({ email: "user@example.com", password: "a" });
+    expect(result.password).toBe("a");
+  });
+});
+
+describe("forgotPasswordSchema", () => {
+  it("should parse valid email", () => {
+    const result = forgotPasswordSchema.parse({ email: "user@example.com" });
+    expect(result).toEqual({ email: "user@example.com" });
+  });
+
+  it("should reject invalid email", () => {
+    expect(() => forgotPasswordSchema.parse({ email: "not-email" })).toThrow();
+  });
+
+  it("should reject missing email", () => {
+    expect(() => forgotPasswordSchema.parse({})).toThrow();
+  });
+});
+
+describe("resetPasswordSchema", () => {
+  it("should parse valid token and password", () => {
+    const result = resetPasswordSchema.parse({ token: "abc-123", password: "newpasswd" });
+    expect(result).toEqual({ token: "abc-123", password: "newpasswd" });
+  });
+
+  it("should reject empty token", () => {
+    expect(() => resetPasswordSchema.parse({ token: "", password: "newpasswd" })).toThrow();
+  });
+
+  it("should reject password shorter than 8 characters", () => {
+    expect(() => resetPasswordSchema.parse({ token: "abc", password: "short" })).toThrow();
+  });
+
+  it("should reject missing token", () => {
+    expect(() => resetPasswordSchema.parse({ password: "newpasswd" })).toThrow();
+  });
+
+  it("should reject missing password", () => {
+    expect(() => resetPasswordSchema.parse({ token: "abc-123" })).toThrow();
+  });
+});
