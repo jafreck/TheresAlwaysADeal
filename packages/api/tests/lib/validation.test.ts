@@ -179,9 +179,18 @@ describe("dealsQuerySchema", () => {
 });
 
 describe("searchQuerySchema", () => {
-  it("should parse q with pagination defaults", () => {
+  it("should parse q with pagination defaults and optional filters undefined", () => {
     const result = searchQuerySchema.parse({ q: "witcher" });
-    expect(result).toEqual({ q: "witcher", page: 1, limit: 20 });
+    expect(result).toEqual({
+      q: "witcher",
+      page: 1,
+      limit: 20,
+      store: undefined,
+      genre: undefined,
+      min_price: undefined,
+      max_price: undefined,
+      min_discount: undefined,
+    });
   });
 
   it("should reject missing q parameter", () => {
@@ -199,6 +208,54 @@ describe("searchQuerySchema", () => {
 
   it("should inherit pagination validation (reject negative page)", () => {
     expect(() => searchQuerySchema.parse({ q: "test", page: -1 })).toThrow();
+  });
+
+  it("should accept optional store filter", () => {
+    const result = searchQuerySchema.parse({ q: "test", store: "steam" });
+    expect(result.store).toBe("steam");
+  });
+
+  it("should accept optional genre filter", () => {
+    const result = searchQuerySchema.parse({ q: "test", genre: "rpg" });
+    expect(result.genre).toBe("rpg");
+  });
+
+  it("should coerce min_price from string to number", () => {
+    const result = searchQuerySchema.parse({ q: "test", min_price: "5.99" });
+    expect(result.min_price).toBe(5.99);
+  });
+
+  it("should coerce max_price from string to number", () => {
+    const result = searchQuerySchema.parse({ q: "test", max_price: "29.99" });
+    expect(result.max_price).toBe(29.99);
+  });
+
+  it("should coerce min_discount from string to number", () => {
+    const result = searchQuerySchema.parse({ q: "test", min_discount: "50" });
+    expect(result.min_discount).toBe(50);
+  });
+
+  it("should parse all filter fields together", () => {
+    const result = searchQuerySchema.parse({
+      q: "witcher",
+      page: "2",
+      limit: "10",
+      store: "steam",
+      genre: "rpg",
+      min_price: "5",
+      max_price: "30",
+      min_discount: "25",
+    });
+    expect(result).toEqual({
+      q: "witcher",
+      page: 2,
+      limit: 10,
+      store: "steam",
+      genre: "rpg",
+      min_price: 5,
+      max_price: 30,
+      min_discount: 25,
+    });
   });
 });
 

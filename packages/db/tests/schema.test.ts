@@ -14,6 +14,7 @@ import {
   platforms,
   gameGenres,
   gamePlatforms,
+  searchAnalytics,
 } from "../src/schema.js";
 
 describe("schema", () => {
@@ -32,6 +33,7 @@ describe("schema", () => {
       expect(columns).toContain("steamAppId");
       expect(columns).toContain("createdAt");
       expect(columns).toContain("updatedAt");
+      expect(columns).toContain("searchVector");
     });
 
     it("should have the correct table name", () => {
@@ -277,6 +279,24 @@ describe("schema", () => {
 
     it("should have the correct table name", () => {
       expect(getTableName(gamePlatforms)).toBe("game_platforms");
+    });
+  });
+
+  describe("searchAnalytics", () => {
+    it("should export the searchAnalytics table", () => {
+      expect(searchAnalytics).toBeDefined();
+    });
+
+    it("should have the correct columns", () => {
+      const columns = Object.keys(searchAnalytics);
+      expect(columns).toContain("id");
+      expect(columns).toContain("query");
+      expect(columns).toContain("resultCount");
+      expect(columns).toContain("searchedAt");
+    });
+
+    it("should have the correct table name", () => {
+      expect(getTableName(searchAnalytics)).toBe("search_analytics");
     });
   });
 

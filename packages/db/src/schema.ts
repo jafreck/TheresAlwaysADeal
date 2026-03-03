@@ -20,6 +20,8 @@ export const games = pgTable("games", {
   steamAppId: integer("steam_app_id"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  // Mapped to tsvector in SQL via migration; text placeholder for Drizzle type safety
+  searchVector: text("search_vector"),
 });
 
 // ─── Stores ───────────────────────────────────────────────────────────────────
@@ -137,6 +139,14 @@ export const gamePlatforms = pgTable("game_platforms", {
 }, (t) => [
   unique().on(t.gameId, t.platformId),
 ]);
+
+// ─── Search Analytics ─────────────────────────────────────────────────────────
+export const searchAnalytics = pgTable("search_analytics", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  query: varchar("query", { length: 500 }).notNull(),
+  resultCount: integer("result_count").notNull(),
+  searchedAt: timestamp("searched_at").defaultNow().notNull(),
+});
 
 // ─── Alert Notifications ──────────────────────────────────────────────────────
 export const alertNotifications = pgTable("alert_notifications", {
