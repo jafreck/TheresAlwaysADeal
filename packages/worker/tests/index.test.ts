@@ -696,5 +696,4 @@ describe("featured scrape worker", () => {
       expect.objectContaining({ repeat: { pattern: process.env.SCRAPE_CRON ?? "0 */6 * * *" } }),
     );
   });
-  });
 });
