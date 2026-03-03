@@ -3,8 +3,19 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, fireEvent } from '@testing-library/react';
 
 vi.mock('next/link', () => ({
-  default: ({ children, href, ...props }: Record<string, unknown>) =>
-    React.createElement('a', { href, ...props }, children as React.ReactNode),
+  default: ({ children, href, onClick, ...props }: Record<string, unknown>) =>
+    React.createElement(
+      'a',
+      {
+        href,
+        ...props,
+        onClick: (e: Event) => {
+          e.preventDefault();
+          if (typeof onClick === 'function') (onClick as (e: Event) => void)(e);
+        },
+      },
+      children as React.ReactNode,
+    ),
 }));
 
 import Header from '../../src/components/Header';
