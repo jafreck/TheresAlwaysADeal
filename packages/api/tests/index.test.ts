@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 // ─── Mocks (hoisted before imports) ──────────────────────────────────────────
 
 vi.mock("@hono/node-server", () => ({ serve: vi.fn() }));
+vi.mock("@hono/swagger-ui", () => ({ swaggerUI: () => vi.fn() }));
 
 // Mock db builder: thenable so `await builder` resolves, and has .offset() for chained pagination
 let mockDbResult: any[] = [];
@@ -13,18 +14,25 @@ function createBuilder() {
     orderBy: () => builder,
     limit: () => builder,
     offset: () => Promise.resolve(mockDbResult),
+    innerJoin: () => builder,
     then: (resolve: (v: any) => any, reject: (e: any) => any) =>
       Promise.resolve(mockDbResult).then(resolve, reject),
   };
   return builder;
 }
 const mockDb = { select: vi.fn() };
+const stubTable = (cols: Record<string, string>) => cols;
 vi.mock("@taad/db", () => ({
   db: mockDb,
-  storeListingStats: {
-    storeListingId: "storeListingId",
-    dealScore: "dealScore",
-  },
+  games: stubTable({ id: "id", title: "title", slug: "slug", description: "description", headerImageUrl: "headerImageUrl", createdAt: "createdAt", updatedAt: "updatedAt" }),
+  stores: stubTable({ id: "id", name: "name", slug: "slug", logoUrl: "logoUrl", baseUrl: "baseUrl" }),
+  storeListings: stubTable({ id: "id", gameId: "gameId", storeId: "storeId", storeUrl: "storeUrl", isActive: "isActive", isAllTimeLow: "isAllTimeLow" }),
+  priceHistory: stubTable({ id: "id", storeListingId: "storeListingId", price: "price", originalPrice: "originalPrice", currency: "currency", discount: "discount", saleEndsAt: "saleEndsAt", recordedAt: "recordedAt" }),
+  storeListingStats: stubTable({ id: "id", storeListingId: "storeListingId", dealScore: "dealScore", isAllTimeLow: "isAllTimeLow", allTimeLowPrice: "allTimeLowPrice" }),
+  genres: stubTable({ id: "id", name: "name", slug: "slug" }),
+  gameGenres: stubTable({ gameId: "gameId", genreId: "genreId" }),
+  platforms: stubTable({ id: "id", name: "name", slug: "slug" }),
+  gamePlatforms: stubTable({ gameId: "gameId", platformId: "platformId" }),
 }));
 
 // Mock ioredis
