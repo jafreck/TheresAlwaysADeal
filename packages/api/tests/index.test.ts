@@ -22,7 +22,7 @@ function createBuilder() {
   };
   return builder;
 }
-const mockDb = { select: vi.fn() };
+const mockDb = { select: vi.fn(), insert: vi.fn() };
 const stubTable = (cols: Record<string, string>) => cols;
 vi.mock("@taad/db", () => ({
   db: mockDb,
@@ -35,6 +35,7 @@ vi.mock("@taad/db", () => ({
   gameGenres: stubTable({ gameId: "gameId", genreId: "genreId" }),
   platforms: stubTable({ id: "id", name: "name", slug: "slug" }),
   gamePlatforms: stubTable({ gameId: "gameId", platformId: "platformId" }),
+  searchAnalytics: stubTable({ id: "id", query: "query", resultCount: "resultCount", searchedAt: "searchedAt" }),
 }));
 
 // Mock ioredis
@@ -193,6 +194,7 @@ describe("GET /api/v1/games/search", () => {
   beforeEach(() => {
     mockDbResult = [{ total: 0 }];
     mockDb.select.mockReturnValue(createBuilder());
+    mockDb.insert.mockReturnValue({ values: vi.fn().mockResolvedValue(undefined) });
     mockExec.mockResolvedValue([[null, 1], [null, -1]]);
   });
 

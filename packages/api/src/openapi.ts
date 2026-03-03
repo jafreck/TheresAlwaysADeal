@@ -35,9 +35,49 @@ const spec = {
           { name: "q", in: "query", required: true, schema: { type: "string", minLength: 1 }, description: "Search query" },
           { name: "page", in: "query", schema: { type: "integer", default: 1 } },
           { name: "limit", in: "query", schema: { type: "integer", default: 20, maximum: 100 } },
+          { name: "store", in: "query", schema: { type: "string" }, description: "Comma-separated store slugs" },
+          { name: "genre", in: "query", schema: { type: "string" }, description: "Comma-separated genre slugs" },
+          { name: "min_discount", in: "query", schema: { type: "number" }, description: "Minimum discount percentage" },
+          { name: "max_price", in: "query", schema: { type: "number" }, description: "Maximum price" },
         ],
         responses: {
           "200": { description: "Search results", content: { "application/json": { schema: { $ref: "#/components/schemas/EnvelopeResponse" } } } },
+          "400": { description: "Invalid query parameters", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
+          "429": { description: "Rate limit exceeded", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
+        },
+      },
+    },
+    "/games/autocomplete": {
+      get: {
+        summary: "Autocomplete game titles",
+        tags: ["Games"],
+        parameters: [
+          { name: "q", in: "query", required: true, schema: { type: "string", minLength: 1 }, description: "Search query for autocomplete" },
+          { name: "limit", in: "query", schema: { type: "integer", default: 5, maximum: 10 }, description: "Number of suggestions (default 5, max 10)" },
+        ],
+        responses: {
+          "200": {
+            description: "Autocomplete suggestions",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    data: {
+                      type: "array",
+                      items: {
+                        type: "object",
+                        properties: {
+                          title: { type: "string" },
+                          slug: { type: "string" },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
           "400": { description: "Invalid query parameters", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
           "429": { description: "Rate limit exceeded", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
         },

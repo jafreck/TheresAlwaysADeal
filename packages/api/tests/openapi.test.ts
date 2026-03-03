@@ -170,6 +170,65 @@ describe("GET /openapi.json", () => {
     expect(qParam.in).toBe("query");
   });
 
+  it("should document search endpoint filter parameters", async () => {
+    const res = await openApiApp.request("/openapi.json");
+    const spec = await res.json();
+
+    const searchParams = spec.paths["/games/search"].get.parameters;
+    const paramNames = searchParams.map((p: any) => p.name);
+
+    expect(paramNames).toContain("store");
+    expect(paramNames).toContain("genre");
+    expect(paramNames).toContain("min_discount");
+    expect(paramNames).toContain("max_price");
+  });
+
+  it("should document the autocomplete endpoint", async () => {
+    const res = await openApiApp.request("/openapi.json");
+    const spec = await res.json();
+
+    expect(spec.paths["/games/autocomplete"]).toBeDefined();
+    expect(spec.paths["/games/autocomplete"].get).toBeDefined();
+    expect(spec.paths["/games/autocomplete"].get.tags).toContain("Games");
+  });
+
+  it("should document autocomplete q parameter as required", async () => {
+    const res = await openApiApp.request("/openapi.json");
+    const spec = await res.json();
+
+    const params = spec.paths["/games/autocomplete"].get.parameters;
+    const qParam = params.find((p: any) => p.name === "q");
+
+    expect(qParam).toBeDefined();
+    expect(qParam.required).toBe(true);
+    expect(qParam.schema.minLength).toBe(1);
+  });
+
+  it("should document autocomplete limit parameter with default 5 and max 10", async () => {
+    const res = await openApiApp.request("/openapi.json");
+    const spec = await res.json();
+
+    const params = spec.paths["/games/autocomplete"].get.parameters;
+    const limitParam = params.find((p: any) => p.name === "limit");
+
+    expect(limitParam).toBeDefined();
+    expect(limitParam.schema.default).toBe(5);
+    expect(limitParam.schema.maximum).toBe(10);
+  });
+
+  it("should document autocomplete response schema with data array of title/slug objects", async () => {
+    const res = await openApiApp.request("/openapi.json");
+    const spec = await res.json();
+
+    const responseSchema =
+      spec.paths["/games/autocomplete"].get.responses["200"].content["application/json"].schema;
+
+    expect(responseSchema.type).toBe("object");
+    expect(responseSchema.properties.data.type).toBe("array");
+    expect(responseSchema.properties.data.items.properties.title).toBeDefined();
+    expect(responseSchema.properties.data.items.properties.slug).toBeDefined();
+  });
+
   it("should document storeListingId as a required path parameter", async () => {
     const res = await openApiApp.request("/openapi.json");
     const spec = await res.json();
