@@ -13,6 +13,7 @@ const {
   mockVerifyPassword,
   mockRedisIncr,
   mockRedisExpire,
+  mockRedisGet,
   mockDb,
   createSelectBuilder,
 } = vi.hoisted(() => {
@@ -61,17 +62,20 @@ const {
     let mode: "none" | "resolve" | "reject" = "none";
     let callCount = 0;
     let lastArgs: any[] = [];
+    const returnOnceQueue: any[] = [];
 
     const mock: any = (...args: any[]) => {
       callCount++;
       lastArgs = args;
+      if (returnOnceQueue.length > 0) return returnOnceQueue.shift();
       if (mode === "resolve") return Promise.resolve(resolveVal);
       if (mode === "reject") return Promise.reject(rejectVal);
       return defaultImpl?.(...args);
     };
     mock.mockResolvedValue = (v: any) => { mode = "resolve"; resolveVal = v; return mock; };
     mock.mockRejectedValue = (v: any) => { mode = "reject"; rejectVal = v; return mock; };
-    mock.mockReset = () => { callCount = 0; lastArgs = []; mode = "none"; };
+    mock.mockReturnValueOnce = (v: any) => { returnOnceQueue.push(v); return mock; };
+    mock.mockReset = () => { callCount = 0; lastArgs = []; mode = "none"; returnOnceQueue.length = 0; };
     mock.mockClear = () => { callCount = 0; lastArgs = []; };
     mock.getCallCount = () => callCount;
     mock.getLastArgs = () => lastArgs;
@@ -85,6 +89,7 @@ const {
   const mockVerifyPassword = createMock();
   const mockRedisIncr = createMock();
   const mockRedisExpire = createMock();
+  const mockRedisGet = createMock();
 
   const mockDb = {
     select: createMock(() => createSelectBuilder()),
@@ -103,6 +108,7 @@ const {
     mockVerifyPassword,
     mockRedisIncr,
     mockRedisExpire,
+    mockRedisGet,
     mockDb,
     createSelectBuilder,
   };
@@ -167,6 +173,7 @@ vi.mock("ioredis", () => ({
   Redis: vi.fn().mockImplementation(() => ({
     incr: mockRedisIncr,
     expire: mockRedisExpire,
+    get: mockRedisGet,
   })),
 }));
 
@@ -206,6 +213,7 @@ describe("auth routes", () => {
     mockVerifyPassword.mockReset();
     mockRedisIncr.mockReset();
     mockRedisExpire.mockReset();
+    mockRedisGet.mockReset();
     mockDb.select.mockReset();
     mockDb.insert.mockReset();
     mockDb.update.mockReset();
@@ -214,6 +222,7 @@ describe("auth routes", () => {
     mockUpdateResult.length = 0;
     mockRedisIncr.mockResolvedValue(1);
     mockRedisExpire.mockResolvedValue(1);
+    mockRedisGet.mockResolvedValue(null);
     delete process.env.REDIS_URL;
   });
 
@@ -297,7 +306,8 @@ describe("auth routes", () => {
       mockSignRefreshToken.mockResolvedValue("rt");
 
       await app.request(jsonRequest("POST", "/auth/register", validBody));
-      expect(mockHashPassword).toHaveBeenCalledWith("Password1");
+      expect(mockHashPassword.getCallCount()).toBeGreaterThan(0);
+      expect(mockHashPassword.getLastArgs()).toEqual(["Password1"]);
     });
 
     it("should create an email verification token", async () => {
@@ -309,7 +319,7 @@ describe("auth routes", () => {
 
       await app.request(jsonRequest("POST", "/auth/register", validBody));
       // db.insert called for: user, emailVerificationTokens, refreshTokens
-      expect(mockDb.insert).toHaveBeenCalledTimes(3);
+      expect(mockDb.insert.getCallCount()).toBe(3);
     });
 
     it("should accept optional name field", async () => {
@@ -383,7 +393,7 @@ describe("auth routes", () => {
 
     it("should return 429 when brute-force limit is exceeded", async () => {
       process.env.REDIS_URL = "redis://localhost:6379";
-      mockRedisIncr.mockResolvedValue(11);
+      mockRedisGet.mockResolvedValue("11");
 
       // Need to re-import to pick up REDIS_URL
       vi.resetModules();
@@ -475,7 +485,7 @@ describe("auth routes", () => {
         cookie: "refresh_token=some-token",
       }));
       expect(res.status).toBe(200);
-      expect(mockDb.update).toHaveBeenCalled();
+      expect(mockDb.update.getCallCount()).toBeGreaterThan(0);
     });
 
     it("should clear the refresh token cookie", async () => {
@@ -508,13 +518,13 @@ describe("auth routes", () => {
 
       const res = await app.request(jsonRequest("POST", "/auth/forgot-password", { email: "exists@example.com" }));
       expect(res.status).toBe(200);
-      expect(mockDb.insert).toHaveBeenCalled();
+      expect(mockDb.insert.getCallCount()).toBeGreaterThan(0);
     });
 
     it("should not insert reset token when user does not exist", async () => {
       // select returns empty
       await app.request(jsonRequest("POST", "/auth/forgot-password", { email: "nope@example.com" }));
-      expect(mockDb.insert).not.toHaveBeenCalled();
+      expect(mockDb.insert.getCallCount()).toBe(0);
     });
   });
 
@@ -590,9 +600,10 @@ describe("auth routes", () => {
       mockHashPassword.mockResolvedValue("new-hash");
 
       await app.request(jsonRequest("POST", "/auth/reset-password", validBody));
-      expect(mockHashPassword).toHaveBeenCalledWith("NewPass1!");
+      expect(mockHashPassword.getCallCount()).toBeGreaterThan(0);
+      expect(mockHashPassword.getLastArgs()).toEqual(["NewPass1!"]);
       // update called twice: once for user password, once for marking token used
-      expect(mockDb.update).toHaveBeenCalledTimes(2);
+      expect(mockDb.update.getCallCount()).toBe(2);
     });
   });
 
@@ -662,7 +673,7 @@ describe("auth routes", () => {
 
       await app.request(getRequest("/auth/verify-email?token=valid"));
       // update called twice: user emailVerified + token usedAt
-      expect(mockDb.update).toHaveBeenCalledTimes(2);
+      expect(mockDb.update.getCallCount()).toBe(2);
     });
   });
 });

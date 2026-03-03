@@ -12,7 +12,6 @@ import {
 } from "@taad/db";
 import { signAccessToken, signRefreshToken, verifyRefreshToken } from "../lib/jwt.js";
 import { hashPassword, verifyPassword } from "../lib/password.js";
-import { rateLimit } from "../middleware/rate-limit.js";
 import { Redis, type Redis as RedisClient } from "ioredis";
 
 const auth = new Hono();
@@ -96,13 +95,24 @@ async function checkBruteForce(email: string): Promise<boolean> {
   if (!redis) return false; // fail open
   try {
     const key = `login_attempts:${email}`;
+    const current = await redis.get(key);
+    return current !== null && parseInt(current, 10) >= BRUTE_FORCE_MAX;
+  } catch {
+    return false; // fail open on Redis errors
+  }
+}
+
+async function recordFailedLogin(email: string): Promise<void> {
+  const redis = getRedis();
+  if (!redis) return;
+  try {
+    const key = `login_attempts:${email}`;
     const current = await redis.incr(key);
     if (current === 1) {
       await redis.expire(key, BRUTE_FORCE_WINDOW);
     }
-    return current > BRUTE_FORCE_MAX;
   } catch {
-    return false; // fail open on Redis errors
+    // fail open on Redis errors
   }
 }
 
@@ -179,11 +189,13 @@ auth.post("/login", async (c) => {
     .limit(1);
 
   if (!user || !user.passwordHash) {
+    await recordFailedLogin(email);
     return c.json({ error: "Invalid credentials" }, 401);
   }
 
   const valid = await verifyPassword(password, user.passwordHash);
   if (!valid) {
+    await recordFailedLogin(email);
     return c.json({ error: "Invalid credentials" }, 401);
   }
 
