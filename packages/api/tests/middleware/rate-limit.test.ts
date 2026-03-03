@@ -103,6 +103,33 @@ describe("rateLimiter", () => {
     expect(incrCall).toBeDefined();
   });
 
+  it("should set pexpire when ttl is -2 (key does not exist)", async () => {
+    const redis = createMockRedis();
+    redis._exec.mockResolvedValue([
+      [null, 1],
+      [null, -2],
+    ]);
+    app.use("*", rateLimiter(() => redis));
+    app.get("/test", (c) => c.json({ ok: true }));
+
+    await app.request("/test");
+    expect(redis.pexpire).toHaveBeenCalled();
+  });
+
+  it("should allow request at exactly the limit (count=60)", async () => {
+    const redis = createMockRedis();
+    redis._exec.mockResolvedValue([
+      [null, 60],
+      [null, 50000],
+    ]);
+    app.use("*", rateLimiter(() => redis));
+    app.get("/test", (c) => c.json({ ok: true }));
+
+    const res = await app.request("/test");
+    expect(res.status).toBe(200);
+    expect(res.headers.get("X-RateLimit-Remaining")).toBe("0");
+  });
+
   it("should return correct remaining count with multiple in-memory requests", async () => {
     // Use a fresh app with unique IP per test to avoid in-memory store pollution
     const freshApp = new Hono();
