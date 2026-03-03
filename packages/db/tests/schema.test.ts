@@ -6,6 +6,7 @@ import {
   storeListings,
   priceHistory,
   users,
+  refreshTokens,
   wishlists,
   priceAlerts,
   alertNotifications,
@@ -117,6 +118,11 @@ describe("schema", () => {
       expect(columns).toContain("id");
       expect(columns).toContain("email");
       expect(columns).toContain("name");
+      expect(columns).toContain("passwordHash");
+      expect(columns).toContain("emailVerified");
+      expect(columns).toContain("emailVerificationToken");
+      expect(columns).toContain("passwordResetToken");
+      expect(columns).toContain("passwordResetExpires");
       expect(columns).toContain("steamId");
       expect(columns).toContain("steamAccessToken");
       expect(columns).toContain("createdAt");
@@ -125,6 +131,26 @@ describe("schema", () => {
 
     it("should have the correct table name", () => {
       expect(getTableName(users)).toBe("users");
+    });
+  });
+
+  describe("refreshTokens", () => {
+    it("should export the refreshTokens table", () => {
+      expect(refreshTokens).toBeDefined();
+    });
+
+    it("should have the correct columns", () => {
+      const columns = Object.keys(refreshTokens);
+      expect(columns).toContain("id");
+      expect(columns).toContain("userId");
+      expect(columns).toContain("token");
+      expect(columns).toContain("expiresAt");
+      expect(columns).toContain("revokedAt");
+      expect(columns).toContain("createdAt");
+    });
+
+    it("should have the correct table name", () => {
+      expect(getTableName(refreshTokens)).toBe("refresh_tokens");
     });
   });
 

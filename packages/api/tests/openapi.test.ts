@@ -82,6 +82,16 @@ describe("GET /openapi.json", () => {
     expect(spec.paths["/stores"].get).toBeDefined();
   });
 
+  it("should document all auth endpoints", async () => {
+    const res = await openApiApp.request("/openapi.json");
+    const spec = await res.json();
+
+    expect(spec.paths["/auth/register"]).toBeDefined();
+    expect(spec.paths["/auth/login"]).toBeDefined();
+    expect(spec.paths["/auth/refresh"]).toBeDefined();
+    expect(spec.paths["/auth/logout"]).toBeDefined();
+  });
+
   it("should include component schemas for EnvelopeResponse and Error", async () => {
     const res = await openApiApp.request("/openapi.json");
     const spec = await res.json();
