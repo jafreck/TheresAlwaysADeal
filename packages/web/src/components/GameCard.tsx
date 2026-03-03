@@ -1,9 +1,9 @@
 import Image from "next/image";
-import { cn } from "@/lib/utils";
-import { PriceBadge } from "@/components/PriceBadge";
-import { DiscountBadge } from "@/components/DiscountBadge";
-import { StoreIcon } from "@/components/StoreIcon";
-import BuyButton from "@/components/BuyButton";
+import { cn } from "../lib/utils";
+import { PriceBadge } from "./PriceBadge";
+import { DiscountBadge } from "./DiscountBadge";
+import { StoreIcon } from "./StoreIcon";
+import BuyButton from "./BuyButton";
 
 interface GameCardProps {
   title: string;

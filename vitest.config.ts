@@ -8,12 +8,13 @@ export default defineConfig({
   },
   resolve: {
     alias: {
-      '@': path.resolve(__dirname, './src'),
+      '@': path.resolve(__dirname, 'packages/web/src'),
     },
   },
   test: {
     environment: 'jsdom',
-    passWithNoTests: true,
-    include: ['tests/**/*.test.{ts,tsx}'],
+    include: [
+      'packages/*/tests/**/*.test.{ts,tsx}',
+    ],
   },
 });
