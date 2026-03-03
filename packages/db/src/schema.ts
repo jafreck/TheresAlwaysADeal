@@ -5,6 +5,7 @@ import {
   pgTable,
   text,
   timestamp,
+  unique,
   uuid,
   varchar,
 } from "drizzle-orm/pg-core";
@@ -124,14 +125,18 @@ export const gameGenres = pgTable("game_genres", {
   id: uuid("id").defaultRandom().primaryKey(),
   gameId: uuid("game_id").references(() => games.id).notNull(),
   genreId: uuid("genre_id").references(() => genres.id).notNull(),
-});
+}, (t) => [
+  unique().on(t.gameId, t.genreId),
+]);
 
 // ─── Game Platforms (join table) ──────────────────────────────────────────────
 export const gamePlatforms = pgTable("game_platforms", {
   id: uuid("id").defaultRandom().primaryKey(),
   gameId: uuid("game_id").references(() => games.id).notNull(),
   platformId: uuid("platform_id").references(() => platforms.id).notNull(),
-});
+}, (t) => [
+  unique().on(t.gameId, t.platformId),
+]);
 
 // ─── Alert Notifications ──────────────────────────────────────────────────────
 export const alertNotifications = pgTable("alert_notifications", {
