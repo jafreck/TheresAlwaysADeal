@@ -120,6 +120,26 @@ describe("GET / (games list)", () => {
     expect(res.status).toBe(200);
   });
 
+  it("should accept comma-separated genre query parameter", async () => {
+    mockDb.select.mockReturnValue(createBuilder());
+    mockDbResult = [{ total: 0 }];
+
+    const res = await app.request("/?genre=rpg,action,adventure");
+    expect(res.status).toBe(200);
+
+    const body = await res.json();
+    expect(body).toHaveProperty("data");
+    expect(body).toHaveProperty("meta");
+  });
+
+  it("should handle genre parameter with whitespace around commas", async () => {
+    mockDb.select.mockReturnValue(createBuilder());
+    mockDbResult = [{ total: 0 }];
+
+    const res = await app.request("/?genre=rpg%2C%20action");
+    expect(res.status).toBe(200);
+  });
+
   it("should accept sort query parameter", async () => {
     mockDb.select.mockReturnValue(createBuilder());
     mockDbResult = [{ total: 0 }];

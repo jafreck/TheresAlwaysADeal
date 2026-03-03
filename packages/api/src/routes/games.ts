@@ -43,13 +43,15 @@ app.get("/", cacheMiddleware(300, getRedis), async (c) => {
   }
   if (genre) {
     const genreSlugs = genre.split(",").map((s) => s.trim()).filter(Boolean);
-    conditions.push(
-      sql`${games.id} IN (
-        SELECT ${gameGenres.gameId} FROM ${gameGenres}
-        JOIN ${genres} ON ${genres.id} = ${gameGenres.genreId}
-        WHERE ${inArray(genres.slug, genreSlugs)}
-      )`,
-    );
+    if (genreSlugs.length > 0) {
+      conditions.push(
+        sql`${games.id} IN (
+          SELECT ${gameGenres.gameId} FROM ${gameGenres}
+          JOIN ${genres} ON ${genres.id} = ${gameGenres.genreId}
+          WHERE ${inArray(genres.slug, genreSlugs)}
+        )`,
+      );
+    }
   }
 
   const where = conditions.length > 0 ? and(...conditions) : undefined;
