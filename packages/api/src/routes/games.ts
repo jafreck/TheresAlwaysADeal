@@ -207,11 +207,11 @@ app.get("/search", cacheMiddleware(300, getRedis), async (c) => {
     .limit(limit)
     .offset(offset);
 
-  // Track search analytics
-  await db.insert(searchAnalytics).values({
+  // Track search analytics (fire-and-forget so analytics failures don't break search)
+  db.insert(searchAnalytics).values({
     query: q,
     resultCount: total,
-  });
+  }).catch(() => {});
 
   return c.json(buildEnvelopeResponse(rows, total, page, limit));
 });
