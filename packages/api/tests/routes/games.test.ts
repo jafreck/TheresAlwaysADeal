@@ -16,7 +16,7 @@ function createBuilder() {
   };
   return builder;
 }
-const mockDb = { select: vi.fn() };
+const mockDb = { select: vi.fn(), insert: vi.fn() };
 const stubTable = (cols: Record<string, string>) => cols;
 
 vi.mock("@taad/db", () => ({
@@ -30,6 +30,7 @@ vi.mock("@taad/db", () => ({
   gameGenres: stubTable({ gameId: "gameId", genreId: "genreId" }),
   platforms: stubTable({ id: "id", name: "name", slug: "slug" }),
   gamePlatforms: stubTable({ gameId: "gameId", platformId: "platformId" }),
+  searchAnalytics: stubTable({ id: "id", query: "query", resultCount: "resultCount", searchedAt: "searchedAt" }),
 }));
 
 // Stub cache middleware to be a pass-through
@@ -207,6 +208,7 @@ describe("GET /search", () => {
     vi.clearAllMocks();
     mockDbResult = [];
     mockDb.select.mockReturnValue(createBuilder());
+    mockDb.insert.mockReturnValue({ values: vi.fn().mockResolvedValue(undefined) });
   });
 
   it("should return 200 with matching games", async () => {
@@ -261,6 +263,142 @@ describe("GET /search", () => {
     const body = await res.json();
     expect(body.meta.page).toBe(2);
     expect(body.meta.limit).toBe(5);
+  });
+
+  it("should track search analytics", async () => {
+    mockDb.select.mockReturnValue(createBuilder());
+    mockDbResult = [{ total: 0 }];
+    const mockValues = vi.fn().mockResolvedValue(undefined);
+    mockDb.insert.mockReturnValue({ values: mockValues });
+
+    const res = await app.request("/search?q=witcher");
+    expect(res.status).toBe(200);
+    expect(mockDb.insert).toHaveBeenCalled();
+    expect(mockValues).toHaveBeenCalledWith({ query: "witcher", resultCount: 0 });
+  });
+
+  it("should accept store filter parameter", async () => {
+    mockDb.select.mockReturnValue(createBuilder());
+    mockDbResult = [{ total: 0 }];
+
+    const res = await app.request("/search?q=game&store=steam");
+    expect(res.status).toBe(200);
+  });
+
+  it("should accept genre filter parameter", async () => {
+    mockDb.select.mockReturnValue(createBuilder());
+    mockDbResult = [{ total: 0 }];
+
+    const res = await app.request("/search?q=game&genre=rpg");
+    expect(res.status).toBe(200);
+  });
+
+  it("should accept min_discount filter parameter", async () => {
+    mockDb.select.mockReturnValue(createBuilder());
+    mockDbResult = [{ total: 0 }];
+
+    const res = await app.request("/search?q=game&min_discount=50");
+    expect(res.status).toBe(200);
+  });
+
+  it("should accept max_price filter parameter", async () => {
+    mockDb.select.mockReturnValue(createBuilder());
+    mockDbResult = [{ total: 0 }];
+
+    const res = await app.request("/search?q=game&max_price=20");
+    expect(res.status).toBe(200);
+  });
+
+  it("should accept comma-separated store filter in search", async () => {
+    mockDb.select.mockReturnValue(createBuilder());
+    mockDbResult = [{ total: 0 }];
+
+    const res = await app.request("/search?q=game&store=steam,gog");
+    expect(res.status).toBe(200);
+  });
+
+  it("should accept multiple filters combined", async () => {
+    mockDb.select.mockReturnValue(createBuilder());
+    mockDbResult = [{ total: 0 }];
+
+    const res = await app.request("/search?q=game&store=steam&genre=rpg&min_discount=25&max_price=30");
+    expect(res.status).toBe(200);
+
+    const body = await res.json();
+    expect(body).toHaveProperty("data");
+    expect(body).toHaveProperty("meta");
+  });
+});
+
+describe("GET /autocomplete", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockDbResult = [];
+    mockDb.select.mockReturnValue(createBuilder());
+  });
+
+  it("should return 200 with title suggestions", async () => {
+    mockDbResult = [
+      { title: "The Witcher 3", slug: "the-witcher-3" },
+      { title: "The Witcher 2", slug: "the-witcher-2" },
+    ];
+    mockDb.select.mockReturnValue(createBuilder());
+
+    const res = await app.request("/autocomplete?q=witcher");
+    expect(res.status).toBe(200);
+
+    const body = await res.json();
+    expect(body).toHaveProperty("data");
+    expect(body.data).toEqual([
+      { title: "The Witcher 3", slug: "the-witcher-3" },
+      { title: "The Witcher 2", slug: "the-witcher-2" },
+    ]);
+  });
+
+  it("should return 400 when q parameter is missing", async () => {
+    const res = await app.request("/autocomplete");
+    expect(res.status).toBe(400);
+
+    const body = await res.json();
+    expect(body).toHaveProperty("error", "Invalid query parameters");
+  });
+
+  it("should return 400 when q parameter is empty", async () => {
+    const res = await app.request("/autocomplete?q=");
+    expect(res.status).toBe(400);
+
+    const body = await res.json();
+    expect(body).toHaveProperty("error", "Invalid query parameters");
+  });
+
+  it("should respect limit parameter", async () => {
+    mockDbResult = [{ title: "Game 1", slug: "game-1" }];
+    mockDb.select.mockReturnValue(createBuilder());
+
+    const res = await app.request("/autocomplete?q=game&limit=3");
+    expect(res.status).toBe(200);
+
+    const body = await res.json();
+    expect(body).toHaveProperty("data");
+  });
+
+  it("should return 400 for limit exceeding max of 10", async () => {
+    const res = await app.request("/autocomplete?q=game&limit=11");
+    expect(res.status).toBe(400);
+
+    const body = await res.json();
+    expect(body).toHaveProperty("error", "Invalid query parameters");
+  });
+
+  it("should return empty data array when no matches found", async () => {
+    mockDbResult = [];
+    mockDb.select.mockReturnValue(createBuilder());
+
+    const res = await app.request("/autocomplete?q=xyznonexistent");
+    expect(res.status).toBe(200);
+
+    const body = await res.json();
+    expect(body.data).toEqual([]);
   });
 });
 

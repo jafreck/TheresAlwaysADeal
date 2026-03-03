@@ -33,8 +33,17 @@ export const dealsQuerySchema = commonQuerySchema.merge(
 export const searchQuerySchema = paginationSchema.merge(
   z.object({
     q: z.string().min(1),
+    store: z.string().optional(),
+    genre: z.string().optional(),
+    min_discount: z.coerce.number().optional(),
+    max_price: z.coerce.number().optional(),
   }),
 );
+
+export const autocompleteQuerySchema = z.object({
+  q: z.string().min(1),
+  limit: z.coerce.number().int().positive().max(10).default(5),
+});
 
 export const priceHistoryQuerySchema = z.object({
   store: z.string().optional(),

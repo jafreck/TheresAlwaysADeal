@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { eq, ilike, sql, desc, and, count, inArray } from "drizzle-orm";
+import { eq, sql, desc, and, count, inArray } from "drizzle-orm";
 import type { Redis as RedisClient } from "ioredis";
 import {
   db,
@@ -10,10 +10,12 @@ import {
   storeListingStats,
   gameGenres,
   genres,
+  searchAnalytics,
 } from "@taad/db";
 import {
   commonQuerySchema,
   searchQuerySchema,
+  autocompleteQuerySchema,
   priceHistoryQuerySchema,
 } from "../lib/validation.js";
 import { buildEnvelopeResponse } from "../lib/response.js";
@@ -93,16 +95,83 @@ app.get("/", cacheMiddleware(300, getRedis), async (c) => {
   return c.json(buildEnvelopeResponse(rows, total, page, limit));
 });
 
-// GET /search — case-insensitive title search (5-min cache)
+// GET /search — full-text search with trigram fuzzy matching (5-min cache)
 app.get("/search", cacheMiddleware(300, getRedis), async (c) => {
   const parsed = searchQuerySchema.safeParse(c.req.query());
   if (!parsed.success) {
     return c.json({ error: "Invalid query parameters", details: parsed.error.flatten() }, 400);
   }
-  const { q, page, limit } = parsed.data;
+  const { q, page, limit, store, genre, min_discount, max_price } = parsed.data;
   const offset = (page - 1) * limit;
 
-  const where = ilike(games.title, `%${q}%`);
+  // FTS + trigram similarity for fuzzy matching
+  const conditions = [
+    sql`(
+      to_tsvector('english', ${games.title}) @@ plainto_tsquery('english', ${q})
+      OR similarity(${games.title}, ${q}) > 0.1
+    )`,
+  ];
+
+  if (store) {
+    const storeSlugs = store.split(",").map((s) => s.trim()).filter(Boolean);
+    if (storeSlugs.length === 1) {
+      conditions.push(
+        sql`${games.id} IN (
+          SELECT ${storeListings.gameId} FROM ${storeListings}
+          JOIN ${stores} ON ${stores.id} = ${storeListings.storeId}
+          WHERE ${stores.slug} = ${storeSlugs[0]}
+        )`,
+      );
+    } else if (storeSlugs.length > 1) {
+      conditions.push(
+        sql`${games.id} IN (
+          SELECT ${storeListings.gameId} FROM ${storeListings}
+          JOIN ${stores} ON ${stores.id} = ${storeListings.storeId}
+          WHERE ${inArray(stores.slug, storeSlugs)}
+        )`,
+      );
+    }
+  }
+  if (genre) {
+    const genreSlugs = genre.split(",").map((s) => s.trim()).filter(Boolean);
+    if (genreSlugs.length > 0) {
+      conditions.push(
+        sql`${games.id} IN (
+          SELECT ${gameGenres.gameId} FROM ${gameGenres}
+          JOIN ${genres} ON ${genres.id} = ${gameGenres.genreId}
+          WHERE ${inArray(genres.slug, genreSlugs)}
+        )`,
+      );
+    }
+  }
+  if (min_discount !== undefined) {
+    conditions.push(
+      sql`${games.id} IN (
+        SELECT ${storeListings.gameId} FROM ${storeListings}
+        JOIN ${priceHistory} ON ${priceHistory.storeListingId} = ${storeListings.id}
+          AND ${priceHistory.recordedAt} = (
+            SELECT MAX(ph2.recorded_at) FROM price_history ph2
+            WHERE ph2.store_listing_id = ${storeListings.id}
+          )
+        WHERE ${priceHistory.discount} >= ${min_discount}
+      )`,
+    );
+  }
+  if (max_price !== undefined) {
+    conditions.push(
+      sql`${games.id} IN (
+        SELECT ${storeListings.gameId} FROM ${storeListings}
+        JOIN ${priceHistory} ON ${priceHistory.storeListingId} = ${storeListings.id}
+          AND ${priceHistory.recordedAt} = (
+            SELECT MAX(ph2.recorded_at) FROM price_history ph2
+            WHERE ph2.store_listing_id = ${storeListings.id}
+          )
+        WHERE ${priceHistory.price} <= ${max_price}
+      )`,
+    );
+  }
+
+  const where = and(...conditions);
 
   const [totalResult] = await db
     .select({ total: count() })
@@ -111,14 +180,61 @@ app.get("/search", cacheMiddleware(300, getRedis), async (c) => {
   const total = totalResult?.total ?? 0;
 
   const rows = await db
-    .select()
+    .select({
+      id: games.id,
+      title: games.title,
+      slug: games.slug,
+      description: games.description,
+      headerImageUrl: games.headerImageUrl,
+      createdAt: games.createdAt,
+      updatedAt: games.updatedAt,
+      bestPrice: sql<string>`(
+        SELECT MIN(ph.price::numeric)
+        FROM store_listings sl
+        JOIN price_history ph ON ph.store_listing_id = sl.id
+          AND ph.recorded_at = (
+            SELECT MAX(ph2.recorded_at) FROM price_history ph2
+            WHERE ph2.store_listing_id = sl.id
+          )
+        WHERE sl.game_id = ${games.id}
+      )`.as("best_price"),
+    })
     .from(games)
     .where(where)
-    .orderBy(desc(games.createdAt))
+    .orderBy(
+      sql`ts_rank(to_tsvector('english', ${games.title}), plainto_tsquery('english', ${q})) + similarity(${games.title}, ${q}) DESC`,
+    )
     .limit(limit)
     .offset(offset);
 
+  // Track search analytics (fire-and-forget so analytics failures don't break search)
+  db.insert(searchAnalytics).values({
+    query: q,
+    resultCount: total,
+  }).catch(() => {});
+
   return c.json(buildEnvelopeResponse(rows, total, page, limit));
+});
+
+// GET /autocomplete — title suggestions via trigram similarity (5-min cache)
+app.get("/autocomplete", cacheMiddleware(300, getRedis), async (c) => {
+  const parsed = autocompleteQuerySchema.safeParse(c.req.query());
+  if (!parsed.success) {
+    return c.json({ error: "Invalid query parameters", details: parsed.error.flatten() }, 400);
+  }
+  const { q, limit } = parsed.data;
+
+  const rows = await db
+    .select({
+      title: games.title,
+      slug: games.slug,
+    })
+    .from(games)
+    .where(sql`similarity(${games.title}, ${q}) > 0.1`)
+    .orderBy(sql`similarity(${games.title}, ${q}) DESC`)
+    .limit(limit);
+
+  return c.json({ data: rows });
 });
 
 // GET /:slug — game detail with store listings and price stats (1-min cache)

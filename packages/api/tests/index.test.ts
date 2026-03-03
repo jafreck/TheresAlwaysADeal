@@ -22,7 +22,7 @@ function createBuilder() {
   };
   return builder;
 }
-const mockDb = { select: vi.fn() };
+const mockDb = { select: vi.fn(), insert: vi.fn() };
 const stubTable = (cols: Record<string, string>) => cols;
 vi.mock("@taad/db", () => ({
   db: mockDb,
@@ -37,6 +37,7 @@ vi.mock("@taad/db", () => ({
   gamePlatforms: stubTable({ gameId: "gameId", platformId: "platformId" }),
   users: stubTable({ id: "id", email: "email", name: "name", passwordHash: "passwordHash", emailVerified: "emailVerified" }),
   refreshTokens: stubTable({ id: "id", userId: "userId", token: "token", expiresAt: "expiresAt", revokedAt: "revokedAt", createdAt: "createdAt" }),
+  searchAnalytics: stubTable({ id: "id", query: "query", resultCount: "resultCount", searchedAt: "searchedAt" }),
 }));
 
 // Mock auth utilities used by auth routes
@@ -210,6 +211,7 @@ describe("GET /api/v1/games/search", () => {
   beforeEach(() => {
     mockDbResult = [{ total: 0 }];
     mockDb.select.mockReturnValue(createBuilder());
+    mockDb.insert.mockReturnValue({ values: vi.fn().mockResolvedValue(undefined) });
     mockExec.mockResolvedValue([[null, 1], [null, -1]]);
   });
 
