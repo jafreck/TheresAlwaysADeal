@@ -3,7 +3,9 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 // ─── Mocks (hoisted before imports) ──────────────────────────────────────────
 
 vi.mock("@hono/node-server", () => ({ serve: vi.fn() }));
-vi.mock("@hono/swagger-ui", () => ({ swaggerUI: () => vi.fn() }));
+vi.mock("@hono/swagger-ui", () => ({
+  swaggerUI: () => (c: any) => c.html("<html><body>Swagger UI</body></html>"),
+}));
 
 // Mock db builder: thenable so `await builder` resolves, and has .offset() for chained pagination
 let mockDbResult: any[] = [];
@@ -316,6 +318,17 @@ describe("GET /api/v1/deals/all-time-lows", () => {
 
     const body = await res.json();
     expect(body).toHaveProperty("error", "Invalid query parameters");
+  });
+});
+
+describe("GET /api/docs", () => {
+  beforeEach(() => {
+    mockExec.mockResolvedValue([[null, 1], [null, -1]]);
+  });
+
+  it("returns 200 with Swagger UI", async () => {
+    const res = await app.request("/api/docs");
+    expect(res.status).toBe(200);
   });
 });
 
