@@ -75,6 +75,98 @@ async function seed() {
     .onConflictDoNothing()
     .returning();
 
+  // Insert genres
+  await db
+    .insert(schema.genres)
+    .values([
+      { name: "RPG", slug: "rpg" },
+      { name: "Action", slug: "action" },
+      { name: "Adventure", slug: "adventure" },
+      { name: "Roguelike", slug: "roguelike" },
+      { name: "Metroidvania", slug: "metroidvania" },
+      { name: "Co-op", slug: "co-op" },
+    ])
+    .onConflictDoNothing()
+    .returning();
+
+  // Insert platforms
+  await db
+    .insert(schema.platforms)
+    .values([
+      { name: "PC", slug: "pc" },
+      { name: "PlayStation", slug: "playstation" },
+      { name: "Xbox", slug: "xbox" },
+      { name: "Nintendo Switch", slug: "nintendo-switch" },
+    ])
+    .onConflictDoNothing()
+    .returning();
+
+  // Fetch inserted records to get IDs
+  const insertedGenres = await db.query.genres.findMany();
+  const insertedPlatforms = await db.query.platforms.findMany();
+
+  const rpg = insertedGenres.find((g) => g.slug === "rpg")!;
+  const action = insertedGenres.find((g) => g.slug === "action")!;
+  const adventure = insertedGenres.find((g) => g.slug === "adventure")!;
+  const roguelike = insertedGenres.find((g) => g.slug === "roguelike")!;
+  const metroidvania = insertedGenres.find((g) => g.slug === "metroidvania")!;
+  const coop = insertedGenres.find((g) => g.slug === "co-op")!;
+
+  const pc = insertedPlatforms.find((p) => p.slug === "pc")!;
+  const playstation = insertedPlatforms.find((p) => p.slug === "playstation")!;
+  const xbox = insertedPlatforms.find((p) => p.slug === "xbox")!;
+  const nintendoSwitch = insertedPlatforms.find((p) => p.slug === "nintendo-switch")!;
+
+  const witcher = insertedGames.find((g) => g.slug === "the-witcher-3-wild-hunt")!;
+  const cyberpunk = insertedGames.find((g) => g.slug === "cyberpunk-2077")!;
+  const hades = insertedGames.find((g) => g.slug === "hades")!;
+  const deepRock = insertedGames.find((g) => g.slug === "deep-rock-galactic")!;
+  const hollowKnight = insertedGames.find((g) => g.slug === "hollow-knight")!;
+
+  // Associate games with genres
+  await db
+    .insert(schema.gameGenres)
+    .values([
+      { gameId: witcher.id, genreId: rpg.id },
+      { gameId: witcher.id, genreId: adventure.id },
+      { gameId: cyberpunk.id, genreId: rpg.id },
+      { gameId: cyberpunk.id, genreId: action.id },
+      { gameId: hades.id, genreId: roguelike.id },
+      { gameId: hades.id, genreId: action.id },
+      { gameId: deepRock.id, genreId: action.id },
+      { gameId: deepRock.id, genreId: coop.id },
+      { gameId: hollowKnight.id, genreId: metroidvania.id },
+      { gameId: hollowKnight.id, genreId: adventure.id },
+    ])
+    .onConflictDoNothing()
+    .returning();
+
+  // Associate games with platforms
+  await db
+    .insert(schema.gamePlatforms)
+    .values([
+      { gameId: witcher.id, platformId: pc.id },
+      { gameId: witcher.id, platformId: playstation.id },
+      { gameId: witcher.id, platformId: xbox.id },
+      { gameId: witcher.id, platformId: nintendoSwitch.id },
+      { gameId: cyberpunk.id, platformId: pc.id },
+      { gameId: cyberpunk.id, platformId: playstation.id },
+      { gameId: cyberpunk.id, platformId: xbox.id },
+      { gameId: hades.id, platformId: pc.id },
+      { gameId: hades.id, platformId: playstation.id },
+      { gameId: hades.id, platformId: xbox.id },
+      { gameId: hades.id, platformId: nintendoSwitch.id },
+      { gameId: deepRock.id, platformId: pc.id },
+      { gameId: deepRock.id, platformId: playstation.id },
+      { gameId: deepRock.id, platformId: xbox.id },
+      { gameId: hollowKnight.id, platformId: pc.id },
+      { gameId: hollowKnight.id, platformId: playstation.id },
+      { gameId: hollowKnight.id, platformId: xbox.id },
+      { gameId: hollowKnight.id, platformId: nintendoSwitch.id },
+    ])
+    .onConflictDoNothing()
+    .returning();
+
   console.log("Seed completed successfully.");
 }
 

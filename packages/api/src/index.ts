@@ -5,6 +5,8 @@ import { logger } from "hono/logger";
 import { desc, eq } from "drizzle-orm";
 import { Redis, type Redis as RedisClient } from "ioredis";
 import { db, storeListingStats } from "@taad/db";
+import { rateLimiter } from "./middleware/rate-limit.js";
+import { cacheMiddleware } from "./middleware/cache.js";
 
 const app = new Hono();
 
@@ -26,11 +28,17 @@ function getRedis(): RedisClient | null {
   return _redis;
 }
 
-// Health check
-app.get("/health", (c) => c.json({ status: "ok", timestamp: new Date().toISOString() }));
+// Health check (outside versioned router)
+app.get("/api/health", (c) => c.json({ status: "ok", timestamp: new Date().toISOString() }));
+
+// Versioned API router
+const v1 = new Hono();
+
+// Apply rate limiting to all v1 routes
+v1.use("*", rateLimiter(getRedis));
 
 // GET /deals/rankings — returns deal score rankings (Redis → DB fallback)
-app.get("/deals/rankings", async (c) => {
+v1.get("/deals/rankings", async (c) => {
   const limit = Number(c.req.query("limit") ?? 20);
   const offset = Number(c.req.query("offset") ?? 0);
 
@@ -66,7 +74,7 @@ app.get("/deals/rankings", async (c) => {
 });
 
 // GET /deals/:storeListingId/stats — returns full storeListingStats row
-app.get("/deals/:storeListingId/stats", async (c) => {
+v1.get("/deals/:storeListingId/stats", async (c) => {
   const { storeListingId } = c.req.param();
 
   const [stats] = await db
@@ -81,6 +89,9 @@ app.get("/deals/:storeListingId/stats", async (c) => {
 
   return c.json(stats);
 });
+
+// Mount versioned router
+app.route("/api/v1", v1);
 
 export { app };
 
