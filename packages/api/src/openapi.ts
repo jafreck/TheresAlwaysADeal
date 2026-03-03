@@ -160,6 +160,144 @@ const spec = {
         },
       },
     },
+    "/auth/register": {
+      post: {
+        summary: "Register a new user",
+        tags: ["Auth"],
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                required: ["email", "password"],
+                properties: {
+                  email: { type: "string", format: "email" },
+                  password: { type: "string", minLength: 8 },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          "201": { description: "User registered successfully", content: { "application/json": { schema: { $ref: "#/components/schemas/AccessTokenResponse" } } } },
+          "400": { description: "Invalid input or email already registered", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
+          "429": { description: "Rate limit exceeded", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
+        },
+      },
+    },
+    "/auth/login": {
+      post: {
+        summary: "Login with email and password",
+        tags: ["Auth"],
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                required: ["email", "password"],
+                properties: {
+                  email: { type: "string", format: "email" },
+                  password: { type: "string" },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          "200": { description: "Login successful", content: { "application/json": { schema: { $ref: "#/components/schemas/AccessTokenResponse" } } } },
+          "401": { description: "Invalid email or password", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
+          "429": { description: "Too many login attempts", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
+        },
+      },
+    },
+    "/auth/refresh": {
+      post: {
+        summary: "Refresh access token using refresh token cookie",
+        tags: ["Auth"],
+        responses: {
+          "200": { description: "New access token issued", content: { "application/json": { schema: { $ref: "#/components/schemas/AccessTokenResponse" } } } },
+          "401": { description: "Invalid or expired refresh token", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
+          "429": { description: "Rate limit exceeded", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
+        },
+      },
+    },
+    "/auth/logout": {
+      post: {
+        summary: "Logout and invalidate refresh token",
+        tags: ["Auth"],
+        responses: {
+          "200": { description: "Logged out successfully", content: { "application/json": { schema: { $ref: "#/components/schemas/MessageResponse" } } } },
+          "429": { description: "Rate limit exceeded", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
+        },
+      },
+    },
+    "/auth/forgot-password": {
+      post: {
+        summary: "Request a password reset email",
+        tags: ["Auth"],
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                required: ["email"],
+                properties: {
+                  email: { type: "string", format: "email" },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          "200": { description: "Reset email sent if account exists", content: { "application/json": { schema: { $ref: "#/components/schemas/MessageResponse" } } } },
+          "400": { description: "Invalid input", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
+          "429": { description: "Rate limit exceeded", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
+        },
+      },
+    },
+    "/auth/reset-password": {
+      post: {
+        summary: "Reset password using a reset token",
+        tags: ["Auth"],
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                required: ["token", "password"],
+                properties: {
+                  token: { type: "string", format: "uuid" },
+                  password: { type: "string", minLength: 8 },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          "200": { description: "Password reset successfully", content: { "application/json": { schema: { $ref: "#/components/schemas/MessageResponse" } } } },
+          "400": { description: "Invalid or expired reset token", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
+          "429": { description: "Rate limit exceeded", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
+        },
+      },
+    },
+    "/auth/verify-email": {
+      get: {
+        summary: "Verify email address using a verification token",
+        tags: ["Auth"],
+        parameters: [
+          { name: "token", in: "query", required: true, schema: { type: "string", format: "uuid" }, description: "Email verification token" },
+        ],
+        responses: {
+          "200": { description: "Email verified successfully", content: { "application/json": { schema: { $ref: "#/components/schemas/MessageResponse" } } } },
+          "400": { description: "Invalid verification token", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
+          "429": { description: "Rate limit exceeded", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
+        },
+      },
+    },
   },
   components: {
     schemas: {
@@ -182,6 +320,18 @@ const spec = {
         type: "object",
         properties: {
           error: { type: "string" },
+        },
+      },
+      AccessTokenResponse: {
+        type: "object",
+        properties: {
+          accessToken: { type: "string" },
+        },
+      },
+      MessageResponse: {
+        type: "object",
+        properties: {
+          message: { type: "string" },
         },
       },
     },
