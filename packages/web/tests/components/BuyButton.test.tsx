@@ -28,7 +28,34 @@ describe('BuyButton', () => {
     for (const storeName of stores) {
       const element = BuyButton({ href: 'https://example.com', storeName });
       const children = element.props.children;
-      expect(Array.isArray(children) ? children.join('') : children).toBe(`Buy on ${storeName}`);
+      const text = Array.isArray(children) ? children.join('') : children;
+      expect(text).toBe(`Buy on ${storeName}`);
     }
+  });
+
+  it('should use referralUrl instead of href when provided', () => {
+    const element = BuyButton({
+      href: 'https://store.steampowered.com/app/123',
+      storeName: 'Steam',
+      referralUrl: 'https://referral.example.com/steam/123',
+    });
+    expect(element.props.href).toBe('https://referral.example.com/steam/123');
+  });
+
+  it('should use href when referralUrl is not provided', () => {
+    const element = BuyButton({
+      href: 'https://store.steampowered.com/app/123',
+      storeName: 'Steam',
+    });
+    expect(element.props.href).toBe('https://store.steampowered.com/app/123');
+  });
+
+  it('should have a className prop for styling', () => {
+    const element = BuyButton({
+      href: 'https://example.com',
+      storeName: 'Steam',
+    });
+    expect(element.props.className).toBeDefined();
+    expect(typeof element.props.className).toBe('string');
   });
 });

@@ -6,6 +6,7 @@ export default defineConfig({
     jsxImportSource: 'react',
   },
   test: {
+    environment: 'jsdom',
     passWithNoTests: true,
   },
 });
