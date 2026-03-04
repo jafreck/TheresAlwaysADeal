@@ -18,6 +18,12 @@ vi.mock('@/components/Header', () => ({
   },
 }));
 
+vi.mock('nuqs/adapters/next/app', () => ({
+  NuqsAdapter: function MockNuqsAdapter({ children }: { children: unknown }) {
+    return { type: 'div', props: { 'data-testid': 'nuqs-adapter', children }, key: null };
+  },
+}));
+
 import RootLayout from '../../src/app/layout';
 
 type El = { type: string | ((...args: unknown[]) => unknown); props: Record<string, unknown> };

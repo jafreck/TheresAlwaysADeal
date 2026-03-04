@@ -18,6 +18,14 @@ vi.mock('next/link', () => ({
     ),
 }));
 
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ push: vi.fn(), replace: vi.fn(), back: vi.fn() }),
+}));
+
+vi.mock('@tanstack/react-query', () => ({
+  useQuery: () => ({ data: undefined, isLoading: false }),
+}));
+
 import Header from '../../src/components/Header';
 
 describe('Header', () => {
