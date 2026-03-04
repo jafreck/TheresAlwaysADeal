@@ -1,4 +1,3 @@
-/* eslint-disable no-undef */
 import { useAuthStore } from "./auth-store";
 
 export interface EnvelopeMeta {
