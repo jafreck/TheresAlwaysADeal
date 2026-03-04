@@ -135,4 +135,23 @@ describe("BestPriceCard", () => {
     const badges = findByType(element, DiscountBadge);
     expect(badges.length).toBe(0);
   });
+
+  it("should pass w-full className to BuyButton", () => {
+    const element = BestPriceCard(baseProps);
+    const buttons = findByType(element, BuyButton);
+    expect(buttons[0].props.className).toBe("w-full");
+  });
+
+  it("should render PriceBadge with originalPrice prop", () => {
+    const element = BestPriceCard({ ...baseProps, originalPrice: 79.99 });
+    const badges = findByType(element, PriceBadge);
+    expect(badges[0].props.originalPrice).toBe(79.99);
+  });
+
+  it("should render DiscountBadge when discount is exactly 1", () => {
+    const element = BestPriceCard({ ...baseProps, discount: 1 });
+    const badges = findByType(element, DiscountBadge);
+    expect(badges.length).toBe(1);
+    expect(badges[0].props.discount).toBe(1);
+  });
 });
