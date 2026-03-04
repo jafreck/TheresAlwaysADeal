@@ -15,14 +15,14 @@
   "dependencies": {
     "@taad/db": "workspace:*",
     "@taad/scraper": "workspace:*",
-    "bullmq": "^5.0.0",
-    "drizzle-orm": "^0.39.0",
-    "ioredis": "^5.0.0",
-    "zod": "^3.24.0"
+    "bullmq": "^5.70.1",
+    "drizzle-orm": "^0.45.1",
+    "ioredis": "^5.10.0",
+    "zod": "^4.3.6"
   },
   "devDependencies": {
-    "@types/node": "^22.0.0",
-    "typescript": "^5.7.0",
-    "vitest": "^2.0.0"
+    "@types/node": "^25.3.3",
+    "typescript": "^5.9.3",
+    "vitest": "^4.0.18"
   }
 }

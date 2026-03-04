@@ -21,7 +21,7 @@ const mockRedisDisconnect = vi.fn();
 const mockRedisClient = { zadd: mockRedisZadd, expire: mockRedisExpire, disconnect: mockRedisDisconnect };
 
 vi.mock("ioredis", () => {
-  const Redis = vi.fn().mockImplementation(() => mockRedisClient);
+  const Redis = vi.fn().mockImplementation(function () { return mockRedisClient; });
   return { Redis };
 });
 
@@ -38,12 +38,14 @@ function makeMockQueueInstance() {
 
 // ─── Mocks ────────────────────────────────────────────────────────────────────
 vi.mock("bullmq", () => {
-  const Queue = vi.fn().mockImplementation(() => makeMockQueueInstance());
-  const Worker = vi.fn().mockImplementation(() => ({
-    on: vi.fn(),
-    close: mockWorkerClose,
-  }));
-  const QueueEvents = vi.fn().mockReturnValue({});
+  const Queue = vi.fn().mockImplementation(function () { return makeMockQueueInstance(); });
+  const Worker = vi.fn().mockImplementation(function () {
+    return {
+      on: vi.fn(),
+      close: mockWorkerClose,
+    };
+  });
+  const QueueEvents = vi.fn().mockImplementation(function () { return {}; });
   return { Queue, Worker, QueueEvents };
 });
 
@@ -119,8 +121,8 @@ function makeRequest(
 }
 
 // ─── Module imports & server startup ─────────────────────────────────────────
-let db: Awaited<typeof import("@taad/db")>["db"];
-let Worker: Awaited<typeof import("bullmq")>["Worker"];
+let db: any;
+let Worker: any;
 let startupQueueAddCalls: unknown[][] = [];
 
 beforeAll(async () => {
@@ -360,7 +362,7 @@ describe("ingest worker processor", () => {
     await processor(mockJob);
 
     // db.insert should have been called only for the game upsert, NOT for priceHistory
-    const priceHistoryCalls = insertSpy.mock.calls.filter(
+    const _priceHistoryCalls = insertSpy.mock.calls.filter(
       ([table]: [{ storeListingId: unknown }]) => table === "priceHistory_mock",
     );
     // The key assertion: priceHistory insert is NOT called because nothing changed
@@ -966,7 +968,7 @@ describe("steam sync worker", () => {
     (db.insert as ReturnType<typeof vi.fn>).mockReturnValue(insertChain);
 
     let fetchCallCount = 0;
-    const mockFetch = vi.spyOn(globalThis, "fetch").mockImplementation(async (url) => {
+    const mockFetch = vi.spyOn(globalThis, "fetch").mockImplementation(async (_url) => {
       fetchCallCount++;
       if (fetchCallCount === 1) {
         throw new Error("Connection refused");

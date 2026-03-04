@@ -216,7 +216,7 @@ describe('Header', () => {
     it('should show user name instead of Sign In', () => {
       const { container } = render(<Header />);
       expect(container.textContent).toContain('Test User');
-      const links = container.querySelectorAll('a[href="/login"]');
+      const _links = container.querySelectorAll('a[href="/login"]');
       // Desktop Sign In link should not be present
       const desktopAuthArea = container.querySelector('.hidden.md\\:block');
       expect(desktopAuthArea?.querySelector('a[href="/login"]')).toBeNull();

@@ -1,7 +1,7 @@
-import { z } from "zod";
+import type { z } from "zod";
 import { eq, and } from "drizzle-orm";
 import { db, games, stores, storeListings, priceHistory } from "@taad/db";
-import { gameSchema } from "./schemas.js";
+import type { gameSchema } from "./schemas.js";
 import { buildReferralUrl } from "./referral.js";
 
 export type ScrapedGame = z.infer<typeof gameSchema>;

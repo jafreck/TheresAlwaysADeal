@@ -27,7 +27,7 @@ const makeGame = (overrides: Record<string, unknown> = {}) => ({
   ...overrides,
 });
 
-const STORAGE_KEY = 'recently-viewed-games';
+const _STORAGE_KEY = 'recently-viewed-games';
 
 const mockGetItem = vi.fn<(key: string) => string | null>().mockReturnValue(null);
 const mockSetItem = vi.fn();

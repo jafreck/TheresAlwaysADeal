@@ -1,8 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 vi.mock("bullmq", () => {
-  const Queue = vi.fn().mockImplementation((name: string) => ({ name }));
-  const QueueEvents = vi.fn().mockImplementation((name: string) => ({ name }));
+  const Queue = vi.fn().mockImplementation(function (name: string) { return { name }; });
+  const QueueEvents = vi.fn().mockImplementation(function (name: string) { return { name }; });
   return { Queue, QueueEvents };
 });
 

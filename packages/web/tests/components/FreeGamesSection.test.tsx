@@ -42,9 +42,6 @@ vi.mock('../../src/components/StoreIcon', () => ({
 
 import FreeGamesSection from '../../src/components/FreeGamesSection';
 import type { FreeGame } from '../../src/components/FreeGamesSection';
-import EmptyState from '../../src/components/EmptyState';
-import StoreIcon from '../../src/components/StoreIcon';
-import CountdownTimer from '../../src/components/CountdownTimer';
 
 const makeGame = (overrides: Partial<FreeGame> = {}): FreeGame => ({
   gameTitle: 'Subnautica',
