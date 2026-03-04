@@ -30,6 +30,7 @@ vi.mock('next/script', () => ({
   },
 }));
 
+
 vi.mock('nuqs/adapters/next/app', () => ({
   NuqsAdapter: function MockNuqsAdapter({ children }: { children: unknown }) {
     return { type: 'div', props: { 'data-testid': 'nuqs-adapter', children }, key: null };

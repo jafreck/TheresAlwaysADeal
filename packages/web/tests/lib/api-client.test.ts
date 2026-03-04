@@ -533,6 +533,7 @@ describe('api-client', () => {
     });
   });
 
+
   describe('apiClient.searchGames', () => {
     it('should make a GET request to /api/v1/games/search with query params', async () => {
       const envelope: EnvelopeResponse<unknown> = {

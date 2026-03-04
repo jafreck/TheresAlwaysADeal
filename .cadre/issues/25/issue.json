@@ -1,0 +1,13 @@
+{
+  "number": 25,
+  "title": "[FE-25] Search Results Page & Global Search Bar",
+  "body": "## Overview\nBuild the search results page and the global search experience, including the instant search/autocomplete in the header.\n\n## URL Pattern\n`/search?q=witcher&store=steam&genre=rpg&min_discount=50`\n\n## Features\n\n### Global Search Bar (Header — appears on every page)\n- Text input with autocomplete dropdown\n- Autocomplete shows top 5 game title suggestions (`GET /api/games/autocomplete?q=`)\n- Each suggestion shows: game cover thumbnail, title, best current price\n- Press Enter or click \"See all results\" → navigate to `/search?q=`\n- Keyboard navigable (↑/↓ arrows, Enter to select, Escape to close)\n\n### Search Results Page\n- Results grid (same `<GameCard>` components as homepage)\n- Result count: \"342 results for 'witcher'\"\n- No-results state with suggestions\n\n### Filters Panel (sidebar on desktop, drawer on mobile)\n- **Store**: checkboxes for Steam, GOG, Epic, Humble, Fanatical\n- **Genre**: multi-select chips\n- **Discount**: slider or preset chips (25%+, 50%+, 75%+, 90%+)\n- **Max price**: $5, $10, $20, $30, free only\n- **Sort**: Best Match, Highest Discount, Lowest Price, A–Z, Release Date\n\n### URL State\n- All filter and sort state reflected in the URL query string (shareable/bookmarkable)\n- Browser back/forward navigation works correctly\n\n## Tasks\n- [ ] Implement `/search` route\n- [ ] Implement header search bar with debounced autocomplete (debounce: 200ms)\n- [ ] Implement filters panel with URL state sync (use `nuqs` or `useSearchParams`)\n- [ ] Fetch results from `GET /api/games/search?q=&...filters`\n- [ ] Implement pagination / infinite scroll for results\n- [ ] Handle empty state gracefully with suggestions (\"Try searching for 'action' or browse deals\")\n- [ ] Add meta title: \"Search Results for 'witcher' | There's Always A Deal\"\n\n## Acceptance Criteria\n- Autocomplete appears within 200ms of typing\n- Filters update results without full page reload\n- URL reflects current filter state (shareable links work)\n\n## Dependencies\n- #22 Frontend Framework Setup & Design System\n- #14 Game Search API",
+  "labels": [],
+  "assignees": [],
+  "milestone": "Milestone 6 — Frontend",
+  "comments": [],
+  "state": "open",
+  "createdAt": "",
+  "updatedAt": "",
+  "linkedPRs": []
+}

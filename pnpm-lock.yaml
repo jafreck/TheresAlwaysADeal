@@ -1662,9 +1662,6 @@ packages:
   '@standard-schema/spec@1.0.0':
     resolution: {integrity: sha512-m2bOd0f2RT9k8QJx1JN85cZYyH1RqFBdlwtkSlf4tBDYLCiiZnv1fIIwacK6cqwXavOydf0NPToMQgpKq+dVlA==}
 
-  '@standard-schema/spec@1.1.0':
-    resolution: {integrity: sha512-l2aFy5jALhniG5HgqrD6jXLi/rUWrKvqN/qJx6yoJsgKhblVd+iqqU4RCXavm/jPityDo5TCvKMnpjKnOriy0w==}
-
   '@standard-schema/utils@0.3.0':
     resolution: {integrity: sha512-e7Mew686owMaPJVNNLs55PUvgz371nKgwsc4vxE49zsODpJEnxgxRo2y/OKrqueavXgZNMDVj3DdHFlaSAeU8g==}
 
@@ -4359,7 +4356,7 @@ snapshots:
 
   '@reduxjs/toolkit@2.11.2(react-redux@9.2.0(@types/react@19.2.14)(react@19.2.4)(redux@5.0.1))(react@19.2.4)':
     dependencies:
-      '@standard-schema/spec': 1.1.0
+      '@standard-schema/spec': 1.0.0
       '@standard-schema/utils': 0.3.0
       immer: 11.1.4
       redux: 5.0.1
@@ -4450,8 +4447,6 @@ snapshots:
       selderee: 0.11.0
 
   '@standard-schema/spec@1.0.0': {}
-
-  '@standard-schema/spec@1.1.0': {}
 
   '@standard-schema/utils@0.3.0': {}
 
@@ -4732,7 +4727,7 @@ snapshots:
 
   '@vitest/expect@4.0.18':
     dependencies:
-      '@standard-schema/spec': 1.1.0
+      '@standard-schema/spec': 1.0.0
       '@types/chai': 5.2.3
       '@vitest/spy': 4.0.18
       '@vitest/utils': 4.0.18

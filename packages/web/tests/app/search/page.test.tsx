@@ -113,6 +113,7 @@ vi.mock('@/components/AdSlot', () => ({
   },
 }));
 
+
 import { useInfiniteQuery } from '@tanstack/react-query';
 import SearchPage from '../../../src/app/search/page';
 
@@ -227,6 +228,7 @@ describe('SearchPage', () => {
     const adIdx = children.indexOf(adSlot!);
     expect(adIdx).toBeGreaterThan(gridIdx);
   });
+
 
   it('should handle empty data pages gracefully', () => {
     mockInfiniteQueryResult.data = { pages: [] };

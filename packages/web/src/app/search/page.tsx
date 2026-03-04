@@ -155,6 +155,7 @@ function SearchPageContent() {
 
           <AdSlot slotId="search-results-inline" />
 
+
           {/* Infinite scroll sentinel */}
           <div ref={sentinelRef} className="h-1" />
           {isFetchingNextPage && (

@@ -23,6 +23,7 @@ import SearchBar from '../../src/components/SearchBar';
 describe('SearchBar', () => {
   afterEach(() => cleanup());
 
+
   beforeEach(() => {
     vi.clearAllMocks();
     mockQueryData = undefined;

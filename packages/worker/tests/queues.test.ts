@@ -59,6 +59,12 @@ describe("queues", () => {
       const emailCall = vi.mocked(Queue).mock.calls.find(([name]) => name === "email");
       expect(emailCall).toBeDefined();
     });
+
+    it("should create steamSyncQueueEvents for 'steam-sync'", async () => {
+      await import("../src/queues.js");
+      const call = vi.mocked(QueueEvents).mock.calls.find(([name]) => name === "steam-sync");
+      expect(call).toBeDefined();
+    });
   });
 
   describe("exports", () => {

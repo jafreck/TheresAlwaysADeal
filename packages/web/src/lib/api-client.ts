@@ -127,6 +127,7 @@ export interface PriceAlertResponse {
   createdAt: string;
 }
 
+
 export interface SearchGamesParams {
   q: string;
   page?: number;
@@ -187,6 +188,7 @@ export const apiClient = {
       gameId,
       targetPrice,
     }),
+
 
   searchGames: (params: SearchGamesParams) => {
     const qs = buildQuery({ ...params });

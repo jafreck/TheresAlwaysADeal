@@ -28,6 +28,7 @@ vi.mock('@/components/AdSlot', () => ({
   },
 }));
 
+
 import DashboardPage from '../../../src/app/dashboard/page';
 
 describe('DashboardPage', () => {
