@@ -54,6 +54,7 @@ export const priceHistoryQuerySchema = z.object({
 export const registerSchema = z.object({
   email: z.string().email(),
   password: z.string().min(8),
+  name: z.string().optional(),
 });
 
 export const loginSchema = z.object({
