@@ -57,9 +57,53 @@ async function request<T>(
   return res.json() as Promise<T>;
 }
 
+export interface SearchGamesParams {
+  q: string;
+  page?: number;
+  limit?: number;
+  store?: string;
+  genre?: string;
+  min_discount?: number;
+  max_price?: number;
+}
+
+export interface AutocompleteParams {
+  q: string;
+  limit?: number;
+}
+
+export interface AutocompleteItem {
+  title: string;
+  slug: string;
+}
+
+export interface AutocompleteResponse {
+  data: AutocompleteItem[];
+}
+
+function buildQuery(params: Record<string, string | number | undefined | null>): string {
+  const search = new URLSearchParams();
+  for (const [key, value] of Object.entries(params)) {
+    if (value != null && value !== "") {
+      search.set(key, String(value));
+    }
+  }
+  return search.toString();
+}
+
 export const apiClient = {
   get: <T>(path: string) => request<T>("GET", path),
   post: <T>(path: string, body?: unknown) => request<T>("POST", path, body),
   put: <T>(path: string, body?: unknown) => request<T>("PUT", path, body),
   delete: <T>(path: string) => request<T>("DELETE", path),
+
+  searchGames: (params: SearchGamesParams) => {
+    const qs = buildQuery({ ...params });
+    return request<EnvelopeResponse<unknown>>("GET", `/api/v1/games/search?${qs}`);
+  },
+
+  autocomplete: (params: AutocompleteParams) => {
+    const qs = buildQuery({ ...params });
+    return request<AutocompleteResponse>("GET", `/api/v1/games/autocomplete?${qs}`);
+  },
 };
