@@ -80,6 +80,7 @@ export const users = pgTable("users", {
   passwordResetExpires: timestamp("password_reset_expires"),
   steamId: varchar("steam_id", { length: 100 }),
   steamAccessToken: text("steam_access_token"),
+  notifySlackWebhook: text("notify_slack_webhook"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
@@ -112,6 +113,7 @@ export const priceAlerts = pgTable("price_alerts", {
   gameId: uuid("game_id").references(() => games.id).notNull(),
   targetPrice: decimal("target_price", { precision: 10, scale: 2 }).notNull(),
   isActive: boolean("is_active").default(true).notNull(),
+  notifySlackWebhook: text("notify_slack_webhook"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });

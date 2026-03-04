@@ -74,7 +74,6 @@ v1.route("/user", createUserApp());
 // Mount alerts routes (unsubscribe is public, no auth middleware)
 v1.route("/alerts", alertsApp);
 
-
 // Mount versioned router
 app.route("/api/v1", v1);
 

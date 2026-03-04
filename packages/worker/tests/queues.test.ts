@@ -46,6 +46,11 @@ describe("queues", () => {
       const featuredCall = vi.mocked(Queue).mock.calls.find(([name]) => name === "featured-scrape");
       expect(featuredCall).toBeDefined();
     });
+    it("should create steamSyncQueue with name 'steam-sync'", async () => {
+      await import("../src/queues.js");
+      const steamSyncCall = vi.mocked(Queue).mock.calls.find(([name]) => name === "steam-sync");
+      expect(steamSyncCall).toBeDefined();
+    });
 
     it("should create steamSyncQueue with name 'steam-sync'", async () => {
       await import("../src/queues.js");
@@ -58,6 +63,12 @@ describe("queues", () => {
       expect(emailQueue).toBeDefined();
       const emailCall = vi.mocked(Queue).mock.calls.find(([name]) => name === "email");
       expect(emailCall).toBeDefined();
+    });
+
+    it("should create steamSyncQueueEvents for 'steam-sync'", async () => {
+      await import("../src/queues.js");
+      const call = vi.mocked(QueueEvents).mock.calls.find(([name]) => name === "steam-sync");
+      expect(call).toBeDefined();
     });
 
     it("should create steamSyncQueueEvents for 'steam-sync'", async () => {

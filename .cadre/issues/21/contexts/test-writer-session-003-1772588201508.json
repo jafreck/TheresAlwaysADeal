@@ -1,0 +1,61 @@
+{
+  "agent": "test-writer",
+  "issueNumber": 21,
+  "projectName": "theresalwaysadeal",
+  "repository": "jafreck/TheresAlwaysADeal",
+  "worktreePath": "/Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-21",
+  "phase": 3,
+  "sessionId": "session-003",
+  "config": {
+    "commands": {
+      "install": "npm install",
+      "build": "npm run build",
+      "test": "npx vitest run",
+      "lint": "npm run lint"
+    }
+  },
+  "inputFiles": [
+    "/Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-21/.cadre/tasks/fix-surgeon-session-002-result.md",
+    "/Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-21/.cadre/tasks/session-001-result.md",
+    "/Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-21/.cadre/tasks/session-002-result.md",
+    "/Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-21/.cadre/tasks/session-003-result.md",
+    "/Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-21/.cadre/tasks/test-writer-session-001-result.md",
+    "/Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-21/.cadre/tasks/test-writer-session-002-result.md",
+    "/Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-21/packages/worker/tests/index.test.ts",
+    "/Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-21/.cadre/issues/21/analysis.md",
+    "/Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-21/.cadre/issues/21/checkpoint.backup.json",
+    "/Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-21/.cadre/issues/21/checkpoint.json",
+    "/Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-21/.cadre/issues/21/contexts/code-reviewer-session-001-1772587323727.json",
+    "/Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-21/.cadre/issues/21/contexts/code-reviewer-session-002-1772587799438.json",
+    "/Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-21/.cadre/issues/21/contexts/code-writer-session-001-1772586976243.json",
+    "/Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-21/.cadre/issues/21/contexts/code-writer-session-002-1772587428504.json",
+    "/Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-21/.cadre/issues/21/contexts/code-writer-session-003-1772587428504.json",
+    "/Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-21/.cadre/issues/21/contexts/codebase-scout-1772586766193.json",
+    "/Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-21/.cadre/issues/21/contexts/fix-surgeon-session-002-1772587974442.json",
+    "/Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-21/.cadre/issues/21/contexts/implementation-planner-1772586856587.json",
+    "/Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-21/.cadre/issues/21/contexts/issue-analyst-1772586697088.json",
+    "/Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-21/.cadre/issues/21/contexts/test-writer-session-001-1772587209118.json",
+    "/Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-21/.cadre/issues/21/contexts/test-writer-session-002-1772587648682.json",
+    "/Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-21/.cadre/issues/21/contexts/test-writer-session-003-1772587731734.json",
+    "/Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-21/.cadre/issues/21/diff-session-001.patch",
+    "/Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-21/.cadre/issues/21/diff-session-002.patch",
+    "/Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-21/.cadre/issues/21/implementation-plan.md",
+    "/Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-21/.cadre/issues/21/issue.json",
+    "/Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-21/.cadre/issues/21/progress.md",
+    "/Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-21/.cadre/issues/21/repo-file-tree.txt",
+    "/Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-21/.cadre/issues/21/review-session-001-summary.json",
+    "/Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-21/.cadre/issues/21/review-session-001.md",
+    "/Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-21/.cadre/issues/21/review-session-002-summary.json",
+    "/Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-21/.cadre/issues/21/review-session-002.md",
+    "/Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-21/.cadre/issues/21/scout-report.md",
+    "/Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-21/.cadre/issues/21/session-session-001.md",
+    "/Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-21/.cadre/issues/21/session-session-002.md",
+    "/Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-21/.cadre/issues/21/session-session-003.md",
+    "/Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-21/.cadre/issues/21/session-session-003.md"
+  ],
+  "outputPath": "/Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-21/.cadre/tasks",
+  "payload": {
+    "sessionId": "session-003",
+    "testFramework": "vitest"
+  }
+}

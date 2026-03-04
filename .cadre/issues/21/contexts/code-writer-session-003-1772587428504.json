@@ -1,0 +1,67 @@
+{
+  "agent": "code-writer",
+  "issueNumber": 21,
+  "projectName": "theresalwaysadeal",
+  "repository": "jafreck/TheresAlwaysADeal",
+  "worktreePath": "/Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-21",
+  "phase": 3,
+  "sessionId": "session-003",
+  "config": {
+    "commands": {
+      "install": "npm install",
+      "build": "npm run build",
+      "test": "npx vitest run",
+      "lint": "npm run lint"
+    }
+  },
+  "inputFiles": [
+    "/Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-21/.cadre/issues/21/session-session-003.md",
+    "/Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-21/packages/worker/src/queues.ts",
+    "/Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-21/packages/worker/tests/queues.test.ts",
+    "/Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-21/packages/worker/src/index.ts",
+    "/Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-21/.cadre/issues/21/analysis.md",
+    "/Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-21/.cadre/issues/21/scout-report.md"
+  ],
+  "outputPath": "/Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-21/.cadre/tasks",
+  "payload": {
+    "sessionId": "session-003",
+    "steps": [
+      {
+        "id": "session-003-step-001",
+        "name": "Add slackNotificationQueue",
+        "description": "Add a `slackNotificationQueue` Queue instance and corresponding `slackNotificationQueueEvents` QueueEvents instance to packages/worker/src/queues.ts.",
+        "files": [
+          "packages/worker/src/queues.ts",
+          "packages/worker/tests/queues.test.ts"
+        ],
+        "complexity": "simple",
+        "acceptanceCriteria": [
+          "`slackNotificationQueue` is exported with queue name 'slack-notification'",
+          "`slackNotificationQueueEvents` is exported for the same queue name",
+          "Existing queue exports are unchanged",
+          "Queue tests assert the new queue and queue events are created"
+        ]
+      },
+      {
+        "id": "session-003-step-002",
+        "name": "Add Slack notification worker with retry and error handling",
+        "description": "Add a Slack notification worker in packages/worker/src/index.ts that consumes from `slackNotificationQueue`. The worker looks up the user's encrypted webhook URL (per-alert first, then global), decrypts it, POSTs a Block Kit payload to Slack, and logs to `alertNotifications` with channel='slack'. On 4xx errors, the webhook is disabled (set to null) and a stub email notification is sent. On 5xx/network errors, the job is retried up to 3 times with exponential backoff. Also update the ingest worker to enqueue Slack notification jobs when price-drop or all-time-low events are emitted.",
+        "files": [
+          "packages/worker/src/index.ts"
+        ],
+        "complexity": "complex",
+        "acceptanceCriteria": [
+          "A new BullMQ Worker consumes from the 'slack-notification' queue",
+          "Worker resolves webhook URL with per-alert priority over global user webhook",
+          "Worker decrypts the webhook URL using AES-256-GCM (same encryption utility pattern as API)",
+          "Worker POSTs Slack Block Kit JSON with game image, price, discount, buy link",
+          "On 4xx from Slack, the webhook column is set to null and the email stub is called",
+          "On 5xx or network error, the job retries up to 3 times with exponential backoff (BullMQ backoff config)",
+          "Each notification attempt is logged to `alertNotifications` with `channel = 'slack'`",
+          "The ingest worker enqueues a job to `slackNotificationQueue` when a price-drop or all-time-low event is detected for a user with a configured Slack webhook",
+          "The new worker is closed in the graceful shutdown handler"
+        ]
+      }
+    ]
+  }
+}
