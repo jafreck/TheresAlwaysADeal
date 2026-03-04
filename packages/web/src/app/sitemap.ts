@@ -1,12 +1,5 @@
 import type { MetadataRoute } from "next";
-import { apiClient, type EnvelopeResponse } from "@/lib/api-client";
-
-interface GameListItem {
-  id: number;
-  title: string;
-  slug: string;
-  updatedAt: string;
-}
+import { apiClient, type EnvelopeResponse, type GameListItem } from "@/lib/api-client";
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const entries: MetadataRoute.Sitemap = [

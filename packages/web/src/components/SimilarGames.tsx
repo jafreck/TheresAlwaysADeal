@@ -1,16 +1,6 @@
 import { cn } from "@/lib/utils";
-import { apiClient, type EnvelopeResponse } from "@/lib/api-client";
+import { apiClient, type EnvelopeResponse, type GameListItem } from "@/lib/api-client";
 import GameCard from "./GameCard";
-
-interface GameListItem {
-  id: number;
-  title: string;
-  slug: string;
-  description: string | null;
-  headerImageUrl: string | null;
-  createdAt: string;
-  updatedAt: string;
-}
 
 export interface SimilarGamesProps {
   genreSlugs: string[];
