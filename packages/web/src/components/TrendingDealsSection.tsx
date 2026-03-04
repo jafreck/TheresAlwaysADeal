@@ -3,27 +3,15 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
+import type { Deal } from "@/lib/types";
 import { apiClient, type EnvelopeResponse } from "@/lib/api-client";
 import GameCard from "./GameCard";
 import EmptyState from "./EmptyState";
 import LoadingSpinner from "./LoadingSpinner";
 
-interface Deal {
-  gameTitle: string;
-  gameSlug: string;
-  headerImageUrl: string;
-  price: number;
-  originalPrice: number;
-  discount: number;
-  storeName: string;
-  storeLogoUrl?: string | null;
-  storeUrl: string;
-  dealScore?: number | null;
-}
-
 const TABS = [
   { key: "trending", label: "Trending", endpoint: "/deals?limit=12" },
-  { key: "new", label: "New Deals", endpoint: "/deals?limit=12" },
+  { key: "new", label: "New Deals", endpoint: "/deals?sort=newest&limit=12" },
   {
     key: "all-time-lows",
     label: "All-Time Lows",

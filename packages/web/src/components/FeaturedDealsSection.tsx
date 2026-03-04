@@ -1,22 +1,12 @@
 import Link from "next/link";
 import GameCard from "./GameCard";
 import EmptyState from "./EmptyState";
+import type { Deal } from "@/lib/types";
 
-export interface FeaturedDeal {
-  gameTitle: string;
-  gameSlug: string;
-  headerImageUrl: string;
-  price: number;
-  originalPrice: number;
-  discount: number;
-  storeName: string;
-  storeLogoUrl?: string | null;
-  storeUrl: string;
-  dealScore?: number | null;
-}
+export type { Deal as FeaturedDeal } from "@/lib/types";
 
 interface FeaturedDealsSectionProps {
-  deals: FeaturedDeal[];
+  deals: Deal[];
 }
 
 export default function FeaturedDealsSection({
