@@ -50,6 +50,9 @@ importers:
       '@taad/db':
         specifier: workspace:*
         version: link:../db
+      '@taad/email':
+        specifier: workspace:*
+        version: link:../email
       bcryptjs:
         specifier: ^2.4.3
         version: 2.4.3
@@ -250,6 +253,9 @@ importers:
       '@taad/db':
         specifier: workspace:*
         version: link:../db
+      '@taad/email':
+        specifier: workspace:*
+        version: link:../email
       '@taad/scraper':
         specifier: workspace:*
         version: link:../scraper

@@ -52,6 +52,13 @@ describe("queues", () => {
       const steamSyncCall = vi.mocked(Queue).mock.calls.find(([name]) => name === "steam-sync");
       expect(steamSyncCall).toBeDefined();
     });
+
+    it("should create emailQueue with name 'email'", async () => {
+      const { emailQueue } = await import("../src/queues.js");
+      expect(emailQueue).toBeDefined();
+      const emailCall = vi.mocked(Queue).mock.calls.find(([name]) => name === "email");
+      expect(emailCall).toBeDefined();
+    });
   });
 
   describe("QueueEvents instances", () => {
@@ -82,6 +89,12 @@ describe("queues", () => {
     it("should create steamSyncQueueEvents for 'steam-sync'", async () => {
       await import("../src/queues.js");
       const call = vi.mocked(QueueEvents).mock.calls.find(([name]) => name === "steam-sync");
+      expect(call).toBeDefined();
+    });
+
+    it("should create emailQueueEvents for 'email'", async () => {
+      await import("../src/queues.js");
+      const call = vi.mocked(QueueEvents).mock.calls.find(([name]) => name === "email");
       expect(call).toBeDefined();
     });
   });
@@ -116,6 +129,12 @@ describe("queues", () => {
       const { steamSyncQueue, steamSyncQueueEvents } = await import("../src/queues.js");
       expect(steamSyncQueue).toBeDefined();
       expect(steamSyncQueueEvents).toBeDefined();
+    });
+
+    it("should export emailQueue and emailQueueEvents", async () => {
+      const { emailQueue, emailQueueEvents } = await import("../src/queues.js");
+      expect(emailQueue).toBeDefined();
+      expect(emailQueueEvents).toBeDefined();
     });
   });
 });
