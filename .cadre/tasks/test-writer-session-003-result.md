@@ -1,36 +1,45 @@
-# Test Writer Result: session-003
+# Test Writer Result: session-003 - Worker Alert Evaluation Logic
 
-## Tests Created
+## Summary
 
-### packages/web/tests/components/GameCard.test.tsx (15 tests)
-- Component type verification
-- Returns article element
-- Custom className support
-- Hover shadow and focus-within ring styles
-- Cover image alt text and src
-- Cover image fill prop
-- Game title in h3
-- Store name rendering
-- DiscountBadge shown when discount > 0
-- DiscountBadge hidden when discount is 0
-- BuyButton href, storeName, and gameName props
-- Handles null and undefined storeLogoUrl
+Added 18 new tests covering the `notificationQueue`, `priceDropAlertWorker`, and `allTimeLowAlertWorker` introduced in session-003. All 103 tests pass (85 existing + 18 new).
 
-### packages/web/tests/app/robots.test.ts (5 tests)
-- Function type verification
-- Returns rules array
-- Allows all user agents to crawl /
-- Disallows /api/ and /admin/
-- References sitemap URL
+## Tests Added
 
-### packages/web/tests/app/sitemap.test.ts (7 tests)
-- Function type verification
-- Returns an array
-- Includes homepage entry with correct URL
-- Homepage priority is 1
-- Homepage changeFrequency is daily
-- lastModified is a Date instance
-- Has at least one entry
+### `packages/worker/tests/queues.test.ts` (3 new tests)
+- `notificationQueue` Queue created with name 'notification'
+- `notificationQueueEvents` QueueEvents created for 'notification'
+- Exports `notificationQueue` and `notificationQueueEvents`
 
-## Test Run Result
-All 128 tests pass across 15 test files (including pre-existing tests).
+### `packages/worker/tests/index.test.ts` (15 new tests)
+
+#### `priceDropAlertWorker` (8 tests)
+- Should create a Worker for the 'price-drop' queue
+- Should return early when store listing is not found
+- Should trigger alert when current price <= targetPrice
+- Should trigger alert when discount >= targetDiscountPercent
+- Should NOT trigger alert when neither price nor discount conditions are met
+- Should skip alerts scoped to a different store
+- Should handle no active alerts gracefully
+- Should insert alertNotifications row with correct triggeredPrice
+
+#### `allTimeLowAlertWorker` (6 tests)
+- Should create a Worker for the 'all-time-low' queue
+- Should trigger all active alerts unconditionally
+- Should skip alerts scoped to a different store
+- Should handle no active alerts gracefully
+- Should insert alertNotifications row with correct triggeredPrice
+- Should enqueue notification with correct userId and notification preferences
+
+#### `graceful shutdown` (1 test)
+- Should include priceDropAlertWorker and allTimeLowAlertWorker in shutdown
+
+## Files Modified
+- `packages/worker/tests/queues.test.ts` — added notificationQueue/notificationQueueEvents tests
+- `packages/worker/tests/index.test.ts` — added priceAlerts/alertNotifications to DB mock; added priceDropAlertWorker, allTimeLowAlertWorker, and graceful shutdown test suites
+
+## Test Results
+```
+Test Files  6 passed (6)
+     Tests  103 passed (103)
+```

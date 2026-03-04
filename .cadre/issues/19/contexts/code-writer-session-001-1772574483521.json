@@ -1,0 +1,92 @@
+{
+  "agent": "code-writer",
+  "issueNumber": 19,
+  "projectName": "theresalwaysadeal",
+  "repository": "jafreck/TheresAlwaysADeal",
+  "worktreePath": "/Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-19",
+  "phase": 3,
+  "sessionId": "session-001",
+  "config": {
+    "commands": {
+      "install": "npm install",
+      "build": "npm run build",
+      "test": "npx vitest run",
+      "lint": "npm run lint"
+    }
+  },
+  "inputFiles": [
+    "/Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-19/.cadre/issues/19/session-session-001.md",
+    "/Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-19/packages/db/src/schema.ts",
+    "/Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-19/packages/api/src/lib/validation.ts",
+    "/Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-19/packages/api/src/lib/encryption.ts",
+    "/Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-19/.env.example",
+    "/Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-19/.cadre/issues/19/analysis.md",
+    "/Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-19/.cadre/issues/19/scout-report.md"
+  ],
+  "outputPath": "/Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-19/.cadre/tasks",
+  "payload": {
+    "sessionId": "session-001",
+    "steps": [
+      {
+        "id": "session-001-step-001",
+        "name": "Expand priceAlerts schema with new columns",
+        "description": "Add storeId (nullable UUID FK to stores), targetDiscountPercent (decimal, nullable), notifyEmail (boolean, default true), and notifySlackWebhook (text, nullable) columns to the priceAlerts table. Make the existing targetPrice column nullable to support discount-only alerts.",
+        "files": [
+          "packages/db/src/schema.ts"
+        ],
+        "complexity": "moderate",
+        "acceptanceCriteria": [
+          "priceAlerts table has a nullable `storeId` column with a foreign key reference to `stores.id`",
+          "priceAlerts table has a nullable `targetDiscountPercent` decimal(5,2) column",
+          "priceAlerts table has a `notifyEmail` boolean column defaulting to true",
+          "priceAlerts table has a nullable `notifySlackWebhook` text column",
+          "The existing `targetPrice` column is now nullable (to allow discount-only alerts)",
+          "All existing columns (id, userId, gameId, isActive, createdAt, updatedAt) are preserved unchanged"
+        ]
+      },
+      {
+        "id": "session-001-step-002",
+        "name": "Add Zod validation schemas for alert payloads",
+        "description": "Add createAlertSchema and updateAlertSchema Zod schemas in the validation module. The create schema requires gameId and at least one of targetPrice or targetDiscountPercent. The update schema makes all fields optional.",
+        "files": [
+          "packages/api/src/lib/validation.ts"
+        ],
+        "complexity": "moderate",
+        "acceptanceCriteria": [
+          "`createAlertSchema` is exported and requires `gameId` (UUID string)",
+          "`createAlertSchema` accepts optional `storeId` (UUID string), `targetPrice` (positive number), `targetDiscountPercent` (number 0-100), `notifyEmail` (boolean), `notifySlackWebhook` (string URL)",
+          "`createAlertSchema` enforces that at least one of `targetPrice` or `targetDiscountPercent` is provided via a Zod refinement",
+          "`updateAlertSchema` is exported and makes all fields optional (partial of create schema without gameId)",
+          "Existing validation schemas are not modified"
+        ]
+      },
+      {
+        "id": "session-001-step-003",
+        "name": "Create encryption utility for Slack webhook",
+        "description": "Create a new encryption module that provides encrypt and decrypt functions using AES-256-GCM with the ENCRYPTION_KEY environment variable. This is used to store notifySlackWebhook encrypted at rest.",
+        "files": [
+          "packages/api/src/lib/encryption.ts"
+        ],
+        "complexity": "moderate",
+        "acceptanceCriteria": [
+          "`encrypt(plaintext: string): string` function is exported and returns a colon-separated string of iv:authTag:ciphertext (all hex-encoded)",
+          "`decrypt(encrypted: string): string` function is exported and reverses the encryption",
+          "Both functions use AES-256-GCM with a 32-byte key derived from the `ENCRYPTION_KEY` env var",
+          "The module throws a clear error if `ENCRYPTION_KEY` is not set when encrypt/decrypt is called"
+        ]
+      },
+      {
+        "id": "session-001-step-004",
+        "name": "Add ENCRYPTION_KEY to .env.example",
+        "description": "Add an ENCRYPTION_KEY environment variable entry to .env.example under a new 'Encryption' section so developers know to configure it.",
+        "files": [
+          ".env.example"
+        ],
+        "complexity": "simple",
+        "acceptanceCriteria": [
+          "`.env.example` contains an `ENCRYPTION_KEY` entry with a placeholder value and a descriptive comment"
+        ]
+      }
+    ]
+  }
+}

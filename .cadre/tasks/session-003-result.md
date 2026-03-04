@@ -1,20 +1,22 @@
-# Task Result: session-003 - GameCard composite component and SEO stubs
+# Task Result: session-003 - Worker Alert Evaluation Logic
 
 ## Changes Made
-- `packages/web/src/components/GameCard.tsx`: Created GameCard composite component composing Next.js Image, PriceBadge, DiscountBadge, BuyButton, and StoreIcon into a card layout with hover/focus styles
-- `packages/web/src/app/robots.ts`: Created stubbed robots.txt route handler returning MetadataRoute.Robots with Allow/Disallow rules and sitemap reference
-- `packages/web/src/app/sitemap.ts`: Created stubbed sitemap.xml route handler returning MetadataRoute.Sitemap with homepage entry and TODO comment for game URLs
+- `packages/worker/src/queues.ts`: Added `notificationQueue` (BullMQ Queue named 'notification') and `notificationQueueEvents` (corresponding QueueEvents) exports
+- `packages/worker/src/index.ts`: Added `priceDropAlertWorker` consuming 'price-drop' queue — queries active priceAlerts for the gameId, filters by storeId if scoped, triggers when current price ≤ targetPrice or discount ≥ targetDiscountPercent, enqueues notification job and inserts alertNotifications row
+- `packages/worker/src/index.ts`: Added `allTimeLowAlertWorker` consuming 'all-time-low' queue — queries active priceAlerts for the gameId, triggers all unconditionally (with store-scope filtering), enqueues notification job and inserts alertNotifications row
+- `packages/worker/src/index.ts`: Imported `notificationQueue` from './queues.js' and `priceAlerts`/`alertNotifications` from '@taad/db'
+- `packages/worker/src/index.ts`: Added both new workers to the graceful shutdown handler
 
 ## Files Modified
-- (none)
+- packages/worker/src/queues.ts
+- packages/worker/src/index.ts
 
 ## Files Created
-- packages/web/src/components/GameCard.tsx
-- packages/web/src/app/robots.ts
-- packages/web/src/app/sitemap.ts
+- (none)
 
 ## Notes
-- `gameSlug` prop is included in GameCardProps interface for future use (e.g., linking to game detail pages) but prefixed with underscore in destructuring to satisfy lint rules
-- robots.ts uses `theresalwaysadeal.com` as the domain for the sitemap URL reference
-- sitemap.ts includes a TODO comment for populating game page URLs when the API is available
-- Build passes successfully with all three new route outputs visible (/, /robots.txt, /sitemap.xml)
+- Price-drop alerts remain active (isActive is not set to false) so re-notification occurs on further drops
+- All-time-low alerts also remain active for re-notification
+- Store-scoped alerts (with a non-null storeId) only trigger for price events on matching store listings
+- The discount percent for price-drop evaluation is read from the latest priceHistory record for the store listing
+- The worker package builds successfully with no TypeScript errors

@@ -1,27 +1,21 @@
-# Task Result: session-001 - Foundation: deps, design tokens, and lib modules
+# Task Result: session-001 - Foundation: Schema, Validation, and Encryption
 
 ## Changes Made
-- `packages/web/package.json`: Added `zustand`, `react-hook-form`, `recharts` to dependencies; added `@testing-library/react`, `@testing-library/jest-dom`, `jsdom` to devDependencies
-- `packages/web/src/app/globals.css`: Added semantic color tokens (primary, background, surface, muted, success, warning, danger) and typography scale (heading, body, caption, label) to @theme block
-- `packages/web/src/lib/utils.ts`: Created `cn` helper combining clsx and tailwind-merge
-- `packages/web/src/lib/auth-store.ts`: Created Zustand auth store with accessToken, userProfile, setAccessToken, setUserProfile, and logout
-- `packages/web/src/lib/api-client.ts`: Created typed fetch wrapper with automatic Bearer token, EnvelopeResponse/EnvelopeMeta types, and structured error handling
-- `packages/web/src/lib/query-provider.tsx`: Created TanStack Query provider as a client component with sensible defaults (60s staleTime, 1 retry)
-- `packages/web/next.config.ts`: Added Steam CDN, GOG, and Epic Games image domains to remotePatterns
-- `packages/web/vitest.config.ts`: Added `@/*` path alias resolution and jsdom test environment
+- `packages/db/src/schema.ts`: Added `storeId` (nullable UUID FK to stores), `targetDiscountPercent` (decimal(5,2), nullable), `notifyEmail` (boolean, default true), `notifySlackWebhook` (text, nullable) columns to priceAlerts table. Made `targetPrice` nullable.
+- `packages/api/src/lib/validation.ts`: Added `createAlertSchema` (requires gameId, enforces at least one of targetPrice/targetDiscountPercent via refinement) and `updateAlertSchema` (all fields optional, no gameId).
+- `packages/api/src/lib/encryption.ts`: Created new encryption module with `encrypt` and `decrypt` functions using AES-256-GCM. Returns iv:authTag:ciphertext hex-encoded. Throws if ENCRYPTION_KEY env var is missing.
+- `.env.example`: Added ENCRYPTION_KEY entry under a new "Encryption" section with descriptive comment.
 
 ## Files Modified
-- packages/web/package.json
-- packages/web/src/app/globals.css
-- packages/web/next.config.ts
-- packages/web/vitest.config.ts
+- packages/db/src/schema.ts
+- packages/api/src/lib/validation.ts
+- .env.example
 
 ## Files Created
-- packages/web/src/lib/utils.ts
-- packages/web/src/lib/auth-store.ts
-- packages/web/src/lib/api-client.ts
-- packages/web/src/lib/query-provider.tsx
+- packages/api/src/lib/encryption.ts
 
 ## Notes
-- Added `/* eslint-disable no-undef */` to api-client.ts because the shared ESLint config enables `no-undef` for all files but doesn't configure Node/browser globals for TypeScript files. TypeScript itself handles undefined variable checking.
-- All 8 existing tests pass and the Next.js production build succeeds.
+- The existing `targetPrice` column was changed from `.notNull()` to nullable to support discount-only alerts (where only `targetDiscountPercent` is set).
+- All existing columns on priceAlerts (id, userId, gameId, isActive, createdAt, updatedAt) are preserved unchanged.
+- The encryption key is expected to be a 64-character hex string (32 bytes) for AES-256-GCM.
+- Pre-existing type-check errors (missing node_modules, implicit any in seed.ts) are unrelated to these changes.
