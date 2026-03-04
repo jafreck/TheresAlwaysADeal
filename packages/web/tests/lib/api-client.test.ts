@@ -60,6 +60,7 @@ describe('api-client', () => {
       expect(mockFetch).toHaveBeenCalledWith(
         expect.any(String),
         expect.objectContaining({
+          credentials: 'include',
           headers: expect.objectContaining({
             'Content-Type': 'application/json',
           }),

@@ -354,6 +354,16 @@ describe("registerSchema", () => {
   it("should reject missing password", () => {
     expect(() => registerSchema.parse({ email: "user@example.com" })).toThrow();
   });
+
+  it("should accept an optional name field", () => {
+    const result = registerSchema.parse({ email: "user@example.com", password: "securepass", name: "Alice" });
+    expect(result).toEqual({ email: "user@example.com", password: "securepass", name: "Alice" });
+  });
+
+  it("should allow omitting the name field", () => {
+    const result = registerSchema.parse({ email: "user@example.com", password: "securepass" });
+    expect(result.name).toBeUndefined();
+  });
 });
 
 describe("loginSchema", () => {
