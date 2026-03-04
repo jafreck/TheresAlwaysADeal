@@ -130,7 +130,7 @@ const steamSyncWorker = new Worker(
           continue;
         }
 
-        const appIds = Object.keys(data).map(Number);
+        const appIds = Object.keys(data).map(Number).filter((id) => !isNaN(id) && id > 0);
         for (const appId of appIds) {
           const [game] = await db
             .select()

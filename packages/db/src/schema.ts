@@ -101,7 +101,9 @@ export const wishlists = pgTable("wishlists", {
   gameId: uuid("game_id").references(() => games.id).notNull(),
   source: varchar("source", { length: 50 }).default("manual").notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
-});
+}, (t) => [
+  unique().on(t.userId, t.gameId, t.source),
+]);
 
 // ─── Price Alerts ─────────────────────────────────────────────────────────────
 export const priceAlerts = pgTable("price_alerts", {
