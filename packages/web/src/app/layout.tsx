@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import Link from "next/link";
+import { NuqsAdapter } from "nuqs/adapters/next/app";
 import { QueryProvider } from "@/lib/query-provider";
 import Header from "@/components/Header";
 import "./globals.css";
@@ -36,6 +37,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         />
       </head>
       <body className="flex min-h-screen flex-col">
+        <NuqsAdapter>
         <QueryProvider>
           <Header />
 
@@ -104,6 +106,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
             </div>
           </footer>
         </QueryProvider>
+        </NuqsAdapter>
       </body>
     </html>
   );
