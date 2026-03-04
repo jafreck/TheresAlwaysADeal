@@ -338,4 +338,58 @@ describe('HomePage', () => {
     expect(element.props.className).toContain('flex');
     expect(element.props.className).toContain('flex-col');
   });
+
+  it('should pass multiple deals through to section components', async () => {
+    const multipleDeals = [
+      { ...mockDeals[0], gameTitle: 'Game A' },
+      { ...mockDeals[0], gameTitle: 'Game B' },
+      { ...mockDeals[0], gameTitle: 'Game C' },
+    ];
+    const multipleFreeGames = [
+      { ...mockFreeGames[0], gameTitle: 'Free A' },
+      { ...mockFreeGames[0], gameTitle: 'Free B' },
+    ];
+    setupMocks(multipleDeals, multipleFreeGames, multipleDeals);
+    const pageModule = await import('../../src/app/page');
+    const HomePage = pageModule.default;
+    const element = await HomePage();
+
+    const children = element.props.children;
+    const featuredSection = children[2].props.children;
+    expect(featuredSection.props.deals).toHaveLength(3);
+
+    const freeGamesSection = children[3].props.children;
+    expect(freeGamesSection.props.games).toHaveLength(2);
+  });
+
+  it('should render gap-12 spacing between sections', async () => {
+    setupMocks();
+    const pageModule = await import('../../src/app/page');
+    const HomePage = pageModule.default;
+    const element = await HomePage();
+
+    expect(element.props.className).toContain('gap-12');
+  });
+
+  it('should use revalidate value when calling serverApi.get', async () => {
+    setupMocks();
+    const pageModule = await import('../../src/app/page');
+    const HomePage = pageModule.default;
+    await HomePage();
+
+    const mockGet = vi.mocked(serverApi.get);
+    for (const call of mockGet.mock.calls) {
+      expect(call[1]).toBe(900);
+    }
+  });
+
+  it('should render exactly 8 top-level children', async () => {
+    setupMocks();
+    const pageModule = await import('../../src/app/page');
+    const HomePage = pageModule.default;
+    const element = await HomePage();
+
+    const children = element.props.children;
+    expect(children).toHaveLength(8);
+  });
 });
