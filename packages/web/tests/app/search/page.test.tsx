@@ -107,6 +107,13 @@ vi.mock('@/components/LoadingSpinner', () => ({
   },
 }));
 
+vi.mock('@/components/AdSlot', () => ({
+  default: function MockAdSlot(props: Record<string, unknown>) {
+    return React.createElement('div', { 'data-testid': 'ad-slot', 'data-slot-id': props.slotId });
+  },
+}));
+
+
 import { useInfiniteQuery } from '@tanstack/react-query';
 import SearchPage from '../../../src/app/search/page';
 
@@ -200,6 +207,28 @@ describe('SearchPage', () => {
     // Only the Suspense fallback spinner should not be visible
     expect(spinners.length).toBe(0);
   });
+
+  it('should render AdSlot with search-results-inline slotId', () => {
+    const { container } = render(<SearchPage />);
+    const adSlot = container.querySelector('[data-testid="ad-slot"]');
+    expect(adSlot).toBeTruthy();
+    expect(adSlot?.getAttribute('data-slot-id')).toBe('search-results-inline');
+  });
+
+  it('should render AdSlot after SearchResultsGrid', () => {
+    const { container } = render(<SearchPage />);
+    const grid = container.querySelector('[data-testid="search-results-grid"]');
+    const adSlot = container.querySelector('[data-testid="ad-slot"]');
+    expect(grid).toBeTruthy();
+    expect(adSlot).toBeTruthy();
+    // AdSlot should be a sibling after SearchResultsGrid
+    const parent = grid!.parentElement;
+    const children = Array.from(parent!.children);
+    const gridIdx = children.indexOf(grid!);
+    const adIdx = children.indexOf(adSlot!);
+    expect(adIdx).toBeGreaterThan(gridIdx);
+  });
+
 
   it('should handle empty data pages gracefully', () => {
     mockInfiniteQueryResult.data = { pages: [] };

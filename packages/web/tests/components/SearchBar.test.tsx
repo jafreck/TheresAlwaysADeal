@@ -1,6 +1,6 @@
 import React from 'react';
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, fireEvent } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { render, fireEvent, cleanup } from '@testing-library/react';
 
 const mockPush = vi.fn();
 
@@ -21,6 +21,9 @@ vi.mock('../../src/lib/useDebounce', () => ({
 import SearchBar from '../../src/components/SearchBar';
 
 describe('SearchBar', () => {
+  afterEach(() => cleanup());
+
+
   beforeEach(() => {
     vi.clearAllMocks();
     mockQueryData = undefined;

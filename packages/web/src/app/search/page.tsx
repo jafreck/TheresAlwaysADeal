@@ -9,6 +9,7 @@ import { useSearchFilters } from "@/lib/useSearchFilters";
 import FiltersPanel from "@/components/FiltersPanel";
 import SearchResultsGrid from "@/components/SearchResultsGrid";
 import LoadingSpinner from "@/components/LoadingSpinner";
+import AdSlot from "@/components/AdSlot";
 
 const PAGE_SIZE = 20;
 
@@ -151,6 +152,9 @@ function SearchPageContent() {
             error={error ? error.message : undefined}
             onRetry={() => refetch()}
           />
+
+          <AdSlot slotId="search-results-inline" />
+
 
           {/* Infinite scroll sentinel */}
           <div ref={sentinelRef} className="h-1" />

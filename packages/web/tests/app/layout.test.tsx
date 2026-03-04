@@ -18,6 +18,19 @@ vi.mock('@/components/Header', () => ({
   },
 }));
 
+vi.mock('@/components/CookieConsentBanner', () => ({
+  default: function MockCookieConsentBanner() {
+    return { type: 'div', props: { 'data-testid': 'cookie-consent-banner' }, key: null };
+  },
+}));
+
+vi.mock('next/script', () => ({
+  default: function MockScript(props: Record<string, unknown>) {
+    return { type: 'script', props: { ...props, 'data-testid': 'next-script' }, key: null };
+  },
+}));
+
+
 vi.mock('nuqs/adapters/next/app', () => ({
   NuqsAdapter: function MockNuqsAdapter({ children }: { children: unknown }) {
     return { type: 'div', props: { 'data-testid': 'nuqs-adapter', children }, key: null };
@@ -167,6 +180,76 @@ describe('RootLayout', () => {
     for (const link of links) {
       expect(link.props.className).toContain('focus-visible:outline');
     }
+  });
+
+  it('should render AdSense script with afterInteractive strategy', () => {
+    const element = RootLayout({ children: 'content' });
+    const heads = findElements(element, (el) => el.type === 'head');
+    expect(heads.length).toBeGreaterThanOrEqual(1);
+    const scripts = findElements(heads[0], (el) => el.type === 'script');
+    const adsenseScript = scripts.find(
+      (s) => s.props['data-testid'] === 'next-script' && s.props.strategy === 'afterInteractive',
+    );
+    expect(adsenseScript).toBeTruthy();
+    expect(String(adsenseScript!.props.src)).toContain('pagead2.googlesyndication.com');
+  });
+
+  it('should set crossOrigin="anonymous" on AdSense script', () => {
+    const element = RootLayout({ children: 'content' });
+    const heads = findElements(element, (el) => el.type === 'head');
+    const scripts = findElements(heads[0], (el) => el.type === 'script');
+    const adsenseScript = scripts.find(
+      (s) => s.props['data-testid'] === 'next-script' && s.props.strategy === 'afterInteractive',
+    );
+    expect(adsenseScript).toBeTruthy();
+    expect(adsenseScript!.props.crossOrigin).toBe('anonymous');
+  });
+
+  it('should include NEXT_PUBLIC_ADSENSE_PUBLISHER_ID in AdSense script src', () => {
+    const element = RootLayout({ children: 'content' });
+    const heads = findElements(element, (el) => el.type === 'head');
+    const scripts = findElements(heads[0], (el) => el.type === 'script');
+    const adsenseScript = scripts.find(
+      (s) => s.props['data-testid'] === 'next-script' && s.props.strategy === 'afterInteractive',
+    );
+    expect(adsenseScript).toBeTruthy();
+    expect(String(adsenseScript!.props.src)).toContain('?client=');
+  });
+
+  it('should render AdSense script in head, not in body', () => {
+    const element = RootLayout({ children: 'content' });
+    const bodies = findElements(element, (el) => el.type === 'body');
+    const bodyScripts = findElements(bodies[0], (el) =>
+      el.type === 'script' && el.props['data-testid'] === 'next-script',
+    );
+    expect(bodyScripts.length).toBe(0);
+  });
+
+  it('should render CookieConsentBanner inside body', () => {
+    const element = RootLayout({ children: 'content' });
+    const bodies = findElements(element, (el) => el.type === 'body');
+    expect(bodies.length).toBe(1);
+    const banners = findElements(bodies[0], (el) =>
+      el.type === 'div' && el.props['data-testid'] === 'cookie-consent-banner',
+    );
+    expect(banners.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('should place CookieConsentBanner after the footer', () => {
+    const element = RootLayout({ children: 'content' });
+    const bodies = findElements(element, (el) => el.type === 'body');
+    const body = bodies[0];
+    // The body children should have the CookieConsentBanner after NuqsAdapter (which contains footer)
+    const children = body.props.children;
+    expect(Array.isArray(children)).toBe(true);
+    const childArray = children as El[];
+    // Find the CookieConsentBanner in the body's direct children
+    const bannerIndex = childArray.findIndex((c) => {
+      if (!c || typeof c !== 'object' || !('type' in c)) return false;
+      const resolved = typeof c.type === 'function' ? (c.type as (props: Record<string, unknown>) => El)(c.props) : c;
+      return resolved.props?.['data-testid'] === 'cookie-consent-banner';
+    });
+    expect(bannerIndex).toBeGreaterThan(-1);
   });
 
   it('should include copyright text in footer', () => {

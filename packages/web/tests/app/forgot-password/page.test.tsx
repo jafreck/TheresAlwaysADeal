@@ -60,7 +60,7 @@ describe('ForgotPasswordPage', () => {
   it('should render an email field with label', () => {
     const { container } = render(<ForgotPasswordPage />);
     expect(container.querySelector('label[for="email"]')?.textContent).toContain('Email');
-    expect(container.querySelector('input#email')).toBeTruthy();
+    expect(container.querySelector('input[id="email"]')).toBeTruthy();
   });
 
   it('should render a "Send Reset Link" submit button', () => {
@@ -80,7 +80,7 @@ describe('ForgotPasswordPage', () => {
   it('should show generic success message after successful submission', async () => {
     const { container } = render(<ForgotPasswordPage />);
 
-    fireEvent.change(container.querySelector('input#email')!, { target: { value: 'test@example.com' } });
+    fireEvent.change(container.querySelector('input[id="email"]')!, { target: { value: 'test@example.com' } });
     fireEvent.submit(container.querySelector('form')!);
 
     await waitFor(() => {
@@ -92,7 +92,7 @@ describe('ForgotPasswordPage', () => {
     mockPost.mockRejectedValue(new Error('Server error'));
     const { container } = render(<ForgotPasswordPage />);
 
-    fireEvent.change(container.querySelector('input#email')!, { target: { value: 'test@example.com' } });
+    fireEvent.change(container.querySelector('input[id="email"]')!, { target: { value: 'test@example.com' } });
     fireEvent.submit(container.querySelector('form')!);
 
     await waitFor(() => {
@@ -103,7 +103,7 @@ describe('ForgotPasswordPage', () => {
   it('should call API with email on submission', async () => {
     const { container } = render(<ForgotPasswordPage />);
 
-    fireEvent.change(container.querySelector('input#email')!, { target: { value: 'test@example.com' } });
+    fireEvent.change(container.querySelector('input[id="email"]')!, { target: { value: 'test@example.com' } });
     fireEvent.submit(container.querySelector('form')!);
 
     await waitFor(() => {
@@ -114,7 +114,7 @@ describe('ForgotPasswordPage', () => {
   it('should show validation error for invalid email', async () => {
     const { container } = render(<ForgotPasswordPage />);
 
-    fireEvent.change(container.querySelector('input#email')!, { target: { value: 'not-email' } });
+    fireEvent.change(container.querySelector('input[id="email"]')!, { target: { value: 'not-email' } });
     fireEvent.submit(container.querySelector('form')!);
 
     await waitFor(() => {
@@ -126,7 +126,7 @@ describe('ForgotPasswordPage', () => {
   it('should render "Back to Sign In" link in success state', async () => {
     const { container } = render(<ForgotPasswordPage />);
 
-    fireEvent.change(container.querySelector('input#email')!, { target: { value: 'test@example.com' } });
+    fireEvent.change(container.querySelector('input[id="email"]')!, { target: { value: 'test@example.com' } });
     fireEvent.submit(container.querySelector('form')!);
 
     await waitFor(() => {
@@ -138,6 +138,6 @@ describe('ForgotPasswordPage', () => {
 
   it('should have proper autocomplete on email input', () => {
     const { container } = render(<ForgotPasswordPage />);
-    expect(container.querySelector('input#email')?.getAttribute('autocomplete')).toBe('email');
+    expect(container.querySelector('input[id="email"]')?.getAttribute('autocomplete')).toBe('email');
   });
 });

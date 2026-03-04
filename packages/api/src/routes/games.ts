@@ -208,7 +208,16 @@ app.get("/search", cacheMiddleware(300, getRedis), async (c) => {
       sort === "lowest_price"
         ? sql`(${sql.raw("best_price")}) ASC NULLS LAST`
         : sort === "highest_discount"
-          ? sql`(${sql.raw("best_price")}) ASC NULLS LAST`
+          ? sql`(
+              SELECT MAX(ph.discount::numeric)
+              FROM store_listings sl
+              JOIN price_history ph ON ph.store_listing_id = sl.id
+                AND ph.recorded_at = (
+                  SELECT MAX(ph2.recorded_at) FROM price_history ph2
+                  WHERE ph2.store_listing_id = sl.id
+                )
+              WHERE sl.game_id = ${games.id}
+            ) DESC NULLS LAST`
           : sort === "a_z"
             ? sql`${games.title} ASC`
             : sort === "release_date"

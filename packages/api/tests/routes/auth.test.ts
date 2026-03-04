@@ -20,7 +20,7 @@ vi.mock("../../src/lib/jwt.js", () => ({
 
 const mockSendVerificationEmail = vi.fn();
 const mockSendPasswordResetEmail = vi.fn();
-vi.mock("../../src/lib/email.js", () => ({
+vi.mock("@taad/email", () => ({
   sendVerificationEmail: (...args: unknown[]) => mockSendVerificationEmail(...args),
   sendPasswordResetEmail: (...args: unknown[]) => mockSendPasswordResetEmail(...args),
 }));

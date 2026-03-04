@@ -75,7 +75,7 @@ describe("sortSchema", () => {
   });
 
   it("should accept valid sort values", () => {
-    for (const val of ["best_match", "highest_discount", "lowest_price", "a_z", "release_date"]) {
+    for (const val of ["best_match", "highest_discount", "lowest_price", "a_z", "release_date", "newest"]) {
       const result = sortSchema.parse({ sort: val });
       expect(result.sort).toBe(val);
     }
@@ -119,6 +119,13 @@ describe("commonQuerySchema", () => {
       genre: "rpg",
       sort: "release_date",
     });
+  });
+
+  it("should accept newest as a sort value", () => {
+    const result = commonQuerySchema.parse({
+      sort: "newest",
+    });
+    expect(result.sort).toBe("newest");
   });
 });
 
@@ -340,6 +347,7 @@ import {
   resetPasswordSchema,
   steamCallbackSchema,
   steamUnlinkSchema,
+  unsubscribeSchema,
 } from "../../src/lib/validation.js";
 
 describe("registerSchema", () => {
@@ -506,5 +514,29 @@ describe("steamUnlinkSchema", () => {
 
   it("should reject null as confirm", () => {
     expect(() => steamUnlinkSchema.parse({ confirm: null })).toThrow();
+  });
+});
+
+
+// ─── Unsubscribe Schema ───────────────────────────────────────────────────────
+
+describe("unsubscribeSchema", () => {
+  it("should parse valid token", () => {
+    const result = unsubscribeSchema.parse({ token: "abc123" });
+    expect(result).toEqual({ token: "abc123" });
+  });
+
+  it("should reject empty token", () => {
+    expect(() => unsubscribeSchema.parse({ token: "" })).toThrow();
+  });
+
+  it("should reject missing token", () => {
+    expect(() => unsubscribeSchema.parse({})).toThrow();
+  });
+
+  it("should accept long token strings", () => {
+    const longToken = "a".repeat(500);
+    const result = unsubscribeSchema.parse({ token: longToken });
+    expect(result.token).toBe(longToken);
   });
 });

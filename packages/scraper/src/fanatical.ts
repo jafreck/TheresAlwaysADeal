@@ -1,6 +1,7 @@
 import { eq, and } from "drizzle-orm";
 import { db, games, stores, storeListings, priceHistory } from "@taad/db";
-import { BaseScraper, ScrapedGame } from "./types.js";
+import type { ScrapedGame } from "./types.js";
+import { BaseScraper } from "./types.js";
 import { buildReferralUrl } from "./referral.js";
 
 interface FanaticalAlgoliaHit {

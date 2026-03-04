@@ -14,7 +14,7 @@ export const genreFilterSchema = z.object({
 });
 
 export const sortSchema = z.object({
-  sort: z.enum(["best_match", "highest_discount", "lowest_price", "a_z", "release_date"]).optional(),
+  sort: z.enum(["best_match", "highest_discount", "lowest_price", "a_z", "release_date", "newest"]).optional(),
 });
 
 export const commonQuerySchema = paginationSchema
@@ -83,4 +83,12 @@ export const steamCallbackSchema = z.object({
 
 export const steamUnlinkSchema = z.object({
   confirm: z.literal(true),
+});
+
+
+
+// ─── Unsubscribe Schema ───────────────────────────────────────────────────────
+
+export const unsubscribeSchema = z.object({
+  token: z.string().min(1, "Token is required"),
 });

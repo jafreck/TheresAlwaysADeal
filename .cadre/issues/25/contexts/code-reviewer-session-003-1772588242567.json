@@ -1,0 +1,111 @@
+{
+  "agent": "code-reviewer",
+  "issueNumber": 25,
+  "projectName": "theresalwaysadeal",
+  "repository": "jafreck/TheresAlwaysADeal",
+  "worktreePath": "/Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-25",
+  "phase": 3,
+  "sessionId": "session-003",
+  "config": {
+    "commands": {
+      "install": "npm install",
+      "build": "npm run build",
+      "test": "npx vitest run",
+      "lint": "npm run lint"
+    }
+  },
+  "inputFiles": [
+    "/Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-25/.cadre/issues/25/diff-session-003.patch",
+    "/Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-25/.cadre/issues/25/session-session-003.md",
+    "/Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-25/.cadre/issues/25/analysis.md",
+    "/Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-25/.cadre/issues/25/scout-report.md"
+  ],
+  "outputPath": "/Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-25/.cadre/issues/25/review-session-003.md",
+  "payload": {
+    "sessionId": "session-003",
+    "acceptanceCriteria": [
+      "Hook exports `useSearchFilters` from `packages/web/src/lib/useSearchFilters.ts`",
+      "Manages `q`, `store`, `genre`, `min_discount`, `max_price`, `sort`, and `page` as URL query parameters via `nuqs`",
+      "Returns current filter values and individual setter functions",
+      "Changing a filter resets `page` to 1",
+      "Browser back/forward navigation updates the returned filter values",
+      "Renders store checkboxes for Steam, GOG, Epic, Humble, Fanatical",
+      "Renders discount preset chips for 25%+, 50%+, 75%+, 90%+",
+      "Renders max price preset options for $5, $10, $20, $30, and free only",
+      "Renders sort selector with options: Best Match, Highest Discount, Lowest Price, A–Z, Release Date",
+      "On desktop (md+), renders as a visible sidebar panel",
+      "On mobile (<md), renders inside a dialog/drawer toggled by a 'Filters' button",
+      "Accepts current filter values and onChange callbacks as props",
+      "All filter interactions call the corresponding onChange callback without page reload",
+      "Renders a result count header (e.g., '342 results for \"witcher\"')",
+      "Renders `GameCard` components in a responsive grid (1 col mobile, 2 col tablet, 3 col desktop)",
+      "Shows `LoadingSpinner` when `isLoading` is true",
+      "Shows `EmptyState` with suggestion text when results are empty and not loading",
+      "Shows `ErrorState` with retry button when `error` is provided",
+      "Accepts `results`, `total`, `query`, `isLoading`, `error`, and `onRetry` props",
+      "Page is accessible at `/search` route",
+      "Reads `q` and filter params from URL via `useSearchFilters`",
+      "Fetches paginated results using `useInfiniteQuery` with `apiClient.searchGames`",
+      "Renders `FiltersPanel` sidebar on desktop and drawer on mobile",
+      "Renders `SearchResultsGrid` with fetched results",
+      "Implements infinite scroll — loads next page when user scrolls near the bottom (intersection observer)",
+      "Filter changes update URL params and re-fetch results without page reload",
+      "No-results state shows suggestions like 'Try searching for \"action\" or browse deals'",
+      "Page has a dynamic `<title>` element: 'Search Results for \"{query}\" | There's Always A Deal'"
+    ],
+    "issueBody": "## Overview\nBuild the search results page and the global search experience, including the instant search/autocomplete in the header.\n\n## URL Pattern\n`/search?q=witcher&store=steam&genre=rpg&min_discount=50`\n\n## Features\n\n### Global Search Bar (Header — appears on every page)\n- Text input with autocomplete dropdown\n- Autocomplete shows top 5 game title suggestions (`GET /api/games/autocomplete?q=`)\n- Each suggestion shows: game cover thumbnail, title, best current price\n- Press Enter or click \"See all results\" → navigate to `/search?q=`\n- Keyboard navigable (↑/↓ arrows, Enter to select, Escape to close)\n\n### Search Results Page\n- Results grid (same `<GameCard>` components as homepage)\n- Result count: \"342 results for 'witcher'\"\n- No-results state with suggestions\n\n### Filters Panel (sidebar on desktop, drawer on mobile)\n- **Store**: checkboxes for Steam, GOG, Epic, Humble, Fanatical\n- **Genre**: multi-select chips\n- **Discount**: slider or preset chips (25%+, 50%+, 75%+, 90%+)\n- **Max price**: $5, $10, $20, $30, free only\n- **Sort**: Best Match, Highest Discount, Lowest Price, A–Z, Release Date\n\n### URL State\n- All filter and sort state reflected in the URL query string (shareable/bookmarkable)\n- Browser back/forward navigation works correctly\n\n## Tasks\n- [ ] Implement `/search` route\n- [ ] Implement header search bar with debounced autocomplete (debounce: 200ms)\n- [ ] Implement filters panel with URL state sync (use `nuqs` or `useSearchParams`)\n- [ ] Fetch results from `GET /api/games/search?q=&...filters`\n- [ ] Implement pagination / infinite scroll for results\n- [ ] Handle empty state gracefully with suggestions (\"Try searching for 'action' or browse deals\")\n- [ ] Add meta title: \"Search Results for 'witcher' | There's Always A Deal\"\n\n## Acceptance Criteria\n- Autocomplete appears within 200ms of typing\n- Filters update results without full page reload\n- URL reflects current filter state (shareable links work)\n\n## Dependencies\n- #22 Frontend Framework Setup & Design System\n- #14 Game Search API"
+  },
+  "outputSchema": {
+    "type": "object",
+    "properties": {
+      "verdict": {
+        "type": "string",
+        "enum": [
+          "pass",
+          "needs-fixes"
+        ]
+      },
+      "issues": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "file": {
+              "type": "string"
+            },
+            "line": {
+              "type": "number"
+            },
+            "severity": {
+              "type": "string",
+              "enum": [
+                "error",
+                "warning",
+                "suggestion"
+              ]
+            },
+            "description": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "file",
+            "severity",
+            "description"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "summary": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "verdict",
+      "issues",
+      "summary"
+    ],
+    "additionalProperties": false,
+    "$schema": "http://json-schema.org/draft-07/schema#"
+  }
+}

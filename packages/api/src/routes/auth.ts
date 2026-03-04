@@ -13,7 +13,7 @@ import {
 import {
   sendVerificationEmail,
   sendPasswordResetEmail,
-} from "../lib/email.js";
+} from "@taad/email";
 import {
   registerSchema,
   loginSchema,
@@ -31,7 +31,6 @@ const bruteForceMemory = new Map<
   { count: number; resetAt: number }
 >();
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function setRefreshCookie(c: any, token: string) {
   setCookie(c, "refresh_token", token, {
     httpOnly: true,
