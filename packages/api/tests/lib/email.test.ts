@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { sendVerificationEmail, sendPasswordResetEmail } from "../../src/lib/email.js";
+import { sendVerificationEmail, sendPasswordResetEmail, AFFILIATE_DISCLOSURE } from "../../src/lib/email.js";
 
 describe("sendVerificationEmail", () => {
   beforeEach(() => {
@@ -42,6 +42,13 @@ describe("sendVerificationEmail", () => {
 
   it("should resolve without throwing", async () => {
     await expect(sendVerificationEmail("a@b.com", "t")).resolves.toBeUndefined();
+  });
+
+  it("should include the affiliate disclosure text", async () => {
+    await sendVerificationEmail("a@b.com", "t");
+    expect(console.log).toHaveBeenCalledWith(
+      expect.stringContaining(AFFILIATE_DISCLOSURE),
+    );
   });
 });
 
@@ -86,5 +93,12 @@ describe("sendPasswordResetEmail", () => {
 
   it("should resolve without throwing", async () => {
     await expect(sendPasswordResetEmail("a@b.com", "t")).resolves.toBeUndefined();
+  });
+
+  it("should include the affiliate disclosure text", async () => {
+    await sendPasswordResetEmail("a@b.com", "t");
+    expect(console.log).toHaveBeenCalledWith(
+      expect.stringContaining(AFFILIATE_DISCLOSURE),
+    );
   });
 });

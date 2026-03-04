@@ -78,6 +78,12 @@ vi.mock("@/components/SimilarGames", () => ({
   },
 }));
 
+vi.mock("@/components/AdSlot", () => ({
+  default: function MockAdSlot(props: Record<string, unknown>) {
+    return { type: "AdSlot", props, key: null };
+  },
+}));
+
 /* ------------------------------------------------------------------ */
 /* Imports (after mocks)                                               */
 /* ------------------------------------------------------------------ */
@@ -435,19 +441,14 @@ describe("GameDetailPage", () => {
     expect(sgProps.genreSlugs).toEqual(["all"]);
   });
 
-  it("should render ad slot placeholder", async () => {
+  it("should render AdSlot with game-detail-sidebar slotId", async () => {
     mockGetGameBySlug.mockResolvedValueOnce({ data: mockGame });
     const el = await GameDetailPage({ params: makeParams("portal-2") });
-    const allNodes = collectAllNodes(el);
-    const adSlot = allNodes.find(
-      (n) =>
-        n &&
-        typeof n === "object" &&
-        (n as Record<string, Record<string, unknown>>).props?.[
-          "data-slot"
-        ] === "game-sidebar",
-    );
+    const adSlot = findByType(el, "MockAdSlot");
     expect(adSlot).toBeDefined();
+    expect((adSlot!.props as Record<string, unknown>).slotId).toBe(
+      "game-detail-sidebar",
+    );
   });
 
   it("should handle missing price stats for a listing gracefully", async () => {

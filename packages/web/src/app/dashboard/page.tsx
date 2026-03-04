@@ -2,6 +2,7 @@
 
 import ProtectedRoute from "@/components/ProtectedRoute";
 import { useAuth } from "@/lib/useAuth";
+import AdSlot from "@/components/AdSlot";
 
 export default function DashboardPage() {
   return (
@@ -22,6 +23,8 @@ function DashboardContent() {
       <p className="mt-2 text-sm text-zinc-400">
         This is your dashboard. More features coming soon.
       </p>
+
+      <AdSlot slotId="dashboard-banner" />
     </div>
   );
 }

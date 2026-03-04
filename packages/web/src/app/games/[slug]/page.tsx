@@ -18,6 +18,7 @@ import PriceHistoryChart, {
 import WishlistButton from "@/components/WishlistButton";
 import PriceAlertModal from "@/components/PriceAlertModal";
 import SimilarGames from "@/components/SimilarGames";
+import AdSlot from "@/components/AdSlot";
 
 interface PageProps {
   params: Promise<{ slug: string }>;
@@ -240,14 +241,7 @@ export default async function GameDetailPage({ params }: PageProps) {
             />
           )}
 
-          {/* Ad slot placeholder */}
-          <div
-            data-slot="game-sidebar"
-            className="hidden"
-            aria-hidden="true"
-          >
-            {/* Ad sidebar placeholder */}
-          </div>
+          <AdSlot slotId="game-detail-sidebar" />
         </aside>
       </div>
 

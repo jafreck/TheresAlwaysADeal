@@ -11,6 +11,10 @@ import {
   type PriceHistoryEntry,
   type WishlistResponse,
   type PriceAlertResponse,
+  type SearchGamesParams,
+  type AutocompleteParams,
+  type AutocompleteItem,
+  type AutocompleteResponse,
 } from '@/lib/api-client';
 
 const mockFetch = vi.fn();
@@ -526,6 +530,191 @@ describe('api-client', () => {
         recordedAt: '2024-01-01T00:00:00Z',
       };
       expect(entry.saleEndsAt).toBe('2025-12-31T00:00:00Z');
+    });
+  });
+
+  describe('apiClient.searchGames', () => {
+    it('should make a GET request to /api/v1/games/search with query params', async () => {
+      const envelope: EnvelopeResponse<unknown> = {
+        data: [{ id: 1, title: 'Test Game' }],
+        meta: { total: 1, page: 1, limit: 20, hasNext: false },
+      };
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve(envelope),
+      });
+
+      const result = await apiClient.searchGames({ q: 'test' });
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        expect.stringContaining('/api/v1/games/search?'),
+        expect.objectContaining({ method: 'GET' }),
+      );
+      const url = mockFetch.mock.calls[0][0] as string;
+      const params = new URLSearchParams(url.split('?')[1]);
+      expect(params.get('q')).toBe('test');
+      expect(result).toEqual(envelope);
+    });
+
+    it('should include all optional params in the query string', async () => {
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve({ data: [], meta: { total: 0, page: 1, limit: 10, hasNext: false } }),
+      });
+
+      const searchParams: SearchGamesParams = {
+        q: 'rpg',
+        page: 2,
+        limit: 10,
+        store: 'steam',
+        genre: 'action',
+        min_discount: 50,
+        max_price: 20,
+      };
+      await apiClient.searchGames(searchParams);
+
+      const url = mockFetch.mock.calls[0][0] as string;
+      const params = new URLSearchParams(url.split('?')[1]);
+      expect(params.get('q')).toBe('rpg');
+      expect(params.get('page')).toBe('2');
+      expect(params.get('limit')).toBe('10');
+      expect(params.get('store')).toBe('steam');
+      expect(params.get('genre')).toBe('action');
+      expect(params.get('min_discount')).toBe('50');
+      expect(params.get('max_price')).toBe('20');
+    });
+
+    it('should omit undefined optional params from the query string', async () => {
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve({ data: [], meta: { total: 0, page: 1, limit: 20, hasNext: false } }),
+      });
+
+      await apiClient.searchGames({ q: 'puzzle' });
+
+      const url = mockFetch.mock.calls[0][0] as string;
+      const params = new URLSearchParams(url.split('?')[1]);
+      expect(params.get('q')).toBe('puzzle');
+      expect(params.has('page')).toBe(false);
+      expect(params.has('limit')).toBe(false);
+      expect(params.has('store')).toBe(false);
+    });
+
+    it('should throw ApiError on non-2xx response', async () => {
+      mockFetch.mockResolvedValue({
+        ok: false,
+        status: 400,
+        statusText: 'Bad Request',
+        json: () => Promise.resolve({ message: 'invalid query' }),
+      });
+
+      await expect(apiClient.searchGames({ q: '' })).rejects.toThrow(ApiError);
+    });
+  });
+
+  describe('apiClient.autocomplete', () => {
+    it('should make a GET request to /api/v1/games/autocomplete with query params', async () => {
+      const response: AutocompleteResponse = {
+        data: [{ title: 'Test Game', slug: 'test-game' }],
+      };
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve(response),
+      });
+
+      const result = await apiClient.autocomplete({ q: 'test' });
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        expect.stringContaining('/api/v1/games/autocomplete?'),
+        expect.objectContaining({ method: 'GET' }),
+      );
+      const url = mockFetch.mock.calls[0][0] as string;
+      const params = new URLSearchParams(url.split('?')[1]);
+      expect(params.get('q')).toBe('test');
+      expect(result).toEqual(response);
+    });
+
+    it('should include limit param when provided', async () => {
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve({ data: [] }),
+      });
+
+      await apiClient.autocomplete({ q: 'game', limit: 5 });
+
+      const url = mockFetch.mock.calls[0][0] as string;
+      const params = new URLSearchParams(url.split('?')[1]);
+      expect(params.get('q')).toBe('game');
+      expect(params.get('limit')).toBe('5');
+    });
+
+    it('should omit limit param when not provided', async () => {
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve({ data: [] }),
+      });
+
+      await apiClient.autocomplete({ q: 'game' });
+
+      const url = mockFetch.mock.calls[0][0] as string;
+      const params = new URLSearchParams(url.split('?')[1]);
+      expect(params.has('limit')).toBe(false);
+    });
+
+    it('should throw ApiError on non-2xx response', async () => {
+      mockFetch.mockResolvedValue({
+        ok: false,
+        status: 500,
+        statusText: 'Internal Server Error',
+        json: () => Promise.resolve(null),
+      });
+
+      await expect(apiClient.autocomplete({ q: 'fail' })).rejects.toThrow(ApiError);
+    });
+  });
+
+  describe('SearchGamesParams type', () => {
+    it('should be structurally correct with all fields', () => {
+      const params: SearchGamesParams = {
+        q: 'test',
+        page: 1,
+        limit: 20,
+        store: 'steam',
+        genre: 'action',
+        min_discount: 10,
+        max_price: 60,
+      };
+      expect(params.q).toBe('test');
+      expect(params.page).toBe(1);
+    });
+  });
+
+  describe('AutocompleteParams type', () => {
+    it('should be structurally correct', () => {
+      const params: AutocompleteParams = { q: 'search', limit: 5 };
+      expect(params.q).toBe('search');
+      expect(params.limit).toBe(5);
+    });
+  });
+
+  describe('AutocompleteItem type', () => {
+    it('should have title and slug', () => {
+      const item: AutocompleteItem = { title: 'My Game', slug: 'my-game' };
+      expect(item.title).toBe('My Game');
+      expect(item.slug).toBe('my-game');
+    });
+  });
+
+  describe('AutocompleteResponse type', () => {
+    it('should contain data array of AutocompleteItems', () => {
+      const response: AutocompleteResponse = {
+        data: [
+          { title: 'Game A', slug: 'game-a' },
+          { title: 'Game B', slug: 'game-b' },
+        ],
+      };
+      expect(response.data).toHaveLength(2);
+      expect(response.data[0].slug).toBe('game-a');
     });
   });
 });
