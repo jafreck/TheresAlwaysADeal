@@ -1,0 +1,120 @@
+{
+  "agent": "code-writer",
+  "issueNumber": 22,
+  "projectName": "theresalwaysadeal",
+  "repository": "jafreck/TheresAlwaysADeal",
+  "worktreePath": "/Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-22",
+  "phase": 3,
+  "sessionId": "session-002",
+  "config": {
+    "commands": {
+      "install": "npm install",
+      "build": "npm run build",
+      "test": "npx vitest run",
+      "lint": "npm run lint"
+    }
+  },
+  "inputFiles": [
+    "/Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-22/.cadre/issues/22/session-session-002.md",
+    "/Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-22/packages/web/src/components/PriceBadge.tsx",
+    "/Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-22/packages/web/src/components/DiscountBadge.tsx",
+    "/Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-22/packages/web/src/components/StoreIcon.tsx",
+    "/Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-22/packages/web/src/components/LoadingSpinner.tsx",
+    "/Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-22/packages/web/src/components/EmptyState.tsx",
+    "/Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-22/packages/web/src/components/ErrorState.tsx",
+    "/Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-22/packages/web/src/components/BuyButton.tsx",
+    "/Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-22/packages/web/tests/components/BuyButton.test.tsx",
+    "/Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-22/.cadre/issues/22/analysis.md",
+    "/Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-22/.cadre/issues/22/scout-report.md"
+  ],
+  "outputPath": "/Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-22/.cadre/tasks",
+  "payload": {
+    "sessionId": "session-002",
+    "steps": [
+      {
+        "id": "session-002-step-001",
+        "name": "Create PriceBadge component",
+        "description": "Create packages/web/src/components/PriceBadge.tsx showing a current price and an optional original price crossed out. Uses cn utility for conditional styling.",
+        "files": [
+          "packages/web/src/components/PriceBadge.tsx"
+        ],
+        "complexity": "simple",
+        "acceptanceCriteria": [
+          "`PriceBadge` component is exported from `packages/web/src/components/PriceBadge.tsx`",
+          "Props include `currentPrice: number`, `originalPrice?: number`, and `currency?: string` (default 'USD')",
+          "When originalPrice is provided and differs from currentPrice, it is displayed with line-through styling",
+          "Current price is displayed prominently",
+          "Component uses `cn` for className merging and accepts a `className` prop"
+        ]
+      },
+      {
+        "id": "session-002-step-002",
+        "name": "Create DiscountBadge component",
+        "description": "Create packages/web/src/components/DiscountBadge.tsx displaying a discount percentage (e.g. '-75%') with color coding by discount depth (green for small, yellow for medium, red for deep discounts).",
+        "files": [
+          "packages/web/src/components/DiscountBadge.tsx"
+        ],
+        "complexity": "simple",
+        "acceptanceCriteria": [
+          "`DiscountBadge` component is exported from `packages/web/src/components/DiscountBadge.tsx`",
+          "Props include `discount: number` (0-100 percentage value)",
+          "Displays formatted text like '-75%'",
+          "Color varies by discount depth (e.g., >=50% uses danger/red, >=25% uses warning/yellow, <25% uses success/green)",
+          "Accepts a `className` prop for external styling"
+        ]
+      },
+      {
+        "id": "session-002-step-003",
+        "name": "Create StoreIcon component",
+        "description": "Create packages/web/src/components/StoreIcon.tsx displaying a store logo image with a text fallback when the image is unavailable.",
+        "files": [
+          "packages/web/src/components/StoreIcon.tsx"
+        ],
+        "complexity": "simple",
+        "acceptanceCriteria": [
+          "`StoreIcon` component is exported from `packages/web/src/components/StoreIcon.tsx`",
+          "Props include `storeName: string`, `logoUrl?: string | null`, and `size?: number` (default 24)",
+          "Renders an `<img>` tag with alt text when logoUrl is provided",
+          "Falls back to a styled text abbreviation (first 2 chars of storeName) when logoUrl is null/undefined",
+          "Accepts a `className` prop"
+        ]
+      },
+      {
+        "id": "session-002-step-004",
+        "name": "Create LoadingSpinner, EmptyState, ErrorState utility components",
+        "description": "Create three utility components: LoadingSpinner (animated spinner), EmptyState (message + optional icon for empty lists), and ErrorState (error message + optional retry button).",
+        "files": [
+          "packages/web/src/components/LoadingSpinner.tsx",
+          "packages/web/src/components/EmptyState.tsx",
+          "packages/web/src/components/ErrorState.tsx"
+        ],
+        "complexity": "simple",
+        "acceptanceCriteria": [
+          "`LoadingSpinner` is exported and renders an animated spinning indicator with an optional `size` prop",
+          "`EmptyState` is exported with `message: string` and optional `icon` prop, rendering centered placeholder content",
+          "`ErrorState` is exported with `message: string` and optional `onRetry?: () => void` prop; renders a retry button when onRetry is provided",
+          "All three components accept a `className` prop",
+          "All interactive elements (retry button) have visible focus states for keyboard accessibility"
+        ]
+      },
+      {
+        "id": "session-002-step-005",
+        "name": "Enhance BuyButton component",
+        "description": "Update the existing packages/web/src/components/BuyButton.tsx with proper styling (button-like appearance using design tokens), keyboard focus states, aria-label, and the cn utility. Preserve the existing props interface (href, storeName) for backward compatibility with existing tests.",
+        "files": [
+          "packages/web/src/components/BuyButton.tsx",
+          "packages/web/tests/components/BuyButton.test.tsx"
+        ],
+        "complexity": "moderate",
+        "acceptanceCriteria": [
+          "BuyButton renders as a styled anchor element with button-like appearance using design-system tokens",
+          "Includes visible keyboard focus states (focus-visible ring or outline)",
+          "Has `aria-label` attribute describing the action (e.g., 'Buy {game} on {storeName}')",
+          "Existing props interface (href, storeName) is preserved",
+          "Existing tests in BuyButton.test.tsx continue to pass (update tests only if necessary to accommodate new aria/styling attributes)",
+          "Component uses `cn` from `@/lib/utils` for className merging"
+        ]
+      }
+    ]
+  }
+}

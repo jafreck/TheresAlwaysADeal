@@ -1,0 +1,109 @@
+{
+  "agent": "code-reviewer",
+  "issueNumber": 22,
+  "projectName": "theresalwaysadeal",
+  "repository": "jafreck/TheresAlwaysADeal",
+  "worktreePath": "/Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-22",
+  "phase": 3,
+  "sessionId": "session-002",
+  "config": {
+    "commands": {
+      "install": "npm install",
+      "build": "npm run build",
+      "test": "npx vitest run",
+      "lint": "npm run lint"
+    }
+  },
+  "inputFiles": [
+    "/Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-22/.cadre/issues/22/diff-session-002.patch",
+    "/Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-22/.cadre/issues/22/session-session-002.md",
+    "/Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-22/.cadre/issues/22/analysis.md",
+    "/Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-22/.cadre/issues/22/scout-report.md"
+  ],
+  "outputPath": "/Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-22/.cadre/issues/22/review-session-002.md",
+  "payload": {
+    "sessionId": "session-002",
+    "acceptanceCriteria": [
+      "`PriceBadge` component is exported from `packages/web/src/components/PriceBadge.tsx`",
+      "Props include `currentPrice: number`, `originalPrice?: number`, and `currency?: string` (default 'USD')",
+      "When originalPrice is provided and differs from currentPrice, it is displayed with line-through styling",
+      "Current price is displayed prominently",
+      "Component uses `cn` for className merging and accepts a `className` prop",
+      "`DiscountBadge` component is exported from `packages/web/src/components/DiscountBadge.tsx`",
+      "Props include `discount: number` (0-100 percentage value)",
+      "Displays formatted text like '-75%'",
+      "Color varies by discount depth (e.g., >=50% uses danger/red, >=25% uses warning/yellow, <25% uses success/green)",
+      "Accepts a `className` prop for external styling",
+      "`StoreIcon` component is exported from `packages/web/src/components/StoreIcon.tsx`",
+      "Props include `storeName: string`, `logoUrl?: string | null`, and `size?: number` (default 24)",
+      "Renders an `<img>` tag with alt text when logoUrl is provided",
+      "Falls back to a styled text abbreviation (first 2 chars of storeName) when logoUrl is null/undefined",
+      "Accepts a `className` prop",
+      "`LoadingSpinner` is exported and renders an animated spinning indicator with an optional `size` prop",
+      "`EmptyState` is exported with `message: string` and optional `icon` prop, rendering centered placeholder content",
+      "`ErrorState` is exported with `message: string` and optional `onRetry?: () => void` prop; renders a retry button when onRetry is provided",
+      "All three components accept a `className` prop",
+      "All interactive elements (retry button) have visible focus states for keyboard accessibility",
+      "BuyButton renders as a styled anchor element with button-like appearance using design-system tokens",
+      "Includes visible keyboard focus states (focus-visible ring or outline)",
+      "Has `aria-label` attribute describing the action (e.g., 'Buy {game} on {storeName}')",
+      "Existing props interface (href, storeName) is preserved",
+      "Existing tests in BuyButton.test.tsx continue to pass (update tests only if necessary to accommodate new aria/styling attributes)",
+      "Component uses `cn` from `@/lib/utils` for className merging"
+    ],
+    "issueBody": "## Overview\nSet up the frontend project with a component library, design system, shared layouts, and global conventions. All other frontend issues build on top of this.\n\n## Tech Recommendations\n- **Framework**: Next.js (App Router) — SSR/SSG for SEO, good DX\n- **Styling**: Tailwind CSS + shadcn/ui (accessible, unstyled components)\n- **State management**: React Query (TanStack Query) for server state; Zustand for minimal client state\n- **Forms**: React Hook Form + Zod validation\n- **Charts**: Recharts (lightweight, for price history charts)\n- **Icons**: Lucide React\n\n## Tasks\n\n### Project Setup\n- [ ] Initialize Next.js project with TypeScript and Tailwind CSS\n- [ ] Install and configure shadcn/ui\n- [ ] Set up TanStack Query with global error/loading handling\n- [ ] Set up Zustand store for auth state (access token, user profile)\n- [ ] Configure API client (typed `fetch` wrapper that automatically sets `Authorization` header)\n\n### Design System\n- [ ] Define color palette: primary (brand), background, surface, muted, success, warning, danger\n- [ ] Define typography scale (heading, body, caption, label)\n- [ ] Create shared components:\n  - `<GameCard>` — cover image, title, best price badge, discount badge\n  - `<PriceBadge>` — shows current price + original price crossed out\n  - `<DiscountBadge>` — shows \"-75%\" badge with color coding by discount depth\n  - `<BuyButton>` — always uses referral URL from API\n  - `<StoreIcon>` — logo for each store\n  - `<LoadingSpinner>`, `<EmptyState>`, `<ErrorState>`\n\n### Layout\n- [ ] Root layout with: sticky header (logo, search bar, nav links, auth CTA), footer (links, affiliate disclosure), ad slots\n- [ ] Responsive layout: full sidebar on desktop, hamburger menu on mobile\n- [ ] SEO: default `<meta>` tags, Open Graph, JSON-LD for game pages\n- [ ] Set up `robots.txt` and `sitemap.xml` (dynamically generated from game slugs)\n\n### Accessibility\n- [ ] All interactive elements have keyboard focus states\n- [ ] Images have `alt` text\n- [ ] Color contrast meets WCAG AA\n\n## Acceptance Criteria\n- `npm run dev` starts the frontend against the local API\n- Reusable components render correctly in a component showcase (Storybook optional but nice)\n- Lighthouse score ≥ 90 on Performance, Accessibility, SEO for the homepage\n\n## Dependencies\n- #1 Tech Stack Selection & Project Scaffolding\n- #13 Core Game & Deals REST API"
+  },
+  "outputSchema": {
+    "type": "object",
+    "properties": {
+      "verdict": {
+        "type": "string",
+        "enum": [
+          "pass",
+          "needs-fixes"
+        ]
+      },
+      "issues": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "file": {
+              "type": "string"
+            },
+            "line": {
+              "type": "number"
+            },
+            "severity": {
+              "type": "string",
+              "enum": [
+                "error",
+                "warning",
+                "suggestion"
+              ]
+            },
+            "description": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "file",
+            "severity",
+            "description"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "summary": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "verdict",
+      "issues",
+      "summary"
+    ],
+    "additionalProperties": false,
+    "$schema": "http://json-schema.org/draft-07/schema#"
+  }
+}

@@ -1,0 +1,1395 @@
+diff --git a/packages/api/src/index.ts b/packages/api/src/index.ts
+index 689c793..198f244 100644
+--- a/packages/api/src/index.ts
++++ b/packages/api/src/index.ts
+@@ -10,6 +10,7 @@ import { createGamesApp } from "./routes/games.js";
+ import { createDealsApp } from "./routes/deals.js";
+ import { storesApp } from "./routes/stores.js";
+ import { createAuthApp } from "./routes/auth.js";
++import { alertsApp } from "./routes/alerts.js";
+ import { openApiApp } from "./openapi.js";
+ 
+ const app = new Hono();
+@@ -62,6 +63,9 @@ v1.route("/stores", storesApp);
+ // Mount auth routes
+ v1.route("/auth", createAuthApp(getRedis));
+ 
++// Mount alerts routes (auth applied within the route file)
++v1.route("/user/me/alerts", alertsApp);
++
+ // Mount versioned router
+ app.route("/api/v1", v1);
+ 
+diff --git a/packages/api/src/openapi.ts b/packages/api/src/openapi.ts
+index 2f223e3..bba7ab7 100644
+--- a/packages/api/src/openapi.ts
++++ b/packages/api/src/openapi.ts
+@@ -338,6 +338,132 @@ const spec = {
+         },
+       },
+     },
++    "/user/me/alerts": {
++      get: {
++        summary: "List all alerts for the authenticated user",
++        tags: ["Alerts"],
++        security: [{ BearerAuth: [] }],
++        responses: {
++          "200": {
++            description: "List of alerts",
++            content: { "application/json": { schema: { type: "object", properties: { data: { type: "array", items: { $ref: "#/components/schemas/Alert" } } } } } },
++          },
++          "401": { description: "Unauthorized", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
++          "429": { description: "Rate limit exceeded", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
++        },
++      },
++      post: {
++        summary: "Create a new price alert",
++        tags: ["Alerts"],
++        security: [{ BearerAuth: [] }],
++        requestBody: {
++          required: true,
++          content: {
++            "application/json": {
++              schema: {
++                type: "object",
++                required: ["gameId"],
++                properties: {
++                  gameId: { type: "string", format: "uuid" },
++                  storeId: { type: "string", format: "uuid" },
++                  targetPrice: { type: "number" },
++                  targetDiscountPercent: { type: "number", minimum: 0, maximum: 100 },
++                  notifyEmail: { type: "boolean" },
++                  notifySlackWebhook: { type: "string", format: "uri" },
++                },
++                description: "At least one of targetPrice or targetDiscountPercent must be provided",
++              },
++            },
++          },
++        },
++        responses: {
++          "201": { description: "Alert created", content: { "application/json": { schema: { type: "object", properties: { data: { $ref: "#/components/schemas/Alert" } } } } } },
++          "400": { description: "Invalid input or game not found", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
++          "401": { description: "Unauthorized", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
++          "409": { description: "Active alert limit reached", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
++          "429": { description: "Rate limit exceeded", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
++        },
++      },
++    },
++    "/user/me/alerts/{alertId}": {
++      patch: {
++        summary: "Update an existing alert",
++        tags: ["Alerts"],
++        security: [{ BearerAuth: [] }],
++        parameters: [
++          { name: "alertId", in: "path", required: true, schema: { type: "string", format: "uuid" } },
++        ],
++        requestBody: {
++          required: true,
++          content: {
++            "application/json": {
++              schema: {
++                type: "object",
++                properties: {
++                  storeId: { type: "string", format: "uuid" },
++                  targetPrice: { type: "number" },
++                  targetDiscountPercent: { type: "number", minimum: 0, maximum: 100 },
++                  notifyEmail: { type: "boolean" },
++                  notifySlackWebhook: { type: "string", format: "uri" },
++                },
++              },
++            },
++          },
++        },
++        responses: {
++          "200": { description: "Alert updated", content: { "application/json": { schema: { type: "object", properties: { data: { $ref: "#/components/schemas/Alert" } } } } } },
++          "400": { description: "Invalid input", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
++          "401": { description: "Unauthorized", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
++          "404": { description: "Alert not found", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
++          "429": { description: "Rate limit exceeded", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
++        },
++      },
++      delete: {
++        summary: "Delete an alert",
++        tags: ["Alerts"],
++        security: [{ BearerAuth: [] }],
++        parameters: [
++          { name: "alertId", in: "path", required: true, schema: { type: "string", format: "uuid" } },
++        ],
++        responses: {
++          "204": { description: "Alert deleted" },
++          "401": { description: "Unauthorized", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
++          "404": { description: "Alert not found", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
++          "429": { description: "Rate limit exceeded", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
++        },
++      },
++    },
++    "/user/me/alerts/{alertId}/pause": {
++      patch: {
++        summary: "Pause or resume an alert",
++        tags: ["Alerts"],
++        security: [{ BearerAuth: [] }],
++        parameters: [
++          { name: "alertId", in: "path", required: true, schema: { type: "string", format: "uuid" } },
++        ],
++        requestBody: {
++          required: true,
++          content: {
++            "application/json": {
++              schema: {
++                type: "object",
++                required: ["isActive"],
++                properties: {
++                  isActive: { type: "boolean" },
++                },
++              },
++            },
++          },
++        },
++        responses: {
++          "200": { description: "Alert updated", content: { "application/json": { schema: { type: "object", properties: { data: { $ref: "#/components/schemas/Alert" } } } } } },
++          "400": { description: "Invalid input", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
++          "401": { description: "Unauthorized", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
++          "404": { description: "Alert not found", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
++          "429": { description: "Rate limit exceeded", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
++        },
++      },
++    },
+   },
+   components: {
+     schemas: {
+@@ -374,6 +500,29 @@ const spec = {
+           message: { type: "string" },
+         },
+       },
++      Alert: {
++        type: "object",
++        properties: {
++          id: { type: "string", format: "uuid" },
++          userId: { type: "string", format: "uuid" },
++          gameId: { type: "string", format: "uuid" },
++          storeId: { type: "string", format: "uuid", nullable: true },
++          targetPrice: { type: "string", nullable: true },
++          targetDiscountPercent: { type: "string", nullable: true },
++          notifyEmail: { type: "boolean" },
++          notifySlackWebhook: { type: "string", nullable: true },
++          isActive: { type: "boolean" },
++          createdAt: { type: "string", format: "date-time" },
++          updatedAt: { type: "string", format: "date-time" },
++        },
++      },
++    },
++    securitySchemes: {
++      BearerAuth: {
++        type: "http",
++        scheme: "bearer",
++        bearerFormat: "JWT",
++      },
+     },
+   },
+ };
+diff --git a/packages/api/src/routes/alerts.ts b/packages/api/src/routes/alerts.ts
+new file mode 100644
+index 0000000..86fd0ea
+--- /dev/null
++++ b/packages/api/src/routes/alerts.ts
+@@ -0,0 +1,212 @@
++import { Hono } from "hono";
++import { eq, and, sql } from "drizzle-orm";
++import { db, priceAlerts, games } from "@taad/db";
++import { authMiddleware } from "../middleware/auth.js";
++import { createAlertSchema, updateAlertSchema } from "../lib/validation.js";
++import { encrypt, decrypt } from "../lib/encryption.js";
++
++const MAX_ACTIVE_ALERTS = 100;
++
++type Variables = { user: Record<string, unknown> };
++
++const app = new Hono<{ Variables: Variables }>();
++
++// All endpoints require authentication
++app.use("*", authMiddleware);
++
++// GET / — list all alerts for the authenticated user
++app.get("/", async (c) => {
++  const user = c.get("user");
++  const userId = user.sub as string;
++
++  const rows = await db
++    .select()
++    .from(priceAlerts)
++    .where(eq(priceAlerts.userId, userId));
++
++  const decrypted = rows.map((row) => ({
++    ...row,
++    notifySlackWebhook: row.notifySlackWebhook
++      ? decrypt(row.notifySlackWebhook)
++      : null,
++  }));
++
++  return c.json({ data: decrypted });
++});
++
++// POST / — create a new alert
++app.post("/", async (c) => {
++  const user = c.get("user");
++  const userId = user.sub as string;
++
++  const body = await c.req.json();
++  const parsed = createAlertSchema.safeParse(body);
++  if (!parsed.success) {
++    return c.json(
++      { error: "Invalid input", details: parsed.error.flatten() },
++      400,
++    );
++  }
++
++  const { gameId, storeId, targetPrice, targetDiscountPercent, notifyEmail, notifySlackWebhook } = parsed.data;
++
++  // Verify gameId exists
++  const [game] = await db
++    .select({ id: games.id })
++    .from(games)
++    .where(eq(games.id, gameId))
++    .limit(1);
++
++  if (!game) {
++    return c.json({ error: "Game not found" }, 400);
++  }
++
++  // Enforce 100 active alert cap
++  const [countResult] = await db
++    .select({ count: sql<number>`count(*)::int` })
++    .from(priceAlerts)
++    .where(and(eq(priceAlerts.userId, userId), eq(priceAlerts.isActive, true)));
++
++  if (countResult && countResult.count >= MAX_ACTIVE_ALERTS) {
++    return c.json({ error: "Active alert limit reached (100)" }, 409);
++  }
++
++  const [created] = await db
++    .insert(priceAlerts)
++    .values({
++      userId,
++      gameId,
++      storeId: storeId ?? null,
++      targetPrice: targetPrice?.toString() ?? null,
++      targetDiscountPercent: targetDiscountPercent?.toString() ?? null,
++      notifyEmail: notifyEmail ?? true,
++      notifySlackWebhook: notifySlackWebhook ? encrypt(notifySlackWebhook) : null,
++    })
++    .returning();
++
++  if (!created) {
++    return c.json({ error: "Failed to create alert" }, 400);
++  }
++
++  return c.json(
++    {
++      data: {
++        ...created,
++        notifySlackWebhook: notifySlackWebhook ?? null,
++      },
++    },
++    201,
++  );
++});
++
++// PATCH /:alertId — update an existing alert
++app.patch("/:alertId", async (c) => {
++  const user = c.get("user");
++  const userId = user.sub as string;
++  const alertId = c.req.param("alertId");
++
++  const body = await c.req.json();
++  const parsed = updateAlertSchema.safeParse(body);
++  if (!parsed.success) {
++    return c.json(
++      { error: "Invalid input", details: parsed.error.flatten() },
++      400,
++    );
++  }
++
++  // Check existence and ownership
++  const [existing] = await db
++    .select({ id: priceAlerts.id, userId: priceAlerts.userId })
++    .from(priceAlerts)
++    .where(eq(priceAlerts.id, alertId))
++    .limit(1);
++
++  if (!existing || existing.userId !== userId) {
++    return c.json({ error: "Alert not found" }, 404);
++  }
++
++  const updates: Record<string, unknown> = { updatedAt: new Date() };
++  const { storeId, targetPrice, targetDiscountPercent, notifyEmail, notifySlackWebhook } = parsed.data;
++
++  if (storeId !== undefined) updates.storeId = storeId;
++  if (targetPrice !== undefined) updates.targetPrice = targetPrice.toString();
++  if (targetDiscountPercent !== undefined) updates.targetDiscountPercent = targetDiscountPercent.toString();
++  if (notifyEmail !== undefined) updates.notifyEmail = notifyEmail;
++  if (notifySlackWebhook !== undefined) updates.notifySlackWebhook = encrypt(notifySlackWebhook);
++
++  const [updated] = await db
++    .update(priceAlerts)
++    .set(updates)
++    .where(eq(priceAlerts.id, alertId))
++    .returning();
++
++  return c.json({
++    data: {
++      ...updated,
++      notifySlackWebhook: updated?.notifySlackWebhook
++        ? decrypt(updated.notifySlackWebhook)
++        : null,
++    },
++  });
++});
++
++// DELETE /:alertId — delete an alert
++app.delete("/:alertId", async (c) => {
++  const user = c.get("user");
++  const userId = user.sub as string;
++  const alertId = c.req.param("alertId");
++
++  const [existing] = await db
++    .select({ id: priceAlerts.id, userId: priceAlerts.userId })
++    .from(priceAlerts)
++    .where(eq(priceAlerts.id, alertId))
++    .limit(1);
++
++  if (!existing || existing.userId !== userId) {
++    return c.json({ error: "Alert not found" }, 404);
++  }
++
++  await db.delete(priceAlerts).where(eq(priceAlerts.id, alertId));
++
++  return c.body(null, 204);
++});
++
++// PATCH /:alertId/pause — set isActive
++app.patch("/:alertId/pause", async (c) => {
++  const user = c.get("user");
++  const userId = user.sub as string;
++  const alertId = c.req.param("alertId");
++
++  const body = await c.req.json();
++  const { isActive } = body;
++  if (typeof isActive !== "boolean") {
++    return c.json({ error: "isActive must be a boolean" }, 400);
++  }
++
++  const [existing] = await db
++    .select({ id: priceAlerts.id, userId: priceAlerts.userId })
++    .from(priceAlerts)
++    .where(eq(priceAlerts.id, alertId))
++    .limit(1);
++
++  if (!existing || existing.userId !== userId) {
++    return c.json({ error: "Alert not found" }, 404);
++  }
++
++  const [updated] = await db
++    .update(priceAlerts)
++    .set({ isActive, updatedAt: new Date() })
++    .where(eq(priceAlerts.id, alertId))
++    .returning();
++
++  return c.json({
++    data: {
++      ...updated,
++      notifySlackWebhook: updated?.notifySlackWebhook
++        ? decrypt(updated.notifySlackWebhook)
++        : null,
++    },
++  });
++});
++
++export { app as alertsApp };
+diff --git a/packages/api/tests/openapi.test.ts b/packages/api/tests/openapi.test.ts
+index e9d2e06..9dcb017 100644
+--- a/packages/api/tests/openapi.test.ts
++++ b/packages/api/tests/openapi.test.ts
+@@ -168,6 +168,56 @@ describe("GET /openapi.json", () => {
+     expect(spec.paths["/stores"].get.tags).toContain("Stores");
+   });
+ 
++  it("should document all alert endpoints", async () => {
++    const res = await openApiApp.request("/openapi.json");
++    const spec = await res.json();
++
++    expect(spec.paths["/user/me/alerts"]).toBeDefined();
++    expect(spec.paths["/user/me/alerts"].get).toBeDefined();
++    expect(spec.paths["/user/me/alerts"].post).toBeDefined();
++    expect(spec.paths["/user/me/alerts/{alertId}"]).toBeDefined();
++    expect(spec.paths["/user/me/alerts/{alertId}"].patch).toBeDefined();
++    expect(spec.paths["/user/me/alerts/{alertId}"].delete).toBeDefined();
++    expect(spec.paths["/user/me/alerts/{alertId}/pause"]).toBeDefined();
++    expect(spec.paths["/user/me/alerts/{alertId}/pause"].patch).toBeDefined();
++  });
++
++  it("should tag alert endpoints with Alerts", async () => {
++    const res = await openApiApp.request("/openapi.json");
++    const spec = await res.json();
++
++    expect(spec.paths["/user/me/alerts"].get.tags).toContain("Alerts");
++    expect(spec.paths["/user/me/alerts"].post.tags).toContain("Alerts");
++    expect(spec.paths["/user/me/alerts/{alertId}"].patch.tags).toContain("Alerts");
++    expect(spec.paths["/user/me/alerts/{alertId}"].delete.tags).toContain("Alerts");
++    expect(spec.paths["/user/me/alerts/{alertId}/pause"].patch.tags).toContain("Alerts");
++  });
++
++  it("should document 401 response for alert endpoints", async () => {
++    const res = await openApiApp.request("/openapi.json");
++    const spec = await res.json();
++
++    expect(spec.paths["/user/me/alerts"].get.responses["401"]).toBeDefined();
++    expect(spec.paths["/user/me/alerts"].post.responses["401"]).toBeDefined();
++  });
++
++  it("should include Alert component schema", async () => {
++    const res = await openApiApp.request("/openapi.json");
++    const spec = await res.json();
++
++    expect(spec.components.schemas.Alert).toBeDefined();
++  });
++
++  it("should include BearerAuth security scheme", async () => {
++    const res = await openApiApp.request("/openapi.json");
++    const spec = await res.json();
++
++    expect(spec.components.securitySchemes).toBeDefined();
++    expect(spec.components.securitySchemes.BearerAuth).toBeDefined();
++    expect(spec.components.securitySchemes.BearerAuth.type).toBe("http");
++    expect(spec.components.securitySchemes.BearerAuth.scheme).toBe("bearer");
++  });
++
+   it("should document search endpoint with required q parameter", async () => {
+     const res = await openApiApp.request("/openapi.json");
+     const spec = await res.json();
+diff --git a/packages/api/tests/routes/alerts.test.ts b/packages/api/tests/routes/alerts.test.ts
+new file mode 100644
+index 0000000..bcd4e84
+--- /dev/null
++++ b/packages/api/tests/routes/alerts.test.ts
+@@ -0,0 +1,766 @@
++import { describe, it, expect, vi, beforeEach } from "vitest";
++
++// ─── Mocks (hoisted before imports) ──────────────────────────────────────────
++
++const mockEncrypt = vi.fn((v: string) => `encrypted:${v}`);
++const mockDecrypt = vi.fn((v: string) => v.replace("encrypted:", ""));
++
++vi.mock("../../src/lib/encryption.js", () => ({
++  encrypt: (...args: unknown[]) => mockEncrypt(...args),
++  decrypt: (...args: unknown[]) => mockDecrypt(...args),
++}));
++
++const mockVerifyAccessToken = vi.fn();
++vi.mock("../../src/lib/jwt.js", () => ({
++  verifyAccessToken: (...args: unknown[]) => mockVerifyAccessToken(...args),
++}));
++
++// DB mock
++let mockDbSelectResult: any[] = [];
++let mockDbInsertResult: any[] = [];
++let mockDbUpdateResult: any[] = [];
++let mockDbDeleteCalled = false;
++
++function createSelectBuilder() {
++  const builder: any = {
++    from: () => builder,
++    where: () => builder,
++    limit: () => Promise.resolve(mockDbSelectResult),
++    then: (resolve: (v: any) => any, reject: (e: any) => any) =>
++      Promise.resolve(mockDbSelectResult).then(resolve, reject),
++  };
++  return builder;
++}
++
++function createInsertBuilder() {
++  return {
++    values: vi.fn().mockReturnValue({
++      returning: vi.fn().mockImplementation(() => Promise.resolve(mockDbInsertResult)),
++    }),
++  };
++}
++
++function createUpdateBuilder() {
++  return {
++    set: vi.fn().mockReturnValue({
++      where: vi.fn().mockReturnValue({
++        returning: vi.fn().mockImplementation(() => Promise.resolve(mockDbUpdateResult)),
++      }),
++    }),
++  };
++}
++
++function createDeleteBuilder() {
++  return {
++    where: vi.fn().mockImplementation(() => {
++      mockDbDeleteCalled = true;
++      return Promise.resolve();
++    }),
++  };
++}
++
++const mockDb = {
++  select: vi.fn().mockReturnValue(createSelectBuilder()),
++  insert: vi.fn().mockReturnValue(createInsertBuilder()),
++  update: vi.fn().mockReturnValue(createUpdateBuilder()),
++  delete: vi.fn().mockReturnValue(createDeleteBuilder()),
++};
++
++const stubTable = (cols: Record<string, string>) => cols;
++
++vi.mock("@taad/db", () => ({
++  db: mockDb,
++  priceAlerts: stubTable({
++    id: "id",
++    userId: "userId",
++    gameId: "gameId",
++    storeId: "storeId",
++    targetPrice: "targetPrice",
++    targetDiscountPercent: "targetDiscountPercent",
++    notifyEmail: "notifyEmail",
++    notifySlackWebhook: "notifySlackWebhook",
++    isActive: "isActive",
++    createdAt: "createdAt",
++    updatedAt: "updatedAt",
++  }),
++  games: stubTable({
++    id: "id",
++    title: "title",
++    slug: "slug",
++  }),
++}));
++
++vi.mock("drizzle-orm", () => ({
++  eq: vi.fn((col: string, val: unknown) => ({ col, val })),
++  and: vi.fn((...args: unknown[]) => args),
++  sql: Object.assign(vi.fn(), {
++    raw: vi.fn((s: string) => s),
++  }),
++}));
++
++// ─── App under test ───────────────────────────────────────────────────────────
++
++const { alertsApp } = await import("../../src/routes/alerts.js");
++
++// ─── Helpers ──────────────────────────────────────────────────────────────────
++
++const TEST_USER_ID = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee";
++const TEST_ALERT_ID = "11111111-2222-3333-4444-555555555555";
++const TEST_GAME_ID = "99999999-8888-7777-6666-555555555555";
++
++function authHeaders(): Record<string, string> {
++  return { Authorization: "Bearer valid-token" };
++}
++
++function jsonHeaders(): Record<string, string> {
++  return {
++    ...authHeaders(),
++    "Content-Type": "application/json",
++  };
++}
++
++// ─── Tests ────────────────────────────────────────────────────────────────────
++
++beforeEach(() => {
++  vi.clearAllMocks();
++  mockDbSelectResult = [];
++  mockDbInsertResult = [];
++  mockDbUpdateResult = [];
++  mockDbDeleteCalled = false;
++  mockVerifyAccessToken.mockReturnValue({ sub: TEST_USER_ID, email: "test@example.com" });
++  mockDb.select.mockReturnValue(createSelectBuilder());
++  mockDb.insert.mockReturnValue(createInsertBuilder());
++  mockDb.update.mockReturnValue(createUpdateBuilder());
++  mockDb.delete.mockReturnValue(createDeleteBuilder());
++});
++
++describe("alertsApp auth", () => {
++  it("should return 401 when no Authorization header is provided", async () => {
++    const res = await alertsApp.request("/");
++    expect(res.status).toBe(401);
++  });
++
++  it("should return 401 when Authorization header has invalid format", async () => {
++    const res = await alertsApp.request("/", {
++      headers: { Authorization: "InvalidFormat" },
++    });
++    expect(res.status).toBe(401);
++  });
++
++  it("should return 401 when token is invalid", async () => {
++    mockVerifyAccessToken.mockImplementation(() => {
++      throw new Error("Invalid token");
++    });
++    const res = await alertsApp.request("/", {
++      headers: authHeaders(),
++    });
++    expect(res.status).toBe(401);
++  });
++});
++
++describe("GET / (list alerts)", () => {
++  it("should return 200 with empty array when user has no alerts", async () => {
++    mockDbSelectResult = [];
++    const res = await alertsApp.request("/", { headers: authHeaders() });
++    expect(res.status).toBe(200);
++
++    const body = await res.json();
++    expect(body).toEqual({ data: [] });
++  });
++
++  it("should return 200 with decrypted alerts", async () => {
++    const alertRow = {
++      id: TEST_ALERT_ID,
++      userId: TEST_USER_ID,
++      gameId: TEST_GAME_ID,
++      storeId: null,
++      targetPrice: "29.99",
++      targetDiscountPercent: null,
++      notifyEmail: true,
++      notifySlackWebhook: "encrypted:https://hooks.slack.com/test",
++      isActive: true,
++    };
++    mockDbSelectResult = [alertRow];
++
++    const res = await alertsApp.request("/", { headers: authHeaders() });
++    expect(res.status).toBe(200);
++
++    const body = await res.json();
++    expect(body.data).toHaveLength(1);
++    expect(body.data[0].notifySlackWebhook).toBe("https://hooks.slack.com/test");
++    expect(mockDecrypt).toHaveBeenCalledWith("encrypted:https://hooks.slack.com/test");
++  });
++
++  it("should return null notifySlackWebhook when not set", async () => {
++    const alertRow = {
++      id: TEST_ALERT_ID,
++      userId: TEST_USER_ID,
++      notifySlackWebhook: null,
++    };
++    mockDbSelectResult = [alertRow];
++
++    const res = await alertsApp.request("/", { headers: authHeaders() });
++    expect(res.status).toBe(200);
++
++    const body = await res.json();
++    expect(body.data[0].notifySlackWebhook).toBeNull();
++    expect(mockDecrypt).not.toHaveBeenCalled();
++  });
++});
++
++describe("POST / (create alert)", () => {
++  const validBody = {
++    gameId: TEST_GAME_ID,
++    targetPrice: 29.99,
++  };
++
++  it("should return 201 when creating a valid alert", async () => {
++    // First select: gameId lookup
++    // Second select: count active alerts
++    let selectCallCount = 0;
++    mockDb.select.mockImplementation(() => {
++      selectCallCount++;
++      const result =
++        selectCallCount === 1
++          ? [{ id: TEST_GAME_ID }]
++          : [{ count: 5 }];
++      const builder: any = {
++        from: () => builder,
++        where: () => builder,
++        limit: () => Promise.resolve(result),
++        then: (resolve: (v: any) => any, reject: (e: any) => any) =>
++          Promise.resolve(result).then(resolve, reject),
++      };
++      return builder;
++    });
++
++    const createdAlert = {
++      id: TEST_ALERT_ID,
++      userId: TEST_USER_ID,
++      gameId: TEST_GAME_ID,
++      storeId: null,
++      targetPrice: "29.99",
++      targetDiscountPercent: null,
++      notifyEmail: true,
++      notifySlackWebhook: null,
++      isActive: true,
++    };
++    mockDbInsertResult = [createdAlert];
++
++    const res = await alertsApp.request("/", {
++      method: "POST",
++      headers: jsonHeaders(),
++      body: JSON.stringify(validBody),
++    });
++    expect(res.status).toBe(201);
++
++    const body = await res.json();
++    expect(body.data.id).toBe(TEST_ALERT_ID);
++    expect(body.data.gameId).toBe(TEST_GAME_ID);
++  });
++
++  it("should return 400 for invalid body (missing required fields)", async () => {
++    const res = await alertsApp.request("/", {
++      method: "POST",
++      headers: jsonHeaders(),
++      body: JSON.stringify({}),
++    });
++    expect(res.status).toBe(400);
++
++    const body = await res.json();
++    expect(body).toHaveProperty("error", "Invalid input");
++  });
++
++  it("should return 400 when neither targetPrice nor targetDiscountPercent is provided", async () => {
++    const res = await alertsApp.request("/", {
++      method: "POST",
++      headers: jsonHeaders(),
++      body: JSON.stringify({ gameId: TEST_GAME_ID }),
++    });
++    expect(res.status).toBe(400);
++
++    const body = await res.json();
++    expect(body).toHaveProperty("error", "Invalid input");
++  });
++
++  it("should return 400 when gameId does not exist", async () => {
++    mockDb.select.mockImplementation(() => {
++      const builder: any = {
++        from: () => builder,
++        where: () => builder,
++        limit: () => Promise.resolve([]),
++        then: (resolve: (v: any) => any, reject: (e: any) => any) =>
++          Promise.resolve([]).then(resolve, reject),
++      };
++      return builder;
++    });
++
++    const res = await alertsApp.request("/", {
++      method: "POST",
++      headers: jsonHeaders(),
++      body: JSON.stringify(validBody),
++    });
++    expect(res.status).toBe(400);
++
++    const body = await res.json();
++    expect(body).toHaveProperty("error", "Game not found");
++  });
++
++  it("should return 409 when active alert cap (100) is reached", async () => {
++    let selectCallCount = 0;
++    mockDb.select.mockImplementation(() => {
++      selectCallCount++;
++      const result =
++        selectCallCount === 1
++          ? [{ id: TEST_GAME_ID }]
++          : [{ count: 100 }];
++      const builder: any = {
++        from: () => builder,
++        where: () => builder,
++        limit: () => Promise.resolve(result),
++        then: (resolve: (v: any) => any, reject: (e: any) => any) =>
++          Promise.resolve(result).then(resolve, reject),
++      };
++      return builder;
++    });
++
++    const res = await alertsApp.request("/", {
++      method: "POST",
++      headers: jsonHeaders(),
++      body: JSON.stringify(validBody),
++    });
++    expect(res.status).toBe(409);
++
++    const body = await res.json();
++    expect(body.error).toContain("alert limit");
++  });
++
++  it("should encrypt notifySlackWebhook before insert", async () => {
++    let selectCallCount = 0;
++    mockDb.select.mockImplementation(() => {
++      selectCallCount++;
++      const result =
++        selectCallCount === 1
++          ? [{ id: TEST_GAME_ID }]
++          : [{ count: 0 }];
++      const builder: any = {
++        from: () => builder,
++        where: () => builder,
++        limit: () => Promise.resolve(result),
++        then: (resolve: (v: any) => any, reject: (e: any) => any) =>
++          Promise.resolve(result).then(resolve, reject),
++      };
++      return builder;
++    });
++
++    const createdAlert = {
++      id: TEST_ALERT_ID,
++      userId: TEST_USER_ID,
++      gameId: TEST_GAME_ID,
++      notifySlackWebhook: "encrypted:https://hooks.slack.com/test",
++    };
++    mockDbInsertResult = [createdAlert];
++
++    const bodyPayload = {
++      gameId: TEST_GAME_ID,
++      targetPrice: 19.99,
++      notifySlackWebhook: "https://hooks.slack.com/test",
++    };
++
++    const res = await alertsApp.request("/", {
++      method: "POST",
++      headers: jsonHeaders(),
++      body: JSON.stringify(bodyPayload),
++    });
++    expect(res.status).toBe(201);
++    expect(mockEncrypt).toHaveBeenCalledWith("https://hooks.slack.com/test");
++
++    const body = await res.json();
++    // Response should return the plaintext webhook, not encrypted
++    expect(body.data.notifySlackWebhook).toBe("https://hooks.slack.com/test");
++  });
++
++  it("should accept targetDiscountPercent instead of targetPrice", async () => {
++    let selectCallCount = 0;
++    mockDb.select.mockImplementation(() => {
++      selectCallCount++;
++      const result =
++        selectCallCount === 1
++          ? [{ id: TEST_GAME_ID }]
++          : [{ count: 0 }];
++      const builder: any = {
++        from: () => builder,
++        where: () => builder,
++        limit: () => Promise.resolve(result),
++        then: (resolve: (v: any) => any, reject: (e: any) => any) =>
++          Promise.resolve(result).then(resolve, reject),
++      };
++      return builder;
++    });
++
++    const createdAlert = {
++      id: TEST_ALERT_ID,
++      userId: TEST_USER_ID,
++      gameId: TEST_GAME_ID,
++      targetDiscountPercent: "50",
++    };
++    mockDbInsertResult = [createdAlert];
++
++    const res = await alertsApp.request("/", {
++      method: "POST",
++      headers: jsonHeaders(),
++      body: JSON.stringify({
++        gameId: TEST_GAME_ID,
++        targetDiscountPercent: 50,
++      }),
++    });
++    expect(res.status).toBe(201);
++  });
++});
++
++describe("PATCH /:alertId (update alert)", () => {
++  it("should return updated alert on valid update", async () => {
++    // Ownership check: select returns matching alert
++    mockDb.select.mockImplementation(() => {
++      const result = [{ id: TEST_ALERT_ID, userId: TEST_USER_ID }];
++      const builder: any = {
++        from: () => builder,
++        where: () => builder,
++        limit: () => Promise.resolve(result),
++        then: (resolve: (v: any) => any, reject: (e: any) => any) =>
++          Promise.resolve(result).then(resolve, reject),
++      };
++      return builder;
++    });
++
++    const updatedAlert = {
++      id: TEST_ALERT_ID,
++      userId: TEST_USER_ID,
++      targetPrice: "19.99",
++      notifySlackWebhook: null,
++    };
++    mockDbUpdateResult = [updatedAlert];
++
++    const res = await alertsApp.request(`/${TEST_ALERT_ID}`, {
++      method: "PATCH",
++      headers: jsonHeaders(),
++      body: JSON.stringify({ targetPrice: 19.99 }),
++    });
++    expect(res.status).toBe(200);
++
++    const body = await res.json();
++    expect(body.data.targetPrice).toBe("19.99");
++  });
++
++  it("should return 404 when alert does not exist", async () => {
++    mockDb.select.mockImplementation(() => {
++      const builder: any = {
++        from: () => builder,
++        where: () => builder,
++        limit: () => Promise.resolve([]),
++        then: (resolve: (v: any) => any, reject: (e: any) => any) =>
++          Promise.resolve([]).then(resolve, reject),
++      };
++      return builder;
++    });
++
++    const res = await alertsApp.request(`/${TEST_ALERT_ID}`, {
++      method: "PATCH",
++      headers: jsonHeaders(),
++      body: JSON.stringify({ targetPrice: 19.99 }),
++    });
++    expect(res.status).toBe(404);
++  });
++
++  it("should return 404 when alert is owned by different user", async () => {
++    mockDb.select.mockImplementation(() => {
++      const result = [{ id: TEST_ALERT_ID, userId: "other-user-id" }];
++      const builder: any = {
++        from: () => builder,
++        where: () => builder,
++        limit: () => Promise.resolve(result),
++        then: (resolve: (v: any) => any, reject: (e: any) => any) =>
++          Promise.resolve(result).then(resolve, reject),
++      };
++      return builder;
++    });
++
++    const res = await alertsApp.request(`/${TEST_ALERT_ID}`, {
++      method: "PATCH",
++      headers: jsonHeaders(),
++      body: JSON.stringify({ targetPrice: 19.99 }),
++    });
++    expect(res.status).toBe(404);
++
++    const body = await res.json();
++    expect(body).toHaveProperty("error", "Alert not found");
++  });
++
++  it("should return 400 for invalid update body", async () => {
++    const res = await alertsApp.request(`/${TEST_ALERT_ID}`, {
++      method: "PATCH",
++      headers: jsonHeaders(),
++      body: JSON.stringify({ targetPrice: -5 }),
++    });
++    expect(res.status).toBe(400);
++
++    const body = await res.json();
++    expect(body).toHaveProperty("error", "Invalid input");
++  });
++
++  it("should encrypt notifySlackWebhook on update", async () => {
++    mockDb.select.mockImplementation(() => {
++      const result = [{ id: TEST_ALERT_ID, userId: TEST_USER_ID }];
++      const builder: any = {
++        from: () => builder,
++        where: () => builder,
++        limit: () => Promise.resolve(result),
++        then: (resolve: (v: any) => any, reject: (e: any) => any) =>
++          Promise.resolve(result).then(resolve, reject),
++      };
++      return builder;
++    });
++
++    const updatedAlert = {
++      id: TEST_ALERT_ID,
++      notifySlackWebhook: "encrypted:https://hooks.slack.com/new",
++    };
++    mockDbUpdateResult = [updatedAlert];
++
++    const res = await alertsApp.request(`/${TEST_ALERT_ID}`, {
++      method: "PATCH",
++      headers: jsonHeaders(),
++      body: JSON.stringify({ notifySlackWebhook: "https://hooks.slack.com/new" }),
++    });
++    expect(res.status).toBe(200);
++    expect(mockEncrypt).toHaveBeenCalledWith("https://hooks.slack.com/new");
++
++    const body = await res.json();
++    expect(body.data.notifySlackWebhook).toBe("https://hooks.slack.com/new");
++  });
++});
++
++describe("DELETE /:alertId", () => {
++  it("should return 204 when alert is deleted successfully", async () => {
++    mockDb.select.mockImplementation(() => {
++      const result = [{ id: TEST_ALERT_ID, userId: TEST_USER_ID }];
++      const builder: any = {
++        from: () => builder,
++        where: () => builder,
++        limit: () => Promise.resolve(result),
++        then: (resolve: (v: any) => any, reject: (e: any) => any) =>
++          Promise.resolve(result).then(resolve, reject),
++      };
++      return builder;
++    });
++
++    const res = await alertsApp.request(`/${TEST_ALERT_ID}`, {
++      method: "DELETE",
++      headers: authHeaders(),
++    });
++    expect(res.status).toBe(204);
++    expect(mockDb.delete).toHaveBeenCalled();
++  });
++
++  it("should return 404 when alert does not exist", async () => {
++    mockDb.select.mockImplementation(() => {
++      const builder: any = {
++        from: () => builder,
++        where: () => builder,
++        limit: () => Promise.resolve([]),
++        then: (resolve: (v: any) => any, reject: (e: any) => any) =>
++          Promise.resolve([]).then(resolve, reject),
++      };
++      return builder;
++    });
++
++    const res = await alertsApp.request(`/${TEST_ALERT_ID}`, {
++      method: "DELETE",
++      headers: authHeaders(),
++    });
++    expect(res.status).toBe(404);
++
++    const body = await res.json();
++    expect(body).toHaveProperty("error", "Alert not found");
++  });
++
++  it("should return 404 when alert is owned by different user", async () => {
++    mockDb.select.mockImplementation(() => {
++      const result = [{ id: TEST_ALERT_ID, userId: "other-user-id" }];
++      const builder: any = {
++        from: () => builder,
++        where: () => builder,
++        limit: () => Promise.resolve(result),
++        then: (resolve: (v: any) => any, reject: (e: any) => any) =>
++          Promise.resolve(result).then(resolve, reject),
++      };
++      return builder;
++    });
++
++    const res = await alertsApp.request(`/${TEST_ALERT_ID}`, {
++      method: "DELETE",
++      headers: authHeaders(),
++    });
++    expect(res.status).toBe(404);
++  });
++});
++
++describe("PATCH /:alertId/pause", () => {
++  it("should return updated alert with isActive set to false", async () => {
++    mockDb.select.mockImplementation(() => {
++      const result = [{ id: TEST_ALERT_ID, userId: TEST_USER_ID }];
++      const builder: any = {
++        from: () => builder,
++        where: () => builder,
++        limit: () => Promise.resolve(result),
++        then: (resolve: (v: any) => any, reject: (e: any) => any) =>
++          Promise.resolve(result).then(resolve, reject),
++      };
++      return builder;
++    });
++
++    const updatedAlert = {
++      id: TEST_ALERT_ID,
++      userId: TEST_USER_ID,
++      isActive: false,
++      notifySlackWebhook: null,
++    };
++    mockDbUpdateResult = [updatedAlert];
++
++    const res = await alertsApp.request(`/${TEST_ALERT_ID}/pause`, {
++      method: "PATCH",
++      headers: jsonHeaders(),
++      body: JSON.stringify({ isActive: false }),
++    });
++    expect(res.status).toBe(200);
++
++    const body = await res.json();
++    expect(body.data.isActive).toBe(false);
++  });
++
++  it("should return updated alert with isActive set to true", async () => {
++    mockDb.select.mockImplementation(() => {
++      const result = [{ id: TEST_ALERT_ID, userId: TEST_USER_ID }];
++      const builder: any = {
++        from: () => builder,
++        where: () => builder,
++        limit: () => Promise.resolve(result),
++        then: (resolve: (v: any) => any, reject: (e: any) => any) =>
++          Promise.resolve(result).then(resolve, reject),
++      };
++      return builder;
++    });
++
++    const updatedAlert = {
++      id: TEST_ALERT_ID,
++      userId: TEST_USER_ID,
++      isActive: true,
++      notifySlackWebhook: null,
++    };
++    mockDbUpdateResult = [updatedAlert];
++
++    const res = await alertsApp.request(`/${TEST_ALERT_ID}/pause`, {
++      method: "PATCH",
++      headers: jsonHeaders(),
++      body: JSON.stringify({ isActive: true }),
++    });
++    expect(res.status).toBe(200);
++
++    const body = await res.json();
++    expect(body.data.isActive).toBe(true);
++  });
++
++  it("should return 400 when isActive is not a boolean", async () => {
++    const res = await alertsApp.request(`/${TEST_ALERT_ID}/pause`, {
++      method: "PATCH",
++      headers: jsonHeaders(),
++      body: JSON.stringify({ isActive: "yes" }),
++    });
++    expect(res.status).toBe(400);
++
++    const body = await res.json();
++    expect(body).toHaveProperty("error", "isActive must be a boolean");
++  });
++
++  it("should return 400 when isActive is missing", async () => {
++    const res = await alertsApp.request(`/${TEST_ALERT_ID}/pause`, {
++      method: "PATCH",
++      headers: jsonHeaders(),
++      body: JSON.stringify({}),
++    });
++    expect(res.status).toBe(400);
++  });
++
++  it("should return 404 when alert does not exist", async () => {
++    mockDb.select.mockImplementation(() => {
++      const builder: any = {
++        from: () => builder,
++        where: () => builder,
++        limit: () => Promise.resolve([]),
++        then: (resolve: (v: any) => any, reject: (e: any) => any) =>
++          Promise.resolve([]).then(resolve, reject),
++      };
++      return builder;
++    });
++
++    const res = await alertsApp.request(`/${TEST_ALERT_ID}/pause`, {
++      method: "PATCH",
++      headers: jsonHeaders(),
++      body: JSON.stringify({ isActive: false }),
++    });
++    expect(res.status).toBe(404);
++  });
++
++  it("should return 404 when alert is owned by different user", async () => {
++    mockDb.select.mockImplementation(() => {
++      const result = [{ id: TEST_ALERT_ID, userId: "other-user-id" }];
++      const builder: any = {
++        from: () => builder,
++        where: () => builder,
++        limit: () => Promise.resolve(result),
++        then: (resolve: (v: any) => any, reject: (e: any) => any) =>
++          Promise.resolve(result).then(resolve, reject),
++      };
++      return builder;
++    });
++
++    const res = await alertsApp.request(`/${TEST_ALERT_ID}/pause`, {
++      method: "PATCH",
++      headers: jsonHeaders(),
++      body: JSON.stringify({ isActive: false }),
++    });
++    expect(res.status).toBe(404);
++  });
++
++  it("should decrypt notifySlackWebhook in the response", async () => {
++    mockDb.select.mockImplementation(() => {
++      const result = [{ id: TEST_ALERT_ID, userId: TEST_USER_ID }];
++      const builder: any = {
++        from: () => builder,
++        where: () => builder,
++        limit: () => Promise.resolve(result),
++        then: (resolve: (v: any) => any, reject: (e: any) => any) =>
++          Promise.resolve(result).then(resolve, reject),
++      };
++      return builder;
++    });
++
++    const updatedAlert = {
++      id: TEST_ALERT_ID,
++      isActive: false,
++      notifySlackWebhook: "encrypted:https://hooks.slack.com/test",
++    };
++    mockDbUpdateResult = [updatedAlert];
++
++    const res = await alertsApp.request(`/${TEST_ALERT_ID}/pause`, {
++      method: "PATCH",
++      headers: jsonHeaders(),
++      body: JSON.stringify({ isActive: false }),
++    });
++    expect(res.status).toBe(200);
++
++    const body = await res.json();
++    expect(body.data.notifySlackWebhook).toBe("https://hooks.slack.com/test");
++    expect(mockDecrypt).toHaveBeenCalledWith("encrypted:https://hooks.slack.com/test");
++  });
++});
+diff --git a/packages/worker/src/index.ts b/packages/worker/src/index.ts
+index 6592c0d..7b5cff7 100644
+--- a/packages/worker/src/index.ts
++++ b/packages/worker/src/index.ts
+@@ -2,9 +2,9 @@ import http from "node:http";
+ import { Worker, Queue } from "bullmq";
+ import { Redis } from "ioredis";
+ import { eq, and, desc } from "drizzle-orm";
+-import { db, games, stores, storeListings, priceHistory, storeListingStats } from "@taad/db";
++import { db, games, stores, storeListings, priceHistory, storeListingStats, priceAlerts, alertNotifications } from "@taad/db";
+ import { BaseScraper, type ScrapedGame } from "@taad/scraper";
+-import { scrapeQueue, ingestQueue, priceDropQueue, allTimeLowQueue, featuredScrapeQueue } from "./queues.js";
++import { scrapeQueue, ingestQueue, priceDropQueue, allTimeLowQueue, featuredScrapeQueue, notificationQueue } from "./queues.js";
+ 
+ const connection = { url: process.env.REDIS_URL! };
+ const SCRAPE_CRON = process.env.SCRAPE_CRON ?? "0 */6 * * *";
+@@ -324,6 +324,117 @@ const ingestWorker = new Worker(
+   { connection },
+ );
+ 
++// ─── Price-Drop Alert Worker ──────────────────────────────────────────────────
++const priceDropAlertWorker = new Worker(
++  "price-drop",
++  async (job) => {
++    const { gameId, storeListingId, newPrice } = job.data as {
++      gameId: string;
++      storeListingId: string;
++      previousPrice: number;
++      newPrice: number;
++    };
++
++    // Look up the store listing to get storeId for store-scoped alert filtering
++    const [listing] = await db
++      .select()
++      .from(storeListings)
++      .where(eq(storeListings.id, storeListingId))
++      .limit(1);
++    if (!listing) return;
++
++    // Query active alerts for this game
++    const activeAlerts = await db
++      .select()
++      .from(priceAlerts)
++      .where(and(eq(priceAlerts.gameId, gameId), eq(priceAlerts.isActive, true)));
++
++    for (const alert of activeAlerts) {
++      // Skip if alert is scoped to a different store
++      if (alert.storeId && alert.storeId !== listing.storeId) continue;
++
++      const meetsPrice = alert.targetPrice != null && newPrice <= Number(alert.targetPrice);
++      // Compute discount from the latest price history record
++      const [latestRecord] = await db
++        .select()
++        .from(priceHistory)
++        .where(eq(priceHistory.storeListingId, storeListingId))
++        .orderBy(desc(priceHistory.recordedAt))
++        .limit(1);
++      const discountPercent = latestRecord?.discount != null ? Number(latestRecord.discount) : 0;
++      const meetsDiscount = alert.targetDiscountPercent != null && discountPercent >= Number(alert.targetDiscountPercent);
++
++      if (!meetsPrice && !meetsDiscount) continue;
++
++      // Enqueue notification job
++      await notificationQueue.add("alert-notification", {
++        alertId: alert.id,
++        userId: alert.userId,
++        gameId,
++        storeListingId,
++        triggeredPrice: newPrice,
++        notifyEmail: alert.notifyEmail,
++        notifySlackWebhook: alert.notifySlackWebhook,
++      });
++
++      // Record notification
++      await db.insert(alertNotifications).values({
++        alertId: alert.id,
++        storeListingId,
++        triggeredPrice: String(newPrice),
++      });
++    }
++  },
++  { connection },
++);
++
++// ─── All-Time-Low Alert Worker ────────────────────────────────────────────────
++const allTimeLowAlertWorker = new Worker(
++  "all-time-low",
++  async (job) => {
++    const { gameId, storeListingId, newPrice } = job.data as {
++      gameId: string;
++      storeListingId: string;
++      newPrice: number;
++    };
++
++    // Query active alerts for this game (trigger unconditionally)
++    const activeAlerts = await db
++      .select()
++      .from(priceAlerts)
++      .where(and(eq(priceAlerts.gameId, gameId), eq(priceAlerts.isActive, true)));
++
++    for (const alert of activeAlerts) {
++      // Skip if alert is scoped to a different store
++      const [listing] = await db
++        .select()
++        .from(storeListings)
++        .where(eq(storeListings.id, storeListingId))
++        .limit(1);
++      if (listing && alert.storeId && alert.storeId !== listing.storeId) continue;
++
++      // Enqueue notification job
++      await notificationQueue.add("alert-notification", {
++        alertId: alert.id,
++        userId: alert.userId,
++        gameId,
++        storeListingId,
++        triggeredPrice: newPrice,
++        notifyEmail: alert.notifyEmail,
++        notifySlackWebhook: alert.notifySlackWebhook,
++      });
++
++      // Record notification
++      await db.insert(alertNotifications).values({
++        alertId: alert.id,
++        storeListingId,
++        triggeredPrice: String(newPrice),
++      });
++    }
++  },
++  { connection },
++);
++
+ // ─── CRON: schedule scrape jobs per store ─────────────────────────────────────
+ export async function scheduleScrapers() {
+   const allStores = await db.select().from(stores);
+@@ -403,5 +514,7 @@ process.on("SIGTERM", async () => {
+   await scrapeWorker.close();
+   await ingestWorker.close();
+   await featuredScrapeWorker.close();
++  await priceDropAlertWorker.close();
++  await allTimeLowAlertWorker.close();
+   process.exit(0);
+ });
+diff --git a/packages/worker/src/queues.ts b/packages/worker/src/queues.ts
+index c129c20..e98fb85 100644
+--- a/packages/worker/src/queues.ts
++++ b/packages/worker/src/queues.ts
+@@ -25,3 +25,8 @@ export const scrapeQueueEvents = new QueueEvents("scrape", { connection });
+ export const ingestQueueEvents = new QueueEvents("ingest", { connection });
+ export const priceDropQueueEvents = new QueueEvents("price-drop", { connection });
+ export const allTimeLowQueueEvents = new QueueEvents("all-time-low", { connection });
++
++/** Delivers notification jobs (email, Slack, etc.) when alerts trigger. */
++export const notificationQueue = new Queue("notification", { connection });
++
++export const notificationQueueEvents = new QueueEvents("notification", { connection });
