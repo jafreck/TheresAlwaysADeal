@@ -55,11 +55,13 @@ vi.mock("@taad/db", () => {
   };
   return {
     db: mockDb,
-    games: { slug: "slug_col", id: "id_col" },
+    games: { slug: "slug_col", id: "id_col", steamAppId: "steam_app_id_col" },
     stores: { slug: "slug_col", id: "id_col" },
     storeListings: { gameId: "gameId_col", storeId: "storeId_col", id: "id_col" },
     priceHistory: { storeListingId: "sl_col", recordedAt: "ra_col" },
     storeListingStats: { storeListingId: "sl_stats_col" },
+    users: { id: "id_col", steamId: "steam_id_col" },
+    wishlists: { userId: "user_id_col", gameId: "game_id_col", source: "source_col" },
   };
 });
 
@@ -67,6 +69,7 @@ vi.mock("drizzle-orm", () => ({
   eq: vi.fn((col: unknown, val: unknown) => ({ col, val })),
   and: vi.fn((...args: unknown[]) => args),
   desc: vi.fn((col: unknown) => col),
+  isNotNull: vi.fn((col: unknown) => ({ col, op: "isNotNull" })),
 }));
 
 vi.mock("@taad/scraper", () => ({
@@ -695,5 +698,330 @@ describe("featured scrape worker", () => {
       { retailerDomain: "steam" },
       expect.objectContaining({ repeat: { pattern: process.env.SCRAPE_CRON ?? "0 */6 * * *" } }),
     );
+  });
+});
+
+// ─── Steam Sync Worker tests ──────────────────────────────────────────────────
+describe("steam sync worker", () => {
+  it("should create a Worker for the 'steam-sync' queue", () => {
+    const calls = vi.mocked(Worker).mock.calls;
+    const steamSyncCall = calls.find(([name]) => name === "steam-sync");
+    expect(steamSyncCall).toBeDefined();
+  });
+
+  function getSteamSyncProcessor(): (job: unknown) => Promise<void> {
+    const calls = vi.mocked(Worker).mock.calls;
+    const steamSyncCall = calls.find(([name]) => name === "steam-sync");
+    if (!steamSyncCall) throw new Error("Steam sync Worker was not created");
+    return steamSyncCall[1] as (job: unknown) => Promise<void>;
+  }
+
+  it("should query users where steamId IS NOT NULL and fetch wishlists", async () => {
+    const mockUser = { id: "user-1", steamId: "76561198000000001" };
+    const mockGame = { id: "game-1", steamAppId: 400 };
+
+    (db.select as ReturnType<typeof vi.fn>)
+      .mockReturnValueOnce(buildSelectChain([mockUser])) // users with steamId
+      .mockReturnValueOnce(buildSelectChain([mockGame])); // game match
+
+    const insertChain = {
+      values: vi.fn().mockReturnThis(),
+      onConflictDoNothing: vi.fn().mockResolvedValue(undefined),
+    };
+    (db.insert as ReturnType<typeof vi.fn>).mockReturnValue(insertChain);
+
+    const mockFetch = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      new Response(JSON.stringify({ "400": { name: "Portal" } }), { status: 200 }),
+    );
+
+    const processor = getSteamSyncProcessor();
+    await processor({});
+
+    expect(mockFetch).toHaveBeenCalledWith(
+      "https://store.steampowered.com/wishlist/profiles/76561198000000001/wishlistdata/",
+    );
+    expect(db.insert).toHaveBeenCalled();
+    expect(insertChain.values).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: "user-1", gameId: "game-1", source: "steam_sync" }),
+    );
+
+    mockFetch.mockRestore();
+  });
+
+  it("should handle private wishlists gracefully (non-200 response)", async () => {
+    const mockUser = { id: "user-2", steamId: "76561198000000002" };
+
+    (db.select as ReturnType<typeof vi.fn>)
+      .mockReturnValueOnce(buildSelectChain([mockUser]));
+
+    const mockFetch = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      new Response("", { status: 403 }),
+    );
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    const processor = getSteamSyncProcessor();
+    await expect(processor({})).resolves.toBeUndefined();
+
+    expect(warnSpy).toHaveBeenCalled();
+    mockFetch.mockRestore();
+    warnSpy.mockRestore();
+  });
+
+  it("should handle empty wishlists gracefully", async () => {
+    const mockUser = { id: "user-3", steamId: "76561198000000003" };
+
+    (db.select as ReturnType<typeof vi.fn>)
+      .mockReturnValueOnce(buildSelectChain([mockUser]));
+
+    const mockFetch = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      new Response(JSON.stringify({}), { status: 200 }),
+    );
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    const processor = getSteamSyncProcessor();
+    await expect(processor({})).resolves.toBeUndefined();
+
+    expect(warnSpy).toHaveBeenCalled();
+    mockFetch.mockRestore();
+    warnSpy.mockRestore();
+  });
+
+  it("should do nothing when no users have a steamId", async () => {
+    (db.select as ReturnType<typeof vi.fn>)
+      .mockReturnValueOnce(buildSelectChain([])); // no users
+
+    const mockFetch = vi.spyOn(globalThis, "fetch");
+
+    const processor = getSteamSyncProcessor();
+    await expect(processor({})).resolves.toBeUndefined();
+
+    // fetch should never be called when there are no users
+    expect(mockFetch).not.toHaveBeenCalled();
+    mockFetch.mockRestore();
+  });
+
+  it("should skip appIds that do not match any game in the database", async () => {
+    const mockUser = { id: "user-4", steamId: "76561198000000004" };
+
+    (db.select as ReturnType<typeof vi.fn>)
+      .mockReturnValueOnce(buildSelectChain([mockUser])) // users
+      .mockReturnValueOnce(buildSelectChain([])); // no game match for appId
+
+    (db.insert as ReturnType<typeof vi.fn>).mockClear();
+
+    const mockFetch = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      new Response(JSON.stringify({ "99999": { name: "Unknown Game" } }), { status: 200 }),
+    );
+
+    const processor = getSteamSyncProcessor();
+    await processor({});
+
+    // insert should NOT be called because the game was not found
+    expect(db.insert).not.toHaveBeenCalled();
+
+    mockFetch.mockRestore();
+  });
+
+  it("should handle fetch throwing a network error gracefully", async () => {
+    const mockUser = { id: "user-5", steamId: "76561198000000005" };
+
+    (db.select as ReturnType<typeof vi.fn>)
+      .mockReturnValueOnce(buildSelectChain([mockUser]));
+
+    const mockFetch = vi.spyOn(globalThis, "fetch").mockRejectedValueOnce(
+      new Error("Network error"),
+    );
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    const processor = getSteamSyncProcessor();
+    await expect(processor({})).resolves.toBeUndefined();
+
+    expect(warnSpy).toHaveBeenCalled();
+    const warnArg = warnSpy.mock.calls[0]?.[0] as string;
+    expect(warnArg).toContain("steam-sync-error");
+    expect(warnArg).toContain("user-5");
+
+    mockFetch.mockRestore();
+    warnSpy.mockRestore();
+  });
+
+  it("should process multiple users independently", async () => {
+    const user1 = { id: "user-a", steamId: "76561198000000010" };
+    const user2 = { id: "user-b", steamId: "76561198000000011" };
+    const mockGameA = { id: "game-a", steamAppId: 10 };
+
+    (db.select as ReturnType<typeof vi.fn>)
+      .mockReturnValueOnce(buildSelectChain([user1, user2])) // both users
+      .mockReturnValueOnce(buildSelectChain([mockGameA])) // user1's game match
+      .mockReturnValueOnce(buildSelectChain([])); // user2's game not found
+
+    const insertChain = {
+      values: vi.fn().mockReturnThis(),
+      onConflictDoNothing: vi.fn().mockResolvedValue(undefined),
+    };
+    (db.insert as ReturnType<typeof vi.fn>).mockReturnValue(insertChain);
+
+    const mockFetch = vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ "10": { name: "GameA" } }), { status: 200 }),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ "20": { name: "GameB" } }), { status: 200 }),
+      );
+
+    const processor = getSteamSyncProcessor();
+    await processor({});
+
+    // fetch called once per user
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+    // insert only for user1 (user2's game not found)
+    expect(insertChain.values).toHaveBeenCalledTimes(1);
+    expect(insertChain.values).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: "user-a", gameId: "game-a", source: "steam_sync" }),
+    );
+
+    mockFetch.mockRestore();
+  });
+
+  it("should upsert multiple wishlist entries when wishlist has multiple matching appIds", async () => {
+    const mockUser = { id: "user-6", steamId: "76561198000000006" };
+    const game1 = { id: "game-x", steamAppId: 400 };
+    const game2 = { id: "game-y", steamAppId: 440 };
+
+    (db.select as ReturnType<typeof vi.fn>)
+      .mockReturnValueOnce(buildSelectChain([mockUser])) // users
+      .mockReturnValueOnce(buildSelectChain([game1])) // match for appId 400
+      .mockReturnValueOnce(buildSelectChain([game2])); // match for appId 440
+
+    const insertChain = {
+      values: vi.fn().mockReturnThis(),
+      onConflictDoNothing: vi.fn().mockResolvedValue(undefined),
+    };
+    (db.insert as ReturnType<typeof vi.fn>).mockReturnValue(insertChain);
+
+    const mockFetch = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      new Response(JSON.stringify({ "400": { name: "Portal" }, "440": { name: "TF2" } }), { status: 200 }),
+    );
+
+    const processor = getSteamSyncProcessor();
+    await processor({});
+
+    expect(insertChain.values).toHaveBeenCalledTimes(2);
+    expect(insertChain.values).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: "user-6", gameId: "game-x" }),
+    );
+    expect(insertChain.values).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: "user-6", gameId: "game-y" }),
+    );
+
+    mockFetch.mockRestore();
+  });
+
+  it("should have concurrency 1 for the steam-sync worker", () => {
+    const calls = vi.mocked(Worker).mock.calls;
+    const steamSyncCall = calls.find(([name]) => name === "steam-sync");
+    expect(steamSyncCall).toBeDefined();
+    const opts = steamSyncCall![2] as { concurrency: number };
+    expect(opts.concurrency).toBe(1);
+  });
+
+  it("should schedule a steam-sync-all CRON job on startup", () => {
+    const steamSyncCall = startupQueueAddCalls.find(([name]) => name === "steam-sync-all");
+    expect(steamSyncCall).toBeDefined();
+    expect(steamSyncCall![2]).toMatchObject({ repeat: { pattern: expect.any(String) } });
+  });
+
+  it("should schedule steam-sync-all with STEAM_SYNC_CRON pattern", () => {
+    const steamSyncCall = startupQueueAddCalls.find(([name]) => name === "steam-sync-all");
+    expect(steamSyncCall).toBeDefined();
+    expect(steamSyncCall![2]).toMatchObject({
+      repeat: { pattern: process.env.STEAM_SYNC_CRON ?? "0 0 * * *" },
+    });
+  });
+
+  it("should include steamSyncWorker in SIGTERM graceful shutdown", async () => {
+    // The SIGTERM handler calls close() on all workers including steamSyncWorker.
+    // mockWorkerClose is shared across all Worker instances; the afterAll block
+    // triggers SIGTERM and we verify the expected call count (4 workers total).
+    // This test just verifies the worker was created — shutdown is covered by afterAll.
+    const calls = vi.mocked(Worker).mock.calls;
+    const steamSyncCall = calls.find(([name]) => name === "steam-sync");
+    expect(steamSyncCall).toBeDefined();
+  });
+
+  it("should do nothing when no users have a steamId linked", async () => {
+    (db.select as ReturnType<typeof vi.fn>)
+      .mockReturnValueOnce(buildSelectChain([])); // no users with steamId
+
+    const mockFetch = vi.spyOn(globalThis, "fetch");
+    mockFetch.mockClear();
+
+    const processor = getSteamSyncProcessor();
+    await expect(processor({})).resolves.toBeUndefined();
+
+    // fetch should not have been called since there are no users
+    expect(mockFetch).not.toHaveBeenCalled();
+    mockFetch.mockRestore();
+  });
+
+  it("should skip insert when game is not found in database for a wishlist appid", async () => {
+    const mockUser = { id: "user-4", steamId: "76561198000000004" };
+
+    (db.select as ReturnType<typeof vi.fn>)
+      .mockReturnValueOnce(buildSelectChain([mockUser])) // users with steamId
+      .mockReturnValueOnce(buildSelectChain([])); // game NOT found
+
+    const mockFetch = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      new Response(JSON.stringify({ "999": { name: "Unknown Game" } }), { status: 200 }),
+    );
+
+    const insertSpy = vi.fn();
+    (db.insert as ReturnType<typeof vi.fn>).mockImplementation(insertSpy);
+
+    const processor = getSteamSyncProcessor();
+    await expect(processor({})).resolves.toBeUndefined();
+
+    // insert should NOT have been called since no game matched
+    expect(insertSpy).not.toHaveBeenCalled();
+
+    mockFetch.mockRestore();
+  });
+
+  it("should log a warning and continue when fetch throws for a user", async () => {
+    const mockUser1 = { id: "user-5", steamId: "76561198000000005" };
+    const mockUser2 = { id: "user-6", steamId: "76561198000000006" };
+    const mockGame = { id: "game-2", steamAppId: 500 };
+
+    (db.select as ReturnType<typeof vi.fn>)
+      .mockReturnValueOnce(buildSelectChain([mockUser1, mockUser2])) // two users
+      .mockReturnValueOnce(buildSelectChain([mockGame])); // game match for user-6
+
+    const insertChain = {
+      values: vi.fn().mockReturnThis(),
+      onConflictDoNothing: vi.fn().mockResolvedValue(undefined),
+    };
+    (db.insert as ReturnType<typeof vi.fn>).mockReturnValue(insertChain);
+
+    let fetchCallCount = 0;
+    const mockFetch = vi.spyOn(globalThis, "fetch").mockImplementation(async (url) => {
+      fetchCallCount++;
+      if (fetchCallCount === 1) {
+        throw new Error("Connection refused");
+      }
+      return new Response(JSON.stringify({ "500": { name: "Game" } }), { status: 200 });
+    });
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    const processor = getSteamSyncProcessor();
+    await expect(processor({})).resolves.toBeUndefined();
+
+    // Should have warned about the first user's failure
+    expect(warnSpy).toHaveBeenCalled();
+    const warnCall = warnSpy.mock.calls[0][0] as string;
+    expect(warnCall).toContain("steam-sync-error");
+    expect(warnCall).toContain("user-5");
+
+    mockFetch.mockRestore();
+    warnSpy.mockRestore();
   });
 });

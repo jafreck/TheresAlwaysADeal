@@ -1,15 +1,16 @@
 import http from "node:http";
 import { Worker, Queue } from "bullmq";
 import { Redis } from "ioredis";
-import { eq, and, desc } from "drizzle-orm";
-import { db, games, stores, storeListings, priceHistory, storeListingStats } from "@taad/db";
+import { eq, and, desc, isNotNull } from "drizzle-orm";
+import { db, games, stores, storeListings, priceHistory, storeListingStats, users, wishlists } from "@taad/db";
 import { BaseScraper, type ScrapedGame } from "@taad/scraper";
-import { scrapeQueue, ingestQueue, priceDropQueue, allTimeLowQueue, featuredScrapeQueue } from "./queues.js";
+import { scrapeQueue, ingestQueue, priceDropQueue, allTimeLowQueue, featuredScrapeQueue, steamSyncQueue } from "./queues.js";
 
 const connection = { url: process.env.REDIS_URL! };
 const SCRAPE_CRON = process.env.SCRAPE_CRON ?? "0 */6 * * *";
 const FEATURED_SCRAPE_CRON = process.env.FEATURED_SCRAPE_CRON ?? "0 * * * *";
 const EPIC_SCRAPE_CRON = process.env.EPIC_SCRAPE_CRON ?? "0 0 * * *";
+const STEAM_SYNC_CRON = process.env.STEAM_SYNC_CRON ?? "0 0 * * *";
 const PORT = Number(process.env.PORT ?? 4000);
 
 // Dead-letter queue for scrape jobs that exhaust all retries
@@ -94,6 +95,62 @@ const featuredScrapeWorker = new Worker(
 
     const endTime = new Date().toISOString();
     console.log(JSON.stringify({ storeName: retailerDomain, startTime, endTime, recordsFetched, errorCount }));
+  },
+  { connection, concurrency: 1 },
+);
+
+// ─── Steam Wishlist Sync Worker ───────────────────────────────────────────────
+const steamSyncWorker = new Worker(
+  "steam-sync",
+  async () => {
+    const steamUsers = await db
+      .select({ id: users.id, steamId: users.steamId })
+      .from(users)
+      .where(isNotNull(users.steamId));
+
+    for (const user of steamUsers) {
+      try {
+        const res = await fetch(
+          `https://store.steampowered.com/wishlist/profiles/${user.steamId}/wishlistdata/`,
+        );
+
+        if (!res.ok) {
+          console.warn(
+            JSON.stringify({ event: "steam-sync-private", userId: user.id, status: res.status }),
+          );
+          continue;
+        }
+
+        const data = await res.json();
+
+        if (!data || typeof data !== "object" || Object.keys(data).length === 0) {
+          console.warn(
+            JSON.stringify({ event: "steam-sync-empty", userId: user.id }),
+          );
+          continue;
+        }
+
+        const appIds = Object.keys(data).map(Number);
+        for (const appId of appIds) {
+          const [game] = await db
+            .select()
+            .from(games)
+            .where(eq(games.steamAppId, appId))
+            .limit(1);
+
+          if (!game) continue;
+
+          await db
+            .insert(wishlists)
+            .values({ userId: user.id, gameId: game.id, source: "steam_sync" })
+            .onConflictDoNothing();
+        }
+      } catch (err) {
+        console.warn(
+          JSON.stringify({ event: "steam-sync-error", userId: user.id, error: String(err) }),
+        );
+      }
+    }
   },
   { connection, concurrency: 1 },
 );
@@ -341,6 +398,12 @@ export async function scheduleScrapers() {
     { retailerDomain: "steam" },
     { repeat: { pattern: FEATURED_SCRAPE_CRON }, attempts: 3 },
   );
+  // Schedule daily Steam wishlist sync for all linked users
+  await steamSyncQueue.add(
+    "steam-sync-all",
+    {},
+    { repeat: { pattern: STEAM_SYNC_CRON } },
+  );
   console.log(JSON.stringify({ event: "cron-scheduled", storeCount: allStores.length, pattern: SCRAPE_CRON }));
 }
 
@@ -403,5 +466,6 @@ process.on("SIGTERM", async () => {
   await scrapeWorker.close();
   await ingestWorker.close();
   await featuredScrapeWorker.close();
+  await steamSyncWorker.close();
   process.exit(0);
 });

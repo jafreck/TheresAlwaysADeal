@@ -46,6 +46,12 @@ describe("queues", () => {
       const featuredCall = vi.mocked(Queue).mock.calls.find(([name]) => name === "featured-scrape");
       expect(featuredCall).toBeDefined();
     });
+
+    it("should create steamSyncQueue with name 'steam-sync'", async () => {
+      await import("../src/queues.js");
+      const steamSyncCall = vi.mocked(Queue).mock.calls.find(([name]) => name === "steam-sync");
+      expect(steamSyncCall).toBeDefined();
+    });
   });
 
   describe("QueueEvents instances", () => {
@@ -70,6 +76,12 @@ describe("queues", () => {
     it("should create allTimeLowQueueEvents for 'all-time-low'", async () => {
       await import("../src/queues.js");
       const call = vi.mocked(QueueEvents).mock.calls.find(([name]) => name === "all-time-low");
+      expect(call).toBeDefined();
+    });
+
+    it("should create steamSyncQueueEvents for 'steam-sync'", async () => {
+      await import("../src/queues.js");
+      const call = vi.mocked(QueueEvents).mock.calls.find(([name]) => name === "steam-sync");
       expect(call).toBeDefined();
     });
   });
@@ -98,6 +110,12 @@ describe("queues", () => {
     it("should export featuredScrapeQueue", async () => {
       const { featuredScrapeQueue } = await import("../src/queues.js");
       expect(featuredScrapeQueue).toBeDefined();
+    });
+
+    it("should export steamSyncQueue and steamSyncQueueEvents", async () => {
+      const { steamSyncQueue, steamSyncQueueEvents } = await import("../src/queues.js");
+      expect(steamSyncQueue).toBeDefined();
+      expect(steamSyncQueueEvents).toBeDefined();
     });
   });
 });
