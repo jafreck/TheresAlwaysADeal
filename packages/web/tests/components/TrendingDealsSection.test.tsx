@@ -167,4 +167,48 @@ describe('TrendingDealsSection', () => {
     expect(grid).toBeTruthy();
     expect(grid?.className).toContain('grid-cols-1');
   });
+
+  it('should apply distinct styling to active tab', () => {
+    const { container } = renderWithQuery(
+      React.createElement(TrendingDealsSection, { deals: [makeDeal()] }),
+    );
+    const tabs = container.querySelectorAll('[role="tab"]');
+    expect(tabs[0].className).toContain('bg-primary');
+    expect(tabs[0].className).toContain('text-white');
+    expect(tabs[1].className).toContain('bg-surface');
+    expect(tabs[1].className).toContain('text-muted');
+  });
+
+  it('should trigger API call when switching to a non-initial tab', async () => {
+    mockApiGet.mockResolvedValue({ data: [makeDeal({ gameSlug: 'new-deal' })] });
+    const { container } = renderWithQuery(
+      React.createElement(TrendingDealsSection, { deals: [makeDeal()] }),
+    );
+    const tabs = container.querySelectorAll('[role="tab"]');
+    fireEvent.click(tabs[2]); // All-Time Lows
+    expect(mockApiGet).toHaveBeenCalled();
+  });
+
+  it('should render responsive grid classes', () => {
+    const deals = [makeDeal()];
+    const { container } = renderWithQuery(
+      React.createElement(TrendingDealsSection, { deals }),
+    );
+    const grid = container.querySelector('.grid');
+    expect(grid?.className).toContain('sm:grid-cols-2');
+    expect(grid?.className).toContain('lg:grid-cols-3');
+    expect(grid?.className).toContain('xl:grid-cols-4');
+  });
+
+  it('should update active tab styling when switching tabs', () => {
+    mockApiGet.mockResolvedValue({ data: [] });
+    const { container } = renderWithQuery(
+      React.createElement(TrendingDealsSection, { deals: [makeDeal()] }),
+    );
+    const tabs = container.querySelectorAll('[role="tab"]');
+    fireEvent.click(tabs[3]); // Most Discounted
+    expect(tabs[3].className).toContain('bg-primary');
+    expect(tabs[3].className).toContain('text-white');
+    expect(tabs[0].className).toContain('bg-surface');
+  });
 });
