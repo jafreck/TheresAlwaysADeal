@@ -1,0 +1,11 @@
+{
+  "sessionId": "session-003",
+  "verdict": "needs-fixes",
+  "summary": "The test file has four unresolved merge conflict markers (<<<<<<< HEAD / ======= / >>>>>>> origin/main) that prevent it from compiling. The conflicts are between the new Slack notification tests (HEAD) and the Steam sync worker tests (origin/main) — both sides need to be retained and the mock objects merged.",
+  "keyFindings": [
+    "Unresolved merge conflict in `games` mock: HEAD adds `title` and `headerImageUrl` fields, origin/main adds `steamAppId`. Both are needed — merge them into a single object: `{ slug: \"slug_col\", id: \"id_col\", title: \"title_col\", headerImageUrl: \"header_col\", steamAppId: \"steam_app_id_col\" }`.",
+    "Unresolved merge conflict in mock schema exports: HEAD adds `users` (with `notifySlackWebhook`), `priceAlerts`, and `alertNotifications`; origin/main adds `users` (with `steamId`) and `wishlists`. Both sides must be merged — the `users` mock needs all fields (`id`, `notifySlackWebhook`, `steamId`) and `wishlists` must be included alongside `priceAlerts` and `alertNotifications`.",
+    "Unresolved merge conflict in drizzle-orm mock: HEAD adds `gte`, origin/main adds `isNotNull`. Both are needed by their respective test suites — include both in the mock.",
+    "Unresolved merge conflict spanning ~810 lines: HEAD contains the Slack notification worker tests and origin/main contains the Steam sync worker tests. Both `describe` blocks must be retained — remove the conflict markers and keep all test suites."
+  ]
+}

@@ -13,7 +13,7 @@ interface AuthResponse {
 }
 
 export function useAuth() {
-  const { accessToken, userProfile, setAccessToken, logout: clearAuth } = useAuthStore();
+  const { accessToken, userProfile, setAccessToken, setUserProfile, logout: clearAuth } = useAuthStore();
   const [isLoading, setIsLoading] = useState(false);
 
   const isAuthenticated = !!accessToken;
@@ -23,19 +23,24 @@ export function useAuth() {
     try {
       const res = await apiClient.post<AuthResponse>("/api/auth/login", { email, password });
       setAccessToken(res.accessToken);
+      const profile = await apiClient.get<UserProfile>("/api/auth/me");
+      setUserProfile(profile);
     } finally {
       setIsLoading(false);
     }
-  }, [setAccessToken]);
+  }, [setAccessToken, setUserProfile]);
 
   const register = useCallback(async (data: RegisterData) => {
     setIsLoading(true);
     try {
-      await apiClient.post<AuthResponse>("/api/auth/register", data);
+      const res = await apiClient.post<AuthResponse>("/api/auth/register", data);
+      setAccessToken(res.accessToken);
+      const profile = await apiClient.get<UserProfile>("/api/auth/me");
+      setUserProfile(profile);
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [setAccessToken, setUserProfile]);
 
   const logout = useCallback(async () => {
     setIsLoading(true);

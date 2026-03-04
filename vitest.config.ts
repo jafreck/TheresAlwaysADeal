@@ -16,8 +16,25 @@ export default defineConfig({
   },
   test: {
     passWithNoTests: true,
-    environmentMatchGlobs: [
-      ["packages/web/**", "jsdom"],
+    projects: [
+      {
+        test: {
+          include: [
+            "packages/api/**/*.test.ts",
+            "packages/db/**/*.test.ts",
+            "packages/scraper/**/*.test.ts",
+            "packages/worker/**/*.test.ts",
+          ],
+          environment: "node",
+        },
+      },
+      {
+        extends: true,
+        test: {
+          include: ["packages/web/**/*.test.{ts,tsx}"],
+          environment: "jsdom",
+        },
+      },
     ],
   },
 });

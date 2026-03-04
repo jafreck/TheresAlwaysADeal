@@ -15,7 +15,7 @@ vi.mock("drizzle-orm", () => ({
 }));
 
 // Verify all public exports are accessible from the package index
-import { BaseScraper, IScraper, gameSchema, buildReferralUrl, FanaticalScraper } from "../src/index.js";
+import { BaseScraper, gameSchema, buildReferralUrl, FanaticalScraper } from "../src/index.js";
 import type { ScrapedGame, ScraperConfig } from "../src/index.js";
 
 describe("index re-exports", () => {

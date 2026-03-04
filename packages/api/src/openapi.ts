@@ -338,6 +338,72 @@ const spec = {
         },
       },
     },
+    "/auth/steam": {
+      get: {
+        summary: "Redirect to Steam OpenID login",
+        tags: ["Steam"],
+        security: [{ BearerAuth: [] }],
+        responses: {
+          "302": { description: "Redirect to Steam OpenID login page" },
+          "401": { description: "Unauthorized", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
+        },
+      },
+    },
+    "/auth/steam/callback": {
+      get: {
+        summary: "Steam OpenID callback",
+        tags: ["Steam"],
+        security: [{ BearerAuth: [] }],
+        parameters: [
+          { name: "openid.claimed_id", in: "query", required: true, schema: { type: "string" }, description: "Steam OpenID claimed identity URL" },
+          { name: "openid.sig", in: "query", required: true, schema: { type: "string" }, description: "OpenID signature" },
+          { name: "openid.assoc_handle", in: "query", required: true, schema: { type: "string" }, description: "OpenID association handle" },
+        ],
+        responses: {
+          "200": { description: "Steam account linked successfully", content: { "application/json": { schema: { $ref: "#/components/schemas/SteamLinkResponse" } } } },
+          "400": { description: "Invalid OpenID assertion", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
+          "401": { description: "Unauthorized", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
+        },
+      },
+    },
+    "/user/me/steam": {
+      delete: {
+        summary: "Unlink Steam account",
+        tags: ["User"],
+        security: [{ BearerAuth: [] }],
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                required: ["confirm"],
+                properties: {
+                  confirm: { type: "boolean", enum: [true] },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          "200": { description: "Steam account unlinked", content: { "application/json": { schema: { $ref: "#/components/schemas/MessageResponse" } } } },
+          "400": { description: "Confirmation required", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
+          "401": { description: "Unauthorized", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
+        },
+      },
+    },
+    "/user/me/steam/sync": {
+      post: {
+        summary: "Sync Steam wishlist",
+        tags: ["User"],
+        security: [{ BearerAuth: [] }],
+        responses: {
+          "200": { description: "Sync result", content: { "application/json": { schema: { $ref: "#/components/schemas/SteamSyncResponse" } } } },
+          "400": { description: "No Steam account linked", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
+          "401": { description: "Unauthorized", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
+        },
+      },
+    },
   },
   components: {
     schemas: {
@@ -373,6 +439,28 @@ const spec = {
         properties: {
           message: { type: "string" },
         },
+      },
+      SteamLinkResponse: {
+        type: "object",
+        properties: {
+          message: { type: "string" },
+          steamId: { type: "string" },
+        },
+      },
+      SteamSyncResponse: {
+        type: "object",
+        properties: {
+          message: { type: "string" },
+          synced: { type: "integer" },
+          private: { type: "boolean" },
+        },
+      },
+    },
+    securitySchemes: {
+      BearerAuth: {
+        type: "http",
+        scheme: "bearer",
+        bearerFormat: "JWT",
       },
     },
   },

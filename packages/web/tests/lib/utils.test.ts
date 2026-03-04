@@ -7,7 +7,8 @@ describe('cn', () => {
   });
 
   it('should handle conditional classes via clsx syntax', () => {
-    expect(cn('base', false && 'hidden', 'visible')).toBe('base visible');
+    const condition = false;
+    expect(cn('base', condition && 'hidden', 'visible')).toBe('base visible');
   });
 
   it('should resolve Tailwind conflicts using tailwind-merge', () => {

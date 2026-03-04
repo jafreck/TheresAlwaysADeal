@@ -1,0 +1,51 @@
+{
+  "agent": "pr-composer",
+  "issueNumber": 20,
+  "projectName": "theresalwaysadeal",
+  "repository": "jafreck/TheresAlwaysADeal",
+  "worktreePath": "/Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-20",
+  "phase": 5,
+  "config": {
+    "commands": {
+      "install": "npm install",
+      "build": "npm run build",
+      "test": "npx vitest run",
+      "lint": "npm run lint"
+    }
+  },
+  "inputFiles": [
+    "/Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-20/.cadre/issues/20/analysis.md",
+    "/Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-20/.cadre/issues/20/implementation-plan.md",
+    "/Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-20/.cadre/issues/20/integration-report.md",
+    "/Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-20/.cadre/issues/20/full-diff.patch"
+  ],
+  "outputPath": "/Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-20/.cadre/issues/20/pr-content.md",
+  "payload": {
+    "issueTitle": "[FEATURE-20] Email Price Alert Notifications",
+    "issueBody": "## Overview\nImplement the email notification service that sends price alert emails to users when their watchlist conditions are met.\n\n## Transactional Email Provider\nUse a managed transactional email service (free tier available):\n- **Resend** (recommended — generous free tier, great DX, React Email templates)\n- Alternatives: SendGrid, Postmark, AWS SES\n\n## Emails to Send\n\n### 1. Price Alert Triggered\nSent when a user's price alert fires.\n- Game cover image\n- Game title\n- Alert condition that was triggered (e.g., \"Now 75% off — $4.99\")\n- Price breakdown across all stores with referral buy links\n- Unsubscribe link for this specific alert\n- Link to manage all alerts\n\n### 2. Account Emails (from #15)\n- Email verification on registration\n- Password reset\n\n### 3. Weekly Digest (future enhancement — not required for MVP)\n- Top deals this week for games on user's wishlist\n\n## Tasks\n- [ ] Set up transactional email provider account and configure DNS (SPF, DKIM, DMARC)\n- [ ] Create `EmailService` with methods:\n  - `sendPriceAlert(userId, alertId, priceData)` — consume from notification job queue\n  - `sendVerificationEmail(userId, token)`  \n  - `sendPasswordResetEmail(userId, token)`\n- [ ] Design responsive HTML email templates (use React Email or MJML):\n  - Price alert template with game image, deal details, store comparison table\n  - Verification and reset templates\n- [ ] Implement unsubscribe / one-click alert pause from email link (no login required — signed token)\n- [ ] Add email send logging (store result in `alert_notifications` table)\n- [ ] Test with multiple email clients (Gmail, Outlook, Apple Mail) using a tool like Litmus or Email on Acid\n\n## Environment Variables\n```\nEMAIL_FROM=deals@theresalwaysadeal.com\nEMAIL_PROVIDER=resend\nRESEND_API_KEY=\n```\n\n## Acceptance Criteria\n- Price alert emails are sent within 5 minutes of a trigger being detected\n- Emails render correctly in major email clients\n- Unsubscribe link pauses the alert without requiring login\n- Emails include referral buy links for each store\n\n## Dependencies\n- #19 Price Watchlist & Alert Rules API\n- #15 User Authentication"
+  },
+  "outputSchema": {
+    "type": "object",
+    "properties": {
+      "title": {
+        "type": "string"
+      },
+      "body": {
+        "type": "string"
+      },
+      "labels": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      }
+    },
+    "required": [
+      "title",
+      "body",
+      "labels"
+    ],
+    "additionalProperties": false,
+    "$schema": "http://json-schema.org/draft-07/schema#"
+  }
+}

@@ -127,6 +127,7 @@ describe("schema", () => {
       expect(columns).toContain("passwordResetExpires");
       expect(columns).toContain("steamId");
       expect(columns).toContain("steamAccessToken");
+      expect(columns).toContain("notifySlackWebhook");
       expect(columns).toContain("createdAt");
       expect(columns).toContain("updatedAt");
     });
@@ -166,6 +167,7 @@ describe("schema", () => {
       expect(columns).toContain("id");
       expect(columns).toContain("userId");
       expect(columns).toContain("gameId");
+      expect(columns).toContain("source");
       expect(columns).toContain("createdAt");
     });
 
@@ -186,6 +188,7 @@ describe("schema", () => {
       expect(columns).toContain("gameId");
       expect(columns).toContain("targetPrice");
       expect(columns).toContain("isActive");
+      expect(columns).toContain("notifySlackWebhook");
       expect(columns).toContain("createdAt");
       expect(columns).toContain("updatedAt");
     });
@@ -206,6 +209,9 @@ describe("schema", () => {
       expect(columns).toContain("alertId");
       expect(columns).toContain("storeListingId");
       expect(columns).toContain("triggeredPrice");
+      expect(columns).toContain("emailStatus");
+      expect(columns).toContain("emailMessageId");
+      expect(columns).toContain("emailProvider");
       expect(columns).toContain("sentAt");
     });
 

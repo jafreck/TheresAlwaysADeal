@@ -1,15 +1,17 @@
 import http from "node:http";
 import { Worker, Queue } from "bullmq";
 import { Redis } from "ioredis";
-import { eq, and, desc } from "drizzle-orm";
-import { db, games, stores, storeListings, priceHistory, storeListingStats } from "@taad/db";
-import { BaseScraper, type ScrapedGame } from "@taad/scraper";
-import { scrapeQueue, ingestQueue, priceDropQueue, allTimeLowQueue, featuredScrapeQueue } from "./queues.js";
+import { eq, and, desc, isNotNull, gte } from "drizzle-orm";
+import { db, games, stores, storeListings, priceHistory, storeListingStats, users, wishlists, priceAlerts } from "@taad/db";
+import { type BaseScraper, type ScrapedGame, buildReferralUrl } from "@taad/scraper";
+import { sendPriceAlert, type PriceAlertData } from "@taad/email";
+import { scrapeQueue, ingestQueue, priceDropQueue, allTimeLowQueue, featuredScrapeQueue, steamSyncQueue, emailQueue } from "./queues.js";
 
 const connection = { url: process.env.REDIS_URL! };
 const SCRAPE_CRON = process.env.SCRAPE_CRON ?? "0 */6 * * *";
 const FEATURED_SCRAPE_CRON = process.env.FEATURED_SCRAPE_CRON ?? "0 * * * *";
 const EPIC_SCRAPE_CRON = process.env.EPIC_SCRAPE_CRON ?? "0 0 * * *";
+const STEAM_SYNC_CRON = process.env.STEAM_SYNC_CRON ?? "0 0 * * *";
 const PORT = Number(process.env.PORT ?? 4000);
 
 // Dead-letter queue for scrape jobs that exhaust all retries
@@ -94,6 +96,76 @@ const featuredScrapeWorker = new Worker(
 
     const endTime = new Date().toISOString();
     console.log(JSON.stringify({ storeName: retailerDomain, startTime, endTime, recordsFetched, errorCount }));
+  },
+  { connection, concurrency: 1 },
+);
+
+// ─── Steam Wishlist Sync Worker ───────────────────────────────────────────────
+const steamSyncWorker = new Worker(
+  "steam-sync",
+  async () => {
+    const steamUsers = await db
+      .select({ id: users.id, steamId: users.steamId })
+      .from(users)
+      .where(isNotNull(users.steamId));
+
+    for (const user of steamUsers) {
+      try {
+        const res = await fetch(
+          `https://store.steampowered.com/wishlist/profiles/${user.steamId}/wishlistdata/`,
+        );
+
+        if (!res.ok) {
+          console.warn(
+            JSON.stringify({ event: "steam-sync-private", userId: user.id, status: res.status }),
+          );
+          continue;
+        }
+
+        const data = await res.json();
+
+        if (!data || typeof data !== "object" || Object.keys(data).length === 0) {
+          console.warn(
+            JSON.stringify({ event: "steam-sync-empty", userId: user.id }),
+          );
+          continue;
+        }
+
+        const appIds = Object.keys(data).map(Number).filter((id) => !isNaN(id) && id > 0);
+        for (const appId of appIds) {
+          const [game] = await db
+            .select()
+            .from(games)
+            .where(eq(games.steamAppId, appId))
+            .limit(1);
+
+          if (!game) continue;
+
+          // Check if wishlist entry already exists (no unique constraint on wishlists table)
+          const [existing] = await db
+            .select({ id: wishlists.id })
+            .from(wishlists)
+            .where(
+              and(
+                eq(wishlists.userId, user.id),
+                eq(wishlists.gameId, game.id),
+                eq(wishlists.source, "steam_sync"),
+              ),
+            )
+            .limit(1);
+
+          if (!existing) {
+            await db
+              .insert(wishlists)
+              .values({ userId: user.id, gameId: game.id, source: "steam_sync" });
+          }
+        }
+      } catch (err) {
+        console.warn(
+          JSON.stringify({ event: "steam-sync-error", userId: user.id, error: String(err) }),
+        );
+      }
+    }
   },
   { connection, concurrency: 1 },
 );
@@ -324,6 +396,118 @@ const ingestWorker = new Worker(
   { connection },
 );
 
+// ─── Notification processor (shared logic) ────────────────────────────────────
+async function processNotification(job: { data: { storeListingId: string; newPrice: number; gameId: string; previousPrice?: number } }) {
+  const { storeListingId, newPrice, gameId } = job.data;
+
+  // Find active alerts for this game where targetPrice >= the triggered price
+  const matchingAlerts = await db
+    .select({
+      alertId: priceAlerts.id,
+      userId: priceAlerts.userId,
+      email: users.email,
+    })
+    .from(priceAlerts)
+    .innerJoin(users, eq(users.id, priceAlerts.userId))
+    .where(
+      and(
+        eq(priceAlerts.gameId, gameId),
+        eq(priceAlerts.isActive, true),
+        gte(priceAlerts.targetPrice, String(newPrice)),
+      ),
+    );
+
+  if (matchingAlerts.length === 0) return;
+
+  // Get game title for the email
+  const [game] = await db.select().from(games).where(eq(games.id, gameId)).limit(1);
+  if (!game) return;
+
+  // Get store listing details
+  const [listing] = await db
+    .select({ id: storeListings.id, storeUrl: storeListings.storeUrl, storeId: storeListings.storeId })
+    .from(storeListings)
+    .where(eq(storeListings.id, storeListingId))
+    .limit(1);
+  if (!listing) return;
+
+  const [store] = await db.select().from(stores).where(eq(stores.id, listing.storeId)).limit(1);
+
+  for (const alert of matchingAlerts) {
+    await emailQueue.add("send-price-alert", {
+      userId: alert.userId,
+      alertId: alert.alertId,
+      email: alert.email,
+      gameTitle: game.title,
+      gameId,
+      storeListingId,
+      storeUrl: listing.storeUrl,
+      storeSlug: store?.slug ?? "",
+      newPrice,
+      previousPrice: job.data.previousPrice,
+    });
+  }
+}
+
+// ─── Price-Drop Notification Worker ───────────────────────────────────────────
+const priceDropWorker = new Worker(
+  "price-drop",
+  async (job) => {
+    await processNotification(job);
+  },
+  { connection },
+);
+
+// ─── All-Time-Low Notification Worker ─────────────────────────────────────────
+const allTimeLowWorker = new Worker(
+  "all-time-low",
+  async (job) => {
+    await processNotification(job);
+  },
+  { connection },
+);
+
+// ─── Email Worker ─────────────────────────────────────────────────────────────
+const emailWorker = new Worker(
+  "email",
+  async (job) => {
+    const { userId, alertId, email, gameTitle, storeListingId, storeUrl, storeSlug, newPrice } = job.data as {
+      userId: string;
+      alertId: string;
+      email: string;
+      gameTitle: string;
+      gameId: string;
+      storeListingId: string;
+      storeUrl: string;
+      storeSlug: string;
+      newPrice: number;
+      previousPrice?: number;
+    };
+
+    const referralUrl = buildReferralUrl(storeUrl, storeSlug);
+
+    const priceData: PriceAlertData = {
+      gameTitle,
+      imageUrl: "",
+      prices: [
+        {
+          storeName: storeSlug,
+          price: `$${newPrice.toFixed(2)}`,
+          referralUrl,
+        },
+      ],
+      unsubscribeUrl: `${process.env.APP_URL ?? "http://localhost:3000"}/api/v1/alerts/${alertId}/unsubscribe`,
+    };
+
+    try {
+      await sendPriceAlert(userId, alertId, priceData, email, storeListingId, String(newPrice));
+    } catch (error) {
+      console.error(`[email-worker] Failed to send price alert for alert ${alertId}:`, error);
+    }
+  },
+  { connection },
+);
+
 // ─── CRON: schedule scrape jobs per store ─────────────────────────────────────
 export async function scheduleScrapers() {
   const allStores = await db.select().from(stores);
@@ -340,6 +524,12 @@ export async function scheduleScrapers() {
     "featured-scrape-steam",
     { retailerDomain: "steam" },
     { repeat: { pattern: FEATURED_SCRAPE_CRON }, attempts: 3 },
+  );
+  // Schedule daily Steam wishlist sync for all linked users
+  await steamSyncQueue.add(
+    "steam-sync-all",
+    {},
+    { repeat: { pattern: STEAM_SYNC_CRON } },
   );
   console.log(JSON.stringify({ event: "cron-scheduled", storeCount: allStores.length, pattern: SCRAPE_CRON }));
 }
@@ -403,5 +593,9 @@ process.on("SIGTERM", async () => {
   await scrapeWorker.close();
   await ingestWorker.close();
   await featuredScrapeWorker.close();
+  await steamSyncWorker.close();
+  await priceDropWorker.close();
+  await allTimeLowWorker.close();
+  await emailWorker.close();
   process.exit(0);
 });

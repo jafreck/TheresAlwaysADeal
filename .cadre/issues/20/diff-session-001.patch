@@ -1,0 +1,1116 @@
+diff --git a/.env.example b/.env.example
+index 0837318..69b99ba 100644
+--- a/.env.example
++++ b/.env.example
+@@ -33,3 +33,8 @@ NEXTAUTH_URL="http://localhost:3000"
+ SENTRY_DSN="https://xxx@oXXXXXX.ingest.sentry.io/XXXXXXX"
+ # Logtail (Better Stack) source token for structured log ingestion
+ LOGTAIL_SOURCE_TOKEN="xxx"
++
++# ─── Email ───────────────────────────────────────────────────────────────────
++EMAIL_FROM="noreply@theres-always-a-deal.com"
++EMAIL_PROVIDER="resend"
++RESEND_API_KEY="re_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+diff --git a/INFRASTRUCTURE.md b/INFRASTRUCTURE.md
+index 42f7604..abcb71b 100644
+--- a/INFRASTRUCTURE.md
++++ b/INFRASTRUCTURE.md
+@@ -99,6 +99,9 @@ The scraper (`packages/scraper`) is imported directly by `packages/worker` as a
+ | `NEXT_PUBLIC_API_URL` | Yes | Used in CORS `origin` allowlist |
+ | `SENTRY_DSN` | Yes (prod) | Sentry DSN for error tracking |
+ | `LOGTAIL_SOURCE_TOKEN` | Yes (prod) | Logtail (Better Stack) structured log ingestion token |
++| `EMAIL_FROM` | Yes | Sender address for transactional emails (e.g. `noreply@theres-always-a-deal.com`) |
++| `EMAIL_PROVIDER` | No | Email provider identifier (default `resend`) |
++| `RESEND_API_KEY` | Yes (prod) | Resend API key for sending transactional emails |
+ 
+ ### Worker (`packages/worker`) — Railway
+ 
+@@ -110,6 +113,9 @@ The scraper (`packages/scraper`) is imported directly by `packages/worker` as a
+ | `SCRAPER_PROXIES` | No | Comma-separated proxy URLs for scraper rotation |
+ | `SENTRY_DSN` | Yes (prod) | Sentry DSN for error tracking |
+ | `LOGTAIL_SOURCE_TOKEN` | Yes (prod) | Logtail structured log ingestion token |
++| `EMAIL_FROM` | Yes | Sender address for transactional emails (e.g. `noreply@theres-always-a-deal.com`) |
++| `EMAIL_PROVIDER` | No | Email provider identifier (default `resend`) |
++| `RESEND_API_KEY` | Yes (prod) | Resend API key for sending transactional emails |
+ 
+ ---
+ 
+diff --git a/packages/db/src/schema.ts b/packages/db/src/schema.ts
+index 198e675..1cec12f 100644
+--- a/packages/db/src/schema.ts
++++ b/packages/db/src/schema.ts
+@@ -167,6 +167,9 @@ export const alertNotifications = pgTable("alert_notifications", {
+   alertId: uuid("alert_id").references(() => priceAlerts.id).notNull(),
+   storeListingId: uuid("store_listing_id").references(() => storeListings.id).notNull(),
+   triggeredPrice: decimal("triggered_price", { precision: 10, scale: 2 }).notNull(),
++  emailStatus: varchar("email_status", { length: 50 }),
++  emailMessageId: text("email_message_id"),
++  emailProvider: varchar("email_provider", { length: 50 }),
+   sentAt: timestamp("sent_at").defaultNow().notNull(),
+ });
+ 
+diff --git a/packages/db/tests/schema.test.ts b/packages/db/tests/schema.test.ts
+index 05eec7e..7b36bcd 100644
+--- a/packages/db/tests/schema.test.ts
++++ b/packages/db/tests/schema.test.ts
+@@ -206,6 +206,9 @@ describe("schema", () => {
+       expect(columns).toContain("alertId");
+       expect(columns).toContain("storeListingId");
+       expect(columns).toContain("triggeredPrice");
++      expect(columns).toContain("emailStatus");
++      expect(columns).toContain("emailMessageId");
++      expect(columns).toContain("emailProvider");
+       expect(columns).toContain("sentAt");
+     });
+ 
+diff --git a/packages/email/package.json b/packages/email/package.json
+new file mode 100644
+index 0000000..d0f33ed
+--- /dev/null
++++ b/packages/email/package.json
+@@ -0,0 +1,23 @@
++{
++  "name": "@taad/email",
++  "version": "0.0.1",
++  "private": true,
++  "type": "module",
++  "main": "dist/index.js",
++  "exports": {
++    ".": "./dist/index.js"
++  },
++  "scripts": {
++    "build": "tsc -p tsconfig.json",
++    "lint": "eslint . --max-warnings 0",
++    "type-check": "tsc --noEmit"
++  },
++  "dependencies": {
++    "resend": "^4.0.0",
++    "@taad/db": "workspace:*"
++  },
++  "devDependencies": {
++    "@types/node": "^22.0.0",
++    "typescript": "^5.7.0"
++  }
++}
+diff --git a/packages/email/src/index.ts b/packages/email/src/index.ts
+new file mode 100644
+index 0000000..b2166be
+--- /dev/null
++++ b/packages/email/src/index.ts
+@@ -0,0 +1,120 @@
++import { Resend } from "resend";
++import { db, alertNotifications } from "@taad/db";
++import {
++  priceAlertTemplate,
++  verificationTemplate,
++  passwordResetTemplate,
++} from "./templates.js";
++import type { PriceEntry } from "./templates.js";
++
++function getResendClient(): Resend {
++  const apiKey = process.env.RESEND_API_KEY;
++  if (!apiKey) {
++    throw new Error("RESEND_API_KEY environment variable is required");
++  }
++  return new Resend(apiKey);
++}
++
++function getFromAddress(): string {
++  return process.env.EMAIL_FROM ?? "noreply@theres-always-a-deal.com";
++}
++
++export async function sendVerificationEmail(
++  email: string,
++  token: string,
++): Promise<void> {
++  const resend = getResendClient();
++  const url = `${process.env.APP_URL ?? "http://localhost:3000"}/api/auth/verify-email?token=${token}`;
++
++  try {
++    await resend.emails.send({
++      from: getFromAddress(),
++      to: email,
++      subject: "Verify your email — There's Always a Deal",
++      html: verificationTemplate(url),
++    });
++    console.log(`[email] Verification email sent to ${email}`);
++  } catch (error) {
++    console.error(`[email] Failed to send verification email to ${email}:`, error);
++  }
++}
++
++export async function sendPasswordResetEmail(
++  email: string,
++  token: string,
++): Promise<void> {
++  const resend = getResendClient();
++  const url = `${process.env.APP_URL ?? "http://localhost:3000"}/api/auth/reset-password?token=${token}`;
++
++  try {
++    await resend.emails.send({
++      from: getFromAddress(),
++      to: email,
++      subject: "Reset your password — There's Always a Deal",
++      html: passwordResetTemplate(url),
++    });
++    console.log(`[email] Password reset email sent to ${email}`);
++  } catch (error) {
++    console.error(`[email] Failed to send password reset email to ${email}:`, error);
++  }
++}
++
++export interface PriceAlertData {
++  gameTitle: string;
++  imageUrl: string;
++  prices: PriceEntry[];
++  unsubscribeUrl: string;
++}
++
++export async function sendPriceAlert(
++  userId: string,
++  alertId: string,
++  priceData: PriceAlertData,
++  recipientEmail: string,
++  storeListingId: string,
++  triggeredPrice: string,
++): Promise<void> {
++  const resend = getResendClient();
++
++  try {
++    const { data } = await resend.emails.send({
++      from: getFromAddress(),
++      to: recipientEmail,
++      subject: `Price drop: ${priceData.gameTitle} — There's Always a Deal`,
++      html: priceAlertTemplate(
++        priceData.gameTitle,
++        priceData.imageUrl,
++        priceData.prices,
++        priceData.unsubscribeUrl,
++      ),
++    });
++
++    await db.insert(alertNotifications).values({
++      alertId,
++      storeListingId,
++      triggeredPrice,
++      emailStatus: "sent",
++      emailMessageId: data?.id ?? null,
++      emailProvider: "resend",
++    });
++
++    console.log(`[email] Price alert sent to ${recipientEmail} for alert ${alertId}`);
++  } catch (error) {
++    console.error(`[email] Failed to send price alert for alert ${alertId}:`, error);
++
++    try {
++      await db.insert(alertNotifications).values({
++        alertId,
++        storeListingId,
++        triggeredPrice,
++        emailStatus: "failed",
++        emailMessageId: null,
++        emailProvider: "resend",
++      });
++    } catch (dbError) {
++      console.error(`[email] Failed to log notification failure:`, dbError);
++    }
++  }
++}
++
++export type { PriceEntry } from "./templates.js";
+diff --git a/packages/email/src/templates.ts b/packages/email/src/templates.ts
+new file mode 100644
+index 0000000..b05597e
+--- /dev/null
++++ b/packages/email/src/templates.ts
+@@ -0,0 +1,110 @@
++export interface PriceEntry {
++  storeName: string;
++  price: string;
++  referralUrl: string;
++}
++
++export function priceAlertTemplate(
++  gameTitle: string,
++  imageUrl: string,
++  prices: PriceEntry[],
++  unsubscribeUrl: string,
++): string {
++  const priceRows = prices
++    .map(
++      (p) => `
++        <tr>
++          <td style="padding:8px 12px;border-bottom:1px solid #eee;font-size:14px;">${p.storeName}</td>
++          <td style="padding:8px 12px;border-bottom:1px solid #eee;font-size:14px;font-weight:bold;color:#16a34a;">$${p.price}</td>
++          <td style="padding:8px 12px;border-bottom:1px solid #eee;text-align:center;">
++            <a href="${p.referralUrl}" style="display:inline-block;padding:6px 16px;background-color:#2563eb;color:#ffffff;text-decoration:none;border-radius:4px;font-size:13px;">Buy</a>
++          </td>
++        </tr>`,
++    )
++    .join("");
++
++  return `<!DOCTYPE html>
++<html lang="en">
++<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
++<body style="margin:0;padding:0;background-color:#f4f4f5;font-family:Arial,Helvetica,sans-serif;">
++  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f4f4f5;padding:24px 0;">
++    <tr><td align="center">
++      <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="background-color:#ffffff;border-radius:8px;overflow:hidden;">
++        <tr>
++          <td style="padding:0;">
++            <img src="${imageUrl}" alt="${gameTitle}" width="600" style="display:block;width:100%;max-width:600px;height:auto;" />
++          </td>
++        </tr>
++        <tr>
++          <td style="padding:24px;">
++            <h1 style="margin:0 0 8px;font-size:22px;color:#111827;">Price Drop Alert</h1>
++            <p style="margin:0 0 20px;font-size:16px;color:#374151;"><strong>${gameTitle}</strong> has dropped in price!</p>
++            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e5e7eb;border-radius:6px;overflow:hidden;">
++              <tr style="background-color:#f9fafb;">
++                <th style="padding:10px 12px;text-align:left;font-size:13px;color:#6b7280;font-weight:600;">Store</th>
++                <th style="padding:10px 12px;text-align:left;font-size:13px;color:#6b7280;font-weight:600;">Price</th>
++                <th style="padding:10px 12px;text-align:center;font-size:13px;color:#6b7280;font-weight:600;"></th>
++              </tr>
++              ${priceRows}
++            </table>
++          </td>
++        </tr>
++        <tr>
++          <td style="padding:0 24px 24px;">
++            <p style="margin:0;font-size:12px;color:#9ca3af;text-align:center;">
++              <a href="${unsubscribeUrl}" style="color:#6b7280;text-decoration:underline;">Unsubscribe from this alert</a>
++            </p>
++          </td>
++        </tr>
++      </table>
++    </td></tr>
++  </table>
++</body>
++</html>`;
++}
++
++export function verificationTemplate(verificationUrl: string): string {
++  return `<!DOCTYPE html>
++<html lang="en">
++<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
++<body style="margin:0;padding:0;background-color:#f4f4f5;font-family:Arial,Helvetica,sans-serif;">
++  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f4f4f5;padding:24px 0;">
++    <tr><td align="center">
++      <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="background-color:#ffffff;border-radius:8px;overflow:hidden;">
++        <tr>
++          <td style="padding:32px 24px;text-align:center;">
++            <h1 style="margin:0 0 12px;font-size:22px;color:#111827;">Verify your email</h1>
++            <p style="margin:0 0 24px;font-size:16px;color:#374151;">Click the button below to verify your email address and activate your account.</p>
++            <a href="${verificationUrl}" style="display:inline-block;padding:12px 32px;background-color:#2563eb;color:#ffffff;text-decoration:none;border-radius:6px;font-size:16px;font-weight:600;">Verify Email</a>
++            <p style="margin:24px 0 0;font-size:13px;color:#9ca3af;">If you didn't create an account, you can safely ignore this email.</p>
++          </td>
++        </tr>
++      </table>
++    </td></tr>
++  </table>
++</body>
++</html>`;
++}
++
++export function passwordResetTemplate(resetUrl: string): string {
++  return `<!DOCTYPE html>
++<html lang="en">
++<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
++<body style="margin:0;padding:0;background-color:#f4f4f5;font-family:Arial,Helvetica,sans-serif;">
++  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f4f4f5;padding:24px 0;">
++    <tr><td align="center">
++      <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="background-color:#ffffff;border-radius:8px;overflow:hidden;">
++        <tr>
++          <td style="padding:32px 24px;text-align:center;">
++            <h1 style="margin:0 0 12px;font-size:22px;color:#111827;">Reset your password</h1>
++            <p style="margin:0 0 24px;font-size:16px;color:#374151;">Click the button below to reset your password. This link expires in 1 hour.</p>
++            <a href="${resetUrl}" style="display:inline-block;padding:12px 32px;background-color:#2563eb;color:#ffffff;text-decoration:none;border-radius:6px;font-size:16px;font-weight:600;">Reset Password</a>
++            <p style="margin:24px 0 0;font-size:13px;color:#9ca3af;">If you didn't request a password reset, you can safely ignore this email.</p>
++          </td>
++        </tr>
++      </table>
++    </td></tr>
++  </table>
++</body>
++</html>`;
++}
+diff --git a/packages/email/tests/index.test.ts b/packages/email/tests/index.test.ts
+new file mode 100644
+index 0000000..765a771
+--- /dev/null
++++ b/packages/email/tests/index.test.ts
+@@ -0,0 +1,213 @@
++import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
++
++const mockSend = vi.fn();
++vi.mock("resend", () => ({
++  Resend: vi.fn().mockImplementation(() => ({
++    emails: { send: mockSend },
++  })),
++}));
++
++const mockInsert = vi.fn().mockReturnValue({ values: vi.fn().mockResolvedValue(undefined) });
++vi.mock("@taad/db", () => ({
++  db: { insert: (...args: unknown[]) => mockInsert(...args) },
++  alertNotifications: Symbol("alertNotifications"),
++}));
++
++import {
++  sendVerificationEmail,
++  sendPasswordResetEmail,
++  sendPriceAlert,
++} from "../src/index.js";
++import type { PriceAlertData } from "../src/index.js";
++
++describe("sendVerificationEmail", () => {
++  beforeEach(() => {
++    vi.clearAllMocks();
++    process.env.RESEND_API_KEY = "re_test_key";
++    process.env.EMAIL_FROM = "test@example.com";
++    process.env.APP_URL = "https://app.example.com";
++  });
++
++  afterEach(() => {
++    delete process.env.RESEND_API_KEY;
++    delete process.env.EMAIL_FROM;
++    delete process.env.APP_URL;
++  });
++
++  it("should send a verification email via Resend", async () => {
++    mockSend.mockResolvedValueOnce({ data: { id: "msg_1" } });
++    await sendVerificationEmail("user@test.com", "token123");
++
++    expect(mockSend).toHaveBeenCalledOnce();
++    const call = mockSend.mock.calls[0][0];
++    expect(call.to).toBe("user@test.com");
++    expect(call.from).toBe("test@example.com");
++    expect(call.subject).toContain("Verify your email");
++    expect(call.html).toContain("https://app.example.com/api/auth/verify-email?token=token123");
++  });
++
++  it("should use default APP_URL when not set", async () => {
++    delete process.env.APP_URL;
++    mockSend.mockResolvedValueOnce({ data: { id: "msg_2" } });
++    await sendVerificationEmail("user@test.com", "tok");
++
++    const call = mockSend.mock.calls[0][0];
++    expect(call.html).toContain("http://localhost:3000/api/auth/verify-email?token=tok");
++  });
++
++  it("should use default EMAIL_FROM when not set", async () => {
++    delete process.env.EMAIL_FROM;
++    mockSend.mockResolvedValueOnce({ data: { id: "msg_3" } });
++    await sendVerificationEmail("user@test.com", "tok");
++
++    const call = mockSend.mock.calls[0][0];
++    expect(call.from).toBe("noreply@theres-always-a-deal.com");
++  });
++
++  it("should not throw when Resend SDK throws", async () => {
++    mockSend.mockRejectedValueOnce(new Error("SDK error"));
++    await expect(sendVerificationEmail("user@test.com", "tok")).resolves.toBeUndefined();
++  });
++
++  it("should throw when RESEND_API_KEY is missing", async () => {
++    delete process.env.RESEND_API_KEY;
++    await expect(sendVerificationEmail("user@test.com", "tok")).rejects.toThrow(
++      "RESEND_API_KEY environment variable is required",
++    );
++  });
++});
++
++describe("sendPasswordResetEmail", () => {
++  beforeEach(() => {
++    vi.clearAllMocks();
++    process.env.RESEND_API_KEY = "re_test_key";
++    process.env.EMAIL_FROM = "test@example.com";
++    process.env.APP_URL = "https://app.example.com";
++  });
++
++  afterEach(() => {
++    delete process.env.RESEND_API_KEY;
++    delete process.env.EMAIL_FROM;
++    delete process.env.APP_URL;
++  });
++
++  it("should send a password reset email via Resend", async () => {
++    mockSend.mockResolvedValueOnce({ data: { id: "msg_4" } });
++    await sendPasswordResetEmail("user@test.com", "reset_tok");
++
++    expect(mockSend).toHaveBeenCalledOnce();
++    const call = mockSend.mock.calls[0][0];
++    expect(call.to).toBe("user@test.com");
++    expect(call.subject).toContain("Reset your password");
++    expect(call.html).toContain("https://app.example.com/api/auth/reset-password?token=reset_tok");
++  });
++
++  it("should not throw when Resend SDK throws", async () => {
++    mockSend.mockRejectedValueOnce(new Error("SDK error"));
++    await expect(sendPasswordResetEmail("user@test.com", "tok")).resolves.toBeUndefined();
++  });
++
++  it("should throw when RESEND_API_KEY is missing", async () => {
++    delete process.env.RESEND_API_KEY;
++    await expect(sendPasswordResetEmail("user@test.com", "tok")).rejects.toThrow(
++      "RESEND_API_KEY environment variable is required",
++    );
++  });
++});
++
++describe("sendPriceAlert", () => {
++  const priceData: PriceAlertData = {
++    gameTitle: "Test Game",
++    imageUrl: "https://cdn.example.com/img.jpg",
++    prices: [
++      { storeName: "Steam", price: "19.99", referralUrl: "https://steam.com/app/1?ref=taad" },
++    ],
++    unsubscribeUrl: "https://example.com/unsub?token=abc",
++  };
++
++  beforeEach(() => {
++    vi.clearAllMocks();
++    process.env.RESEND_API_KEY = "re_test_key";
++    process.env.EMAIL_FROM = "test@example.com";
++    // Reset the mock insert chain
++    mockInsert.mockReturnValue({ values: vi.fn().mockResolvedValue(undefined) });
++  });
++
++  afterEach(() => {
++    delete process.env.RESEND_API_KEY;
++    delete process.env.EMAIL_FROM;
++  });
++
++  it("should send a price alert email and log success to DB", async () => {
++    mockSend.mockResolvedValueOnce({ data: { id: "msg_price_1" } });
++
++    await sendPriceAlert("user-1", "alert-1", priceData, "user@test.com", "listing-1", "19.99");
++
++    expect(mockSend).toHaveBeenCalledOnce();
++    const call = mockSend.mock.calls[0][0];
++    expect(call.to).toBe("user@test.com");
++    expect(call.subject).toContain("Price drop: Test Game");
++    expect(call.html).toContain("Test Game");
++
++    // Should log success to alertNotifications
++    expect(mockInsert).toHaveBeenCalledOnce();
++    const insertValues = mockInsert.mock.results[0].value.values;
++    expect(insertValues).toHaveBeenCalledWith(
++      expect.objectContaining({
++        alertId: "alert-1",
++        storeListingId: "listing-1",
++        triggeredPrice: "19.99",
++        emailStatus: "sent",
++        emailMessageId: "msg_price_1",
++        emailProvider: "resend",
++      }),
++    );
++  });
++
++  it("should log failure to DB when Resend SDK throws", async () => {
++    mockSend.mockRejectedValueOnce(new Error("Send failed"));
++
++    await sendPriceAlert("user-1", "alert-1", priceData, "user@test.com", "listing-1", "19.99");
++
++    expect(mockInsert).toHaveBeenCalledOnce();
++    const insertValues = mockInsert.mock.results[0].value.values;
++    expect(insertValues).toHaveBeenCalledWith(
++      expect.objectContaining({
++        alertId: "alert-1",
++        emailStatus: "failed",
++        emailMessageId: null,
++        emailProvider: "resend",
++      }),
++    );
++  });
++
++  it("should not crash when both send and DB logging fail", async () => {
++    mockSend.mockRejectedValueOnce(new Error("Send failed"));
++    mockInsert.mockReturnValueOnce({ values: vi.fn().mockRejectedValue(new Error("DB error")) });
++
++    await expect(
++      sendPriceAlert("user-1", "alert-1", priceData, "user@test.com", "listing-1", "19.99"),
++    ).resolves.toBeUndefined();
++  });
++
++  it("should throw when RESEND_API_KEY is missing", async () => {
++    delete process.env.RESEND_API_KEY;
++    await expect(
++      sendPriceAlert("user-1", "alert-1", priceData, "user@test.com", "listing-1", "19.99"),
++    ).rejects.toThrow("RESEND_API_KEY environment variable is required");
++  });
++
++  it("should handle null message ID from Resend response", async () => {
++    mockSend.mockResolvedValueOnce({ data: null });
++
++    await sendPriceAlert("user-1", "alert-1", priceData, "user@test.com", "listing-1", "19.99");
++
++    const insertValues = mockInsert.mock.results[0].value.values;
++    expect(insertValues).toHaveBeenCalledWith(
++      expect.objectContaining({
++        emailStatus: "sent",
++        emailMessageId: null,
++      }),
++    );
++  });
++});
+diff --git a/packages/email/tests/templates.test.ts b/packages/email/tests/templates.test.ts
+new file mode 100644
+index 0000000..5e53009
+--- /dev/null
++++ b/packages/email/tests/templates.test.ts
+@@ -0,0 +1,149 @@
++import { describe, it, expect } from "vitest";
++import {
++  priceAlertTemplate,
++  verificationTemplate,
++  passwordResetTemplate,
++} from "../src/templates.js";
++import type { PriceEntry } from "../src/templates.js";
++
++describe("verificationTemplate", () => {
++  it("should return an HTML string containing the verification URL", () => {
++    const url = "https://example.com/verify?token=abc123";
++    const html = verificationTemplate(url);
++    expect(html).toContain(url);
++  });
++
++  it("should include a verify email heading", () => {
++    const html = verificationTemplate("https://example.com/verify");
++    expect(html).toContain("Verify your email");
++  });
++
++  it("should use inline styles (no external stylesheet links)", () => {
++    const html = verificationTemplate("https://example.com/verify");
++    expect(html).not.toContain('<link rel="stylesheet"');
++    expect(html).toContain("style=");
++  });
++
++  it("should return valid HTML with doctype", () => {
++    const html = verificationTemplate("https://example.com/verify");
++    expect(html).toMatch(/^<!DOCTYPE html>/);
++    expect(html).toContain("</html>");
++  });
++
++  it("should include a clickable button with the URL as href", () => {
++    const url = "https://example.com/verify?token=xyz";
++    const html = verificationTemplate(url);
++    expect(html).toContain(`href="${url}"`);
++    expect(html).toContain("Verify Email");
++  });
++});
++
++describe("passwordResetTemplate", () => {
++  it("should return an HTML string containing the reset URL", () => {
++    const url = "https://example.com/reset?token=reset123";
++    const html = passwordResetTemplate(url);
++    expect(html).toContain(url);
++  });
++
++  it("should include a reset password heading", () => {
++    const html = passwordResetTemplate("https://example.com/reset");
++    expect(html).toContain("Reset your password");
++  });
++
++  it("should use inline styles (no external stylesheet links)", () => {
++    const html = passwordResetTemplate("https://example.com/reset");
++    expect(html).not.toContain('<link rel="stylesheet"');
++    expect(html).toContain("style=");
++  });
++
++  it("should return valid HTML with doctype", () => {
++    const html = passwordResetTemplate("https://example.com/reset");
++    expect(html).toMatch(/^<!DOCTYPE html>/);
++    expect(html).toContain("</html>");
++  });
++
++  it("should include a clickable button with the URL as href", () => {
++    const url = "https://example.com/reset?token=abc";
++    const html = passwordResetTemplate(url);
++    expect(html).toContain(`href="${url}"`);
++    expect(html).toContain("Reset Password");
++  });
++
++  it("should mention link expiration", () => {
++    const html = passwordResetTemplate("https://example.com/reset");
++    expect(html).toContain("expires");
++  });
++});
++
++describe("priceAlertTemplate", () => {
++  const samplePrices: PriceEntry[] = [
++    { storeName: "Steam", price: "29.99", referralUrl: "https://store.steampowered.com/app/123?ref=taad" },
++    { storeName: "GOG", price: "24.99", referralUrl: "https://gog.com/game/test?ref=taad" },
++  ];
++  const gameTitle = "Test Game";
++  const imageUrl = "https://cdn.example.com/game.jpg";
++  const unsubscribeUrl = "https://example.com/unsubscribe?token=unsub123";
++
++  it("should return an HTML string containing the game title", () => {
++    const html = priceAlertTemplate(gameTitle, imageUrl, samplePrices, unsubscribeUrl);
++    expect(html).toContain(gameTitle);
++  });
++
++  it("should include the game image", () => {
++    const html = priceAlertTemplate(gameTitle, imageUrl, samplePrices, unsubscribeUrl);
++    expect(html).toContain(`src="${imageUrl}"`);
++  });
++
++  it("should include store names and prices for each entry", () => {
++    const html = priceAlertTemplate(gameTitle, imageUrl, samplePrices, unsubscribeUrl);
++    expect(html).toContain("Steam");
++    expect(html).toContain("$29.99");
++    expect(html).toContain("GOG");
++    expect(html).toContain("$24.99");
++  });
++
++  it("should include referral buy links for each store", () => {
++    const html = priceAlertTemplate(gameTitle, imageUrl, samplePrices, unsubscribeUrl);
++    expect(html).toContain(`href="${samplePrices[0].referralUrl}"`);
++    expect(html).toContain(`href="${samplePrices[1].referralUrl}"`);
++    expect(html).toContain("Buy");
++  });
++
++  it("should include the unsubscribe link", () => {
++    const html = priceAlertTemplate(gameTitle, imageUrl, samplePrices, unsubscribeUrl);
++    expect(html).toContain(`href="${unsubscribeUrl}"`);
++    expect(html).toContain("Unsubscribe");
++  });
++
++  it("should use inline styles (no external stylesheet links)", () => {
++    const html = priceAlertTemplate(gameTitle, imageUrl, samplePrices, unsubscribeUrl);
++    expect(html).not.toContain('<link rel="stylesheet"');
++    expect(html).toContain("style=");
++  });
++
++  it("should return valid HTML with doctype", () => {
++    const html = priceAlertTemplate(gameTitle, imageUrl, samplePrices, unsubscribeUrl);
++    expect(html).toMatch(/^<!DOCTYPE html>/);
++    expect(html).toContain("</html>");
++  });
++
++  it("should include a Price Drop Alert heading", () => {
++    const html = priceAlertTemplate(gameTitle, imageUrl, samplePrices, unsubscribeUrl);
++    expect(html).toContain("Price Drop Alert");
++  });
++
++  it("should handle a single price entry", () => {
++    const singlePrice: PriceEntry[] = [
++      { storeName: "Epic", price: "9.99", referralUrl: "https://epic.com/game?ref=taad" },
++    ];
++    const html = priceAlertTemplate(gameTitle, imageUrl, singlePrice, unsubscribeUrl);
++    expect(html).toContain("Epic");
++    expect(html).toContain("$9.99");
++  });
++
++  it("should handle empty prices array", () => {
++    const html = priceAlertTemplate(gameTitle, imageUrl, [], unsubscribeUrl);
++    expect(html).toContain(gameTitle);
++    expect(html).toContain("Price Drop Alert");
++  });
++});
+diff --git a/packages/email/tsconfig.json b/packages/email/tsconfig.json
+new file mode 100644
+index 0000000..a1f2909
+--- /dev/null
++++ b/packages/email/tsconfig.json
+@@ -0,0 +1,9 @@
++{
++  "extends": "../../tsconfig.json",
++  "compilerOptions": {
++    "outDir": "dist",
++    "rootDir": "src"
++  },
++  "include": ["src/**/*.ts"],
++  "exclude": ["node_modules", "dist"]
++}
+diff --git a/pnpm-lock.yaml b/pnpm-lock.yaml
+index 7c042a0..131f029 100644
+--- a/pnpm-lock.yaml
++++ b/pnpm-lock.yaml
+@@ -110,6 +110,22 @@ importers:
+         specifier: ^2.0.0
+         version: 2.1.9(@types/node@22.19.11)(jsdom@25.0.1)(lightningcss@1.31.1)
+ 
++  packages/email:
++    dependencies:
++      '@taad/db':
++        specifier: workspace:*
++        version: link:../db
++      resend:
++        specifier: ^4.0.0
++        version: 4.8.0(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
++    devDependencies:
++      '@types/node':
++        specifier: ^22.0.0
++        version: 22.19.11
++      typescript:
++        specifier: ^5.7.0
++        version: 5.9.3
++
+   packages/scraper:
+     dependencies:
+       '@taad/db':
+@@ -1386,6 +1402,13 @@ packages:
+   '@radix-ui/rect@1.1.1':
+     resolution: {integrity: sha512-HPwpGIzkl28mWyZqG52jiqDJ12waP11Pa1lGoiyUkIEuMLBP0oeK/C89esbXrxsky5we7dfd8U58nm0SgAWpVw==}
+ 
++  '@react-email/render@1.1.2':
++    resolution: {integrity: sha512-RnRehYN3v9gVlNMehHPHhyp2RQo7+pSkHDtXPvg3s0GbzM9SQMW4Qrf8GRNvtpLC4gsI+Wt0VatNRUFqjvevbw==}
++    engines: {node: '>=18.0.0'}
++    peerDependencies:
++      react: ^18.0 || ^19.0 || ^19.0.0-rc
++      react-dom: ^18.0 || ^19.0 || ^19.0.0-rc
++
+   '@rollup/rollup-android-arm-eabi@4.59.0':
+     resolution: {integrity: sha512-upnNBkA6ZH2VKGcBj9Fyl9IGNPULcjXRlg0LLeaioQWueH30p6IXtJEbKAgvyv+mJaMxSm1l6xwDXYjpEMiLMg==}
+     cpu: [arm]
+@@ -1511,6 +1534,9 @@ packages:
+     cpu: [x64]
+     os: [win32]
+ 
++  '@selderee/plugin-htmlparser2@0.11.0':
++    resolution: {integrity: sha512-P33hHGdldxGabLFjPPpaTxVolMrzrcegejx+0GxjrIb9Zv48D8yAIA/QTDR2dFl7Uz7urX8aX6+5bCZslr+gWQ==}
++
+   '@swc/helpers@0.5.15':
+     resolution: {integrity: sha512-JQ5TuMi45Owi4/BIMAJBoSQoOJu12oOk/gADqlcUL9JEdHB8vyjUSsxqeNXnmXHjYKMi2WcYtezGEEhqUI/E2g==}
+ 
+@@ -1636,6 +1662,9 @@ packages:
+   '@types/aria-query@5.0.4':
+     resolution: {integrity: sha512-rfT93uj5s0PRL7EzccGMs3brplhcrghnDoV26NqKhCAS1hVo+WdNsPvE/yb6ilfr5hi2MEk6d5EWJTKdxg8jVw==}
+ 
++  '@types/bcryptjs@2.4.6':
++    resolution: {integrity: sha512-9xlo6R2qDs5uixm0bcIqCeMCE6HiQsIyel9KQySStiyqNl2tnj2mP3DX1Nf56MD6KMenNNlBBsy3LJ7gUEQPXQ==}
++
+   '@types/d3-array@3.2.2':
+     resolution: {integrity: sha512-hOLWVbm7uRza0BYXpIIW5pxfrKe0W+D5lrFiAEYR+pb6w3N2SwSMaJbXdUfSEv+dT4MfHBLtn5js0LAWaO6otw==}
+ 
+@@ -1662,8 +1691,6 @@ packages:
+ 
+   '@types/d3-timer@3.0.2':
+     resolution: {integrity: sha512-Ps3T8E8dZDam6fUyNiMkekK3XUsaUEik+idO9/YjPtfj2qruF8tFBXS7XhtE4iIXBLxhmLjP3SXpLhVf21I9Lw==}
+-  '@types/bcryptjs@2.4.6':
+-    resolution: {integrity: sha512-9xlo6R2qDs5uixm0bcIqCeMCE6HiQsIyel9KQySStiyqNl2tnj2mP3DX1Nf56MD6KMenNNlBBsy3LJ7gUEQPXQ==}
+ 
+   '@types/estree@1.0.8':
+     resolution: {integrity: sha512-dWHzHa2WqEXI/O1E9OjrocMTKJl2mSrEolh1Iomrv6U+JuNwaHXsXx9bLu5gG7BUWFIN0skIQJQ/L1rIex4X6w==}
+@@ -2015,6 +2042,10 @@ packages:
+   deep-is@0.1.4:
+     resolution: {integrity: sha512-oIPzksmTg4/MriiaYGO+okXDT7ztn/w3Eptv/+gSIdMdKsJo0u4CfYNFJPy+4SKMuCqGw2wxnA+URMg3t8a/bQ==}
+ 
++  deepmerge@4.3.1:
++    resolution: {integrity: sha512-3sUqbMEc77XqpdNO7FRyRog+eW3ph+GYCbj+rK+uYyRMuwsVy0rMiVtPn+QJlKFvWP/1PYpapqYn0Me2knFn+A==}
++    engines: {node: '>=0.10.0'}
++
+   delayed-stream@1.0.0:
+     resolution: {integrity: sha512-ZySD7Nf91aLB0RxL4KGrKHBXl7Eds1DAmEdcoVawXnLD7SDhpNgtuII2aAkg7a7QS41jxPSZ17p4VdGnMHk3MQ==}
+     engines: {node: '>=0.4.0'}
+@@ -2149,6 +2180,7 @@ packages:
+   dunder-proto@1.0.1:
+     resolution: {integrity: sha512-KIN/nDJBQRcXw0MLVhZE9iQHmG68qAVIBg9CqmUYjmQIhgij9U5MFvrqkUL5FbtyyzZuOeOt0zdeRe4UY7ct+A==}
+     engines: {node: '>= 0.4'}
++
+   ecdsa-sig-formatter@1.0.11:
+     resolution: {integrity: sha512-nagl3RYrbNv6kQkeJIpt6NJZy8twLB/2vtz6yN9Z4vRKHN4/QZJIEbqohALSgwKdnksuY3k5Addp5lg8sVoVcQ==}
+ 
+@@ -2280,6 +2312,9 @@ packages:
+     resolution: {integrity: sha512-knvyeauYhqjOYvQ66MznSMs83wmHrCycNEN6Ao+2AeYEfxUIkuiVxdEa1qlGEPK+We3n0THiDciYSsCcgW/DoA==}
+     engines: {node: '>=12.0.0'}
+ 
++  fast-deep-equal@2.0.1:
++    resolution: {integrity: sha512-bCK/2Z4zLidyB4ReuIsvALH6w31YfAQDmXMqMx6FyfHqvBxtjC0eRumeSu4Bs3XtXwpyIywtSTrVT99BxY1f9w==}
++
+   fast-deep-equal@3.1.3:
+     resolution: {integrity: sha512-f3qQ9oQy9j2AhBe/H9VC91wLmKBCCU/gDOnKNAYG5hswO7BLKj09Hc5HYNz9cGI++xlpDCIgDaitVs03ATR84Q==}
+ 
+@@ -2407,9 +2442,16 @@ packages:
+     resolution: {integrity: sha512-Y22oTqIU4uuPgEemfz7NDJz6OeKf12Lsu+QC+s3BVpda64lTiMYCyGwg5ki4vFxkMwQdeZDl2adZoqUgdFuTgQ==}
+     engines: {node: '>=18'}
+ 
++  html-to-text@9.0.5:
++    resolution: {integrity: sha512-qY60FjREgVZL03vJU6IfMV4GDjGBIoOyvuFdpBDIX9yTlDw0TjxVBQp+P8NvpdIXNJvfWBTNul7fsAQJq2FNpg==}
++    engines: {node: '>=14'}
++
+   htmlparser2@10.1.0:
+     resolution: {integrity: sha512-VTZkM9GWRAtEpveh7MSF6SjjrpNVNNVJfFup7xTY3UpFtm67foy9HDVXneLtFVt4pMz5kZtgNcvCniNFb1hlEQ==}
+ 
++  htmlparser2@8.0.2:
++    resolution: {integrity: sha512-GYdjWKDkbRLkZ5geuHs5NY1puJ+PXwP7+fHPRz06Eirsb9ugf6d8kkXav6ADhcODhFFPMIXyxkxSuMf3D6NCFA==}
++
+   http-proxy-agent@7.0.2:
+     resolution: {integrity: sha512-T1gkAiYYDWYx3V5Bmyu7HcfcvL7mUrTWiM6yOfa3PIphViJ/gFPbvidQ+veqSOHci/PxBcDabeUNCzpOODJZig==}
+     engines: {node: '>= 14'}
+@@ -2510,6 +2552,9 @@ packages:
+   keyv@4.5.4:
+     resolution: {integrity: sha512-oxVHkHR/EJf2CNXnWxRLW6mg7JyCCUcG0DtEGmL2ctUo1PNTin1PUil+r/+4r5MpVgC/fn1kjsx7mjSujKqIpw==}
+ 
++  leac@0.6.0:
++    resolution: {integrity: sha512-y+SqErxb8h7nE/fiEX07jsbuhrpO9lL8eca7/Y1nuWV2moNlXhyd59iDGcRf6moVyDMbmTNzL40SUyrFU/yDpg==}
++
+   levn@0.4.1:
+     resolution: {integrity: sha512-+bT2uH4E5LGE7h/n3evcS/sQlJXCpIp6ym8OWJ5eV6+67Dsql/LaaT7qJBAt2rzfoa/5QBGBhxDix1dMt2kQKQ==}
+     engines: {node: '>= 0.8.0'}
+@@ -2615,14 +2660,15 @@ packages:
+   lodash.merge@4.6.2:
+     resolution: {integrity: sha512-0KpjqXRVvrYyCsX1swR/XTK0va6VQkQM6MNo7PqW77ByjAhoARA8EfrP1N4+KlKj8YS0ZUCtRT/YUuhyYDujIQ==}
+ 
++  lodash.once@4.1.1:
++    resolution: {integrity: sha512-Sb487aTOCr9drQVL8pIxOzVhafOjZN9UU54hiN8PU3uAiSV7lx1yYNpbNmex2PK6dSJoNTSJUUswT651yww3Mg==}
++
+   lodash@4.17.23:
+     resolution: {integrity: sha512-LgVTMpQtIopCi79SJeDiP0TfWi5CNEc/L/aRdTh3yIvmZXTnheWpKjSZhnvMl8iXbC1tFg9gdHHDMLoV7CnG+w==}
+ 
+   loose-envify@1.4.0:
+     resolution: {integrity: sha512-lyuxPGr/Wfhrlem2CL/UcnUc1zcqKAImBDzukY7Y5F/yQiNdko6+fRLevlw1HgMySw7f611UIY408EtxRSoK3Q==}
+     hasBin: true
+-  lodash.once@4.1.1:
+-    resolution: {integrity: sha512-Sb487aTOCr9drQVL8pIxOzVhafOjZN9UU54hiN8PU3uAiSV7lx1yYNpbNmex2PK6dSJoNTSJUUswT651yww3Mg==}
+ 
+   loupe@3.2.1:
+     resolution: {integrity: sha512-CdzqowRJCeLU72bHvWqwRBBlLcMEtIvGrlvef74kMnV2AolS9Y8xUv1I0U/MNAWMhBlKIoyuEgoJ0t/bbwHbLQ==}
+@@ -2762,6 +2808,9 @@ packages:
+   parse5@7.3.0:
+     resolution: {integrity: sha512-IInvU7fabl34qmi9gY8XOVxhYyMyuH2xUNpb2q8/Y+7552KlejkRvqvD19nMoUW/uQGGbqNpA6Tufu5FL5BZgw==}
+ 
++  parseley@0.12.1:
++    resolution: {integrity: sha512-e6qHKe3a9HWr0oMRVDTRhKce+bRO8VGQR3NyVwcjwrbhMmFCX9KszEV35+rn4AdilFAq9VPxP/Fe1wC9Qjd2lw==}
++
+   path-exists@4.0.0:
+     resolution: {integrity: sha512-ak9Qy5Q7jYb2Wwcey5Fpvg2KoAc/ZIhLSLOSBmRmygPsGwkVVt0fZa0qrtMz+m6tJTAHfZQ8FnmB4MG4LWy7/w==}
+     engines: {node: '>=8'}
+@@ -2777,6 +2826,9 @@ packages:
+     resolution: {integrity: sha512-//nshmD55c46FuFw26xV/xFAaB5HF9Xdap7HJBBnrKdAd6/GxDBaNA1870O79+9ueg61cZLSVc+OaFlfmObYVQ==}
+     engines: {node: '>= 14.16'}
+ 
++  peberminta@0.9.0:
++    resolution: {integrity: sha512-XIxfHpEuSJbITd1H3EeQwpcZbTLHc+VVr8ANI9t5sit565tsI4/xK3KWTUFE2e6QiangUkh3B0jihzmGnNrRsQ==}
++
+   pg-int8@1.0.1:
+     resolution: {integrity: sha512-WCtabS6t3c8SkpDBUlb1kjOs7l66xsGdKpIPZsg4wR+B3+u9UAum2odSsF9tnvxg80h4ZxLWMy4pRjOsFIqQpw==}
+     engines: {node: '>=4.0.0'}
+@@ -2941,6 +2993,9 @@ packages:
+   react-is@18.3.1:
+     resolution: {integrity: sha512-/LLMVyas0ljjAtoYiPqYiL8VWXzUUdThrmU5+n20DZv+a+ClRoevUzw5JxU+Ieh5/c87ytoTBV9G1FiKfNJdmg==}
+ 
++  react-promise-suspense@0.3.4:
++    resolution: {integrity: sha512-I42jl7L3Ze6kZaq+7zXWSunBa3b1on5yfvUW6Eo/3fFOj6dZ5Bqmcd264nJbTK/gn1HjjILAjSwnZbV4RpSaNQ==}
++
+   react-remove-scroll-bar@2.3.8:
+     resolution: {integrity: sha512-9r+yi9+mgU33AKcj6IbT9oRCO78WriSj6t/cF8DWBZJ9aOGPOTEDvdUDz1FwKim7QXWwmHqtdHnRJfhAxEG46Q==}
+     engines: {node: '>=10'}
+@@ -3009,6 +3064,10 @@ packages:
+     resolution: {integrity: sha512-DJnGAeenTdpMEH6uAJRK/uiyEIH9WVsUmoLwzudwGJUwZPp80PDBWPHXSAGNPwNvIXAbe7MSUB1zQFugFml66A==}
+     engines: {node: '>=4'}
+ 
++  resend@4.8.0:
++    resolution: {integrity: sha512-R8eBOFQDO6dzRTDmaMEdpqrkmgSjPpVXt4nGfWsZdYOet0kqra0xgbvTES6HmCriZEXbmGk3e0DiGIaLFTFSHA==}
++    engines: {node: '>=18'}
++
+   resolve-from@4.0.0:
+     resolution: {integrity: sha512-pb/MYmXstAkysRFx8piNI1tGFNQIFA3vkE3Gq4EuA1dF6gHp/+vgZqsCGJapvy8N3Q+4o7FwvquPJcnZ7RYy4g==}
+     engines: {node: '>=4'}
+@@ -3026,6 +3085,7 @@ packages:
+ 
+   rrweb-cssom@0.8.0:
+     resolution: {integrity: sha512-guoltQEx+9aMf2gDZ0s62EcV8lsXR+0w8915TC3ITdn2YueuNjdAYh/levpU9nFaoChh9RUS5ZdQMrKfVEN9tw==}
++
+   safe-buffer@5.2.1:
+     resolution: {integrity: sha512-rp3So07KcdmmKbGvgaNxQSJr7bGVSVk5S9Eq1F+ppbRo70+YeaDxkw5Dd8NPN+GD6bjnYm2VuPuCXmpuYvmCXQ==}
+ 
+@@ -3039,6 +3099,9 @@ packages:
+   scheduler@0.27.0:
+     resolution: {integrity: sha512-eNv+WrVbKu1f3vbYJT/xtiF5syA5HPIMtf9IgY/nKg0sWqzAUEvqY/xm7OcZc/qafLx/iO9FgOmeSAp4v5ti/Q==}
+ 
++  selderee@0.11.0:
++    resolution: {integrity: sha512-5TF+l7p4+OsnP8BCCvSyZiSPc4x4//p5uPwK8TCnVPJYRmU2aYKMpOXvw8zM5a5JvuuCGN1jmsMwuU2W02ukfA==}
++
+   semver@7.7.4:
+     resolution: {integrity: sha512-vFKC2IEtQnVhpT78h1Yp8wzwrf8CM+MzKMHGJZfBtzhZNycRFnXsHk6E5TxIkkMsgNS7mdX3AGB7x2QM2di4lA==}
+     engines: {node: '>=10'}
+@@ -4230,6 +4293,14 @@ snapshots:
+ 
+   '@radix-ui/rect@1.1.1': {}
+ 
++  '@react-email/render@1.1.2(react-dom@19.2.4(react@19.2.4))(react@19.2.4)':
++    dependencies:
++      html-to-text: 9.0.5
++      prettier: 3.8.1
++      react: 19.2.4
++      react-dom: 19.2.4(react@19.2.4)
++      react-promise-suspense: 0.3.4
++
+   '@rollup/rollup-android-arm-eabi@4.59.0':
+     optional: true
+ 
+@@ -4305,6 +4376,11 @@ snapshots:
+   '@rollup/rollup-win32-x64-msvc@4.59.0':
+     optional: true
+ 
++  '@selderee/plugin-htmlparser2@0.11.0':
++    dependencies:
++      domhandler: 5.0.3
++      selderee: 0.11.0
++
+   '@swc/helpers@0.5.15':
+     dependencies:
+       tslib: 2.8.1
+@@ -4417,6 +4493,8 @@ snapshots:
+ 
+   '@types/aria-query@5.0.4': {}
+ 
++  '@types/bcryptjs@2.4.6': {}
++
+   '@types/d3-array@3.2.2': {}
+ 
+   '@types/d3-color@3.1.3': {}
+@@ -4440,7 +4518,6 @@ snapshots:
+   '@types/d3-time@3.0.4': {}
+ 
+   '@types/d3-timer@3.0.2': {}
+-  '@types/bcryptjs@2.4.6': {}
+ 
+   '@types/estree@1.0.8': {}
+ 
+@@ -4829,6 +4906,8 @@ snapshots:
+ 
+   deep-is@0.1.4: {}
+ 
++  deepmerge@4.3.1: {}
++
+   delayed-stream@1.0.0: {}
+ 
+   denque@2.1.0: {}
+@@ -4887,6 +4966,7 @@ snapshots:
+       call-bind-apply-helpers: 1.0.2
+       es-errors: 1.3.0
+       gopd: 1.2.0
++
+   ecdsa-sig-formatter@1.0.11:
+     dependencies:
+       safe-buffer: 5.2.1
+@@ -5094,6 +5174,8 @@ snapshots:
+ 
+   expect-type@1.3.0: {}
+ 
++  fast-deep-equal@2.0.1: {}
++
+   fast-deep-equal@3.1.3: {}
+ 
+   fast-equals@5.4.0: {}
+@@ -5210,6 +5292,14 @@ snapshots:
+     dependencies:
+       whatwg-encoding: 3.1.1
+ 
++  html-to-text@9.0.5:
++    dependencies:
++      '@selderee/plugin-htmlparser2': 0.11.0
++      deepmerge: 4.3.1
++      dom-serializer: 2.0.0
++      htmlparser2: 8.0.2
++      selderee: 0.11.0
++
+   htmlparser2@10.1.0:
+     dependencies:
+       domelementtype: 2.3.0
+@@ -5217,6 +5307,13 @@ snapshots:
+       domutils: 3.2.2
+       entities: 7.0.1
+ 
++  htmlparser2@8.0.2:
++    dependencies:
++      domelementtype: 2.3.0
++      domhandler: 5.0.3
++      domutils: 3.2.2
++      entities: 4.5.0
++
+   http-proxy-agent@7.0.2:
+     dependencies:
+       agent-base: 7.1.4
+@@ -5346,6 +5443,8 @@ snapshots:
+     dependencies:
+       json-buffer: 3.0.1
+ 
++  leac@0.6.0: {}
++
+   levn@0.4.1:
+     dependencies:
+       prelude-ls: 1.2.1
+@@ -5422,12 +5521,13 @@ snapshots:
+ 
+   lodash.merge@4.6.2: {}
+ 
++  lodash.once@4.1.1: {}
++
+   lodash@4.17.23: {}
+ 
+   loose-envify@1.4.0:
+     dependencies:
+       js-tokens: 4.0.0
+-  lodash.once@4.1.1: {}
+ 
+   loupe@3.2.1: {}
+ 
+@@ -5569,6 +5669,11 @@ snapshots:
+     dependencies:
+       entities: 6.0.1
+ 
++  parseley@0.12.1:
++    dependencies:
++      leac: 0.6.0
++      peberminta: 0.9.0
++
+   path-exists@4.0.0: {}
+ 
+   path-key@3.1.1: {}
+@@ -5577,6 +5682,8 @@ snapshots:
+ 
+   pathval@2.0.1: {}
+ 
++  peberminta@0.9.0: {}
++
+   pg-int8@1.0.1: {}
+ 
+   pg-numeric@1.0.2: {}
+@@ -5668,6 +5775,10 @@ snapshots:
+ 
+   react-is@18.3.1: {}
+ 
++  react-promise-suspense@0.3.4:
++    dependencies:
++      fast-deep-equal: 2.0.1
++
+   react-remove-scroll-bar@2.3.8(@types/react@19.2.14)(react@19.2.4):
+     dependencies:
+       react: 19.2.4
+@@ -5742,6 +5853,13 @@ snapshots:
+     dependencies:
+       redis-errors: 1.2.0
+ 
++  resend@4.8.0(react-dom@19.2.4(react@19.2.4))(react@19.2.4):
++    dependencies:
++      '@react-email/render': 1.1.2(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
++    transitivePeerDependencies:
++      - react
++      - react-dom
++
+   resolve-from@4.0.0: {}
+ 
+   resolve-pkg-maps@1.0.0: {}
+@@ -5780,6 +5898,7 @@ snapshots:
+   rrweb-cssom@0.7.1: {}
+ 
+   rrweb-cssom@0.8.0: {}
++
+   safe-buffer@5.2.1: {}
+ 
+   safer-buffer@2.1.2: {}
+@@ -5790,6 +5909,10 @@ snapshots:
+ 
+   scheduler@0.27.0: {}
+ 
++  selderee@0.11.0:
++    dependencies:
++      parseley: 0.12.1
++
+   semver@7.7.4: {}
+ 
+   sharp@0.34.5:

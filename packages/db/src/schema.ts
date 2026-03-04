@@ -80,6 +80,7 @@ export const users = pgTable("users", {
   passwordResetExpires: timestamp("password_reset_expires"),
   steamId: varchar("steam_id", { length: 100 }),
   steamAccessToken: text("steam_access_token"),
+  notifySlackWebhook: text("notify_slack_webhook"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
@@ -99,8 +100,11 @@ export const wishlists = pgTable("wishlists", {
   id: uuid("id").defaultRandom().primaryKey(),
   userId: uuid("user_id").references(() => users.id).notNull(),
   gameId: uuid("game_id").references(() => games.id).notNull(),
+  source: varchar("source", { length: 50 }).default("manual").notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
-});
+}, (t) => [
+  unique().on(t.userId, t.gameId, t.source),
+]);
 
 // ─── Price Alerts ─────────────────────────────────────────────────────────────
 export const priceAlerts = pgTable("price_alerts", {
@@ -109,6 +113,7 @@ export const priceAlerts = pgTable("price_alerts", {
   gameId: uuid("game_id").references(() => games.id).notNull(),
   targetPrice: decimal("target_price", { precision: 10, scale: 2 }).notNull(),
   isActive: boolean("is_active").default(true).notNull(),
+  notifySlackWebhook: text("notify_slack_webhook"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
@@ -167,6 +172,9 @@ export const alertNotifications = pgTable("alert_notifications", {
   alertId: uuid("alert_id").references(() => priceAlerts.id).notNull(),
   storeListingId: uuid("store_listing_id").references(() => storeListings.id).notNull(),
   triggeredPrice: decimal("triggered_price", { precision: 10, scale: 2 }).notNull(),
+  emailStatus: varchar("email_status", { length: 50 }),
+  emailMessageId: text("email_message_id"),
+  emailProvider: varchar("email_provider", { length: 50 }),
   sentAt: timestamp("sent_at").defaultNow().notNull(),
 });
 
