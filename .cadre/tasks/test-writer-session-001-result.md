@@ -1,24 +1,39 @@
 # Test Writer Result: session-001
 
-# Test Writer Result: session-001
+## Tests Created
+- `packages/api/tests/routes/wishlist.test.ts` — 28 new test cases covering all 4 wishlist endpoints
 
-## Summary
-Verified and enhanced existing tests for the schema columns and validation schemas added by the code-writer.
+## Coverage Summary
 
-## Test Files Modified
-- `packages/api/tests/lib/validation.test.ts`: Added 4 edge-case tests (empty string slackWebhookUrl, non-boolean slackAlertsEnabled, 7-char newPassword boundary, non-string confirmation rejection)
-- `packages/db/tests/schema.test.ts`: No changes needed — existing tests already cover all 5 new user columns
+### `createWishlistApp` factory
+- Returns a valid Hono app instance
 
-## Test Results
-- **packages/api/tests/lib/validation.test.ts**: 95 tests passed
-- **packages/db/tests/schema.test.ts**: 52 tests passed
-- **Total**: 147 tests passed, 0 failed
+### `GET /` (paginated wishlist)
+- Empty wishlist returns envelope with empty data
+- Returns wishlist items with game/price data
+- Accepts pagination params (page, limit)
+- Uses default limit of 24
+- Rejects invalid pagination (negative page, page 0, limit > 100)
+- Computes `hasNext` correctly for multi-page and last-page cases
 
-## Coverage
-- `updateProfileSchema`: 19 tests (empty object, valid/invalid displayName boundaries, boolean fields, url/null slackWebhookUrl, currency length)
-- `changePasswordSchema`: 8 tests (valid parse, boundary cases, missing fields)
-- `deleteAccountSchema`: 3 tests (empty object, optional confirmation, non-string rejection)
-- Schema users table: column presence assertions for all 5 new columns (displayName, emailAlerts, slackAlertsEnabled, slackWebhookUrl, defaultAlertCurrency)
+### `POST /` (add to wishlist)
+- Returns 201 with entry and `hasPriceAlert: false` when no alert exists
+- Returns 201 with `hasPriceAlert: true` when active alert exists
+- Returns 400 for missing, empty, or non-UUID gameId
+- Verifies `db.insert` is called
 
-## Notes
-- 7 pre-existing failures in `packages/worker/tests/index.test.ts` (EADDRINUSE port conflict) are unrelated to this change
+### `DELETE /:gameId` (remove from wishlist)
+- Returns 204 with empty body on successful deletion
+- Returns 404 when entry not found
+- Verifies `db.delete` is called
+
+### `GET /deals` (on-sale wishlist items)
+- Empty deals returns envelope with empty data
+- Returns on-sale wishlist items
+- Accepts pagination params
+- Uses default limit of 24
+- Rejects invalid pagination
+- Computes `hasNext` correctly
+
+## Test Run
+All 613 tests pass across 34 test files (including 28 new wishlist tests).

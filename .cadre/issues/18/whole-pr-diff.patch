@@ -1,0 +1,3157 @@
+diff --git a/.env.example b/.env.example
+index deeb573..0837318 100644
+--- a/.env.example
++++ b/.env.example
+@@ -22,7 +22,9 @@ SCRAPER_CONCURRENCY=3
+ FANATICAL_ALGOLIA_APP_ID="your-algolia-app-id"
+ FANATICAL_ALGOLIA_SEARCH_KEY="your-algolia-search-key"
+ 
+-# ─── Auth (if added later) ───────────────────────────────────────────────────
++# ─── Auth ────────────────────────────────────────────────────────────────────
++JWT_SECRET="change-me-in-production"
++JWT_REFRESH_SECRET="change-me-in-production"
+ NEXTAUTH_SECRET="change-me-in-production"
+ NEXTAUTH_URL="http://localhost:3000"
+ 
+diff --git a/packages/api/package.json b/packages/api/package.json
+index 8f0997a..41a20e8 100644
+--- a/packages/api/package.json
++++ b/packages/api/package.json
+@@ -18,11 +18,15 @@
+     "@hono/zod-openapi": "^0.18.0",
+     "@taad/db": "workspace:*",
+     "drizzle-orm": "^0.39.0",
++    "bcryptjs": "^2.4.3",
+     "hono": "^4.6.0",
++    "jsonwebtoken": "^9.0.0",
+     "ioredis": "^5.0.0",
+     "zod": "^3.24.0"
+   },
+   "devDependencies": {
++    "@types/bcryptjs": "^2.4.0",
++    "@types/jsonwebtoken": "^9.0.0",
+     "@types/node": "^22.0.0",
+     "typescript": "^5.7.0",
+     "vitest": "^2.0.0"
+diff --git a/packages/api/src/index.ts b/packages/api/src/index.ts
+index 8e4950d..c924fcd 100644
+--- a/packages/api/src/index.ts
++++ b/packages/api/src/index.ts
+@@ -9,6 +9,9 @@ import { cacheMiddleware } from "./middleware/cache.js";
+ import { createGamesApp } from "./routes/games.js";
+ import { createDealsApp } from "./routes/deals.js";
+ import { storesApp } from "./routes/stores.js";
++import { createAuthApp } from "./routes/auth.js";
++import { createWishlistApp } from "./routes/wishlist.js";
++import { authMiddleware } from "./middleware/auth.js";
+ import { openApiApp } from "./openapi.js";
+ 
+ const app = new Hono();
+@@ -58,6 +61,15 @@ v1.route("/deals", dealsRouter);
+ // Mount stores routes
+ v1.route("/stores", storesApp);
+ 
++// Mount auth routes
++v1.route("/auth", createAuthApp(getRedis));
++
++// Mount wishlist routes (authenticated)
++const wishlistRouter = new Hono();
++wishlistRouter.use("*", authMiddleware);
++wishlistRouter.route("/", createWishlistApp());
++v1.route("/user/me/wishlist", wishlistRouter);
++
+ // Mount versioned router
+ app.route("/api/v1", v1);
+ 
+diff --git a/packages/api/src/lib/email.ts b/packages/api/src/lib/email.ts
+new file mode 100644
+index 0000000..d848297
+--- /dev/null
++++ b/packages/api/src/lib/email.ts
+@@ -0,0 +1,20 @@
++/**
++ * Stubbed email service — logs to console instead of sending real emails.
++ * Will be replaced with a real implementation in #21.
++ */
++
++export async function sendVerificationEmail(
++  email: string,
++  token: string,
++): Promise<void> {
++  const url = `${process.env.APP_URL ?? "http://localhost:3000"}/api/auth/verify-email?token=${token}`;
++  console.log(`[email-stub] Verification email for ${email}: ${url}`);
++}
++
++export async function sendPasswordResetEmail(
++  email: string,
++  token: string,
++): Promise<void> {
++  const url = `${process.env.APP_URL ?? "http://localhost:3000"}/api/auth/reset-password?token=${token}`;
++  console.log(`[email-stub] Password reset email for ${email}: ${url}`);
++}
+diff --git a/packages/api/src/lib/jwt.ts b/packages/api/src/lib/jwt.ts
+new file mode 100644
+index 0000000..b945cc0
+--- /dev/null
++++ b/packages/api/src/lib/jwt.ts
+@@ -0,0 +1,37 @@
++import jwt from "jsonwebtoken";
++
++const ACCESS_TOKEN_EXPIRY = "15m";
++const REFRESH_TOKEN_EXPIRY = "30d";
++
++function getAccessSecret(): string {
++  const secret = process.env.JWT_SECRET;
++  if (!secret) throw new Error("JWT_SECRET environment variable is required");
++  return secret;
++}
++
++function getRefreshSecret(): string {
++  const secret = process.env.JWT_REFRESH_SECRET;
++  if (!secret)
++    throw new Error("JWT_REFRESH_SECRET environment variable is required");
++  return secret;
++}
++
++export function signAccessToken(payload: Record<string, unknown>): string {
++  return jwt.sign(payload, getAccessSecret(), {
++    expiresIn: ACCESS_TOKEN_EXPIRY,
++  });
++}
++
++export function signRefreshToken(payload: Record<string, unknown>): string {
++  return jwt.sign(payload, getRefreshSecret(), {
++    expiresIn: REFRESH_TOKEN_EXPIRY,
++  });
++}
++
++export function verifyAccessToken(token: string): Record<string, unknown> {
++  return jwt.verify(token, getAccessSecret()) as Record<string, unknown>;
++}
++
++export function verifyRefreshToken(token: string): Record<string, unknown> {
++  return jwt.verify(token, getRefreshSecret()) as Record<string, unknown>;
++}
+diff --git a/packages/api/src/lib/password.ts b/packages/api/src/lib/password.ts
+new file mode 100644
+index 0000000..eae8045
+--- /dev/null
++++ b/packages/api/src/lib/password.ts
+@@ -0,0 +1,14 @@
++import bcrypt from "bcryptjs";
++
++const COST_FACTOR = 12;
++
++export async function hashPassword(plaintext: string): Promise<string> {
++  return bcrypt.hash(plaintext, COST_FACTOR);
++}
++
++export async function verifyPassword(
++  plaintext: string,
++  hash: string,
++): Promise<boolean> {
++  return bcrypt.compare(plaintext, hash);
++}
+diff --git a/packages/api/src/lib/validation.ts b/packages/api/src/lib/validation.ts
+index 7c0661f..c81f5b3 100644
+--- a/packages/api/src/lib/validation.ts
++++ b/packages/api/src/lib/validation.ts
+@@ -48,3 +48,35 @@ export const autocompleteQuerySchema = z.object({
+ export const priceHistoryQuerySchema = z.object({
+   store: z.string().optional(),
+ });
++
++// ─── Auth Schemas ─────────────────────────────────────────────────────────────
++
++export const registerSchema = z.object({
++  email: z.string().email(),
++  password: z.string().min(8),
++});
++
++export const loginSchema = z.object({
++  email: z.string().email(),
++  password: z.string().min(1),
++});
++
++export const forgotPasswordSchema = z.object({
++  email: z.string().email(),
++});
++
++export const resetPasswordSchema = z.object({
++  token: z.string().min(1),
++  password: z.string().min(8),
++});
++
++// ─── Wishlist Schemas ─────────────────────────────────────────────────────────
++
++export const addToWishlistSchema = z.object({
++  gameId: z.string().uuid(),
++});
++
++export const wishlistPaginationSchema = z.object({
++  page: z.coerce.number().int().positive().default(1),
++  limit: z.coerce.number().int().positive().max(100).default(24),
++});
+diff --git a/packages/api/src/middleware/auth.ts b/packages/api/src/middleware/auth.ts
+new file mode 100644
+index 0000000..cb8b625
+--- /dev/null
++++ b/packages/api/src/middleware/auth.ts
+@@ -0,0 +1,25 @@
++import type { MiddlewareHandler } from "hono";
++import { verifyAccessToken } from "../lib/jwt.js";
++
++export const authMiddleware: MiddlewareHandler = async (c, next) => {
++  const header = c.req.header("Authorization");
++  if (!header) {
++    return c.json({ error: "Authorization header required" }, 401);
++  }
++
++  const parts = header.split(" ");
++  if (parts.length !== 2 || parts[0] !== "Bearer") {
++    return c.json({ error: "Invalid authorization format" }, 401);
++  }
++
++  const token = parts[1]!;
++
++  try {
++    const payload = verifyAccessToken(token);
++    c.set("user", payload);
++  } catch {
++    return c.json({ error: "Invalid or expired token" }, 401);
++  }
++
++  await next();
++};
+diff --git a/packages/api/src/openapi.ts b/packages/api/src/openapi.ts
+index 363f024..2f223e3 100644
+--- a/packages/api/src/openapi.ts
++++ b/packages/api/src/openapi.ts
+@@ -200,6 +200,144 @@ const spec = {
+         },
+       },
+     },
++    "/auth/register": {
++      post: {
++        summary: "Register a new user",
++        tags: ["Auth"],
++        requestBody: {
++          required: true,
++          content: {
++            "application/json": {
++              schema: {
++                type: "object",
++                required: ["email", "password"],
++                properties: {
++                  email: { type: "string", format: "email" },
++                  password: { type: "string", minLength: 8 },
++                },
++              },
++            },
++          },
++        },
++        responses: {
++          "201": { description: "User registered successfully", content: { "application/json": { schema: { $ref: "#/components/schemas/AccessTokenResponse" } } } },
++          "400": { description: "Invalid input or email already registered", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
++          "429": { description: "Rate limit exceeded", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
++        },
++      },
++    },
++    "/auth/login": {
++      post: {
++        summary: "Login with email and password",
++        tags: ["Auth"],
++        requestBody: {
++          required: true,
++          content: {
++            "application/json": {
++              schema: {
++                type: "object",
++                required: ["email", "password"],
++                properties: {
++                  email: { type: "string", format: "email" },
++                  password: { type: "string" },
++                },
++              },
++            },
++          },
++        },
++        responses: {
++          "200": { description: "Login successful", content: { "application/json": { schema: { $ref: "#/components/schemas/AccessTokenResponse" } } } },
++          "401": { description: "Invalid email or password", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
++          "429": { description: "Too many login attempts", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
++        },
++      },
++    },
++    "/auth/refresh": {
++      post: {
++        summary: "Refresh access token using refresh token cookie",
++        tags: ["Auth"],
++        responses: {
++          "200": { description: "New access token issued", content: { "application/json": { schema: { $ref: "#/components/schemas/AccessTokenResponse" } } } },
++          "401": { description: "Invalid or expired refresh token", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
++          "429": { description: "Rate limit exceeded", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
++        },
++      },
++    },
++    "/auth/logout": {
++      post: {
++        summary: "Logout and invalidate refresh token",
++        tags: ["Auth"],
++        responses: {
++          "200": { description: "Logged out successfully", content: { "application/json": { schema: { $ref: "#/components/schemas/MessageResponse" } } } },
++          "429": { description: "Rate limit exceeded", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
++        },
++      },
++    },
++    "/auth/forgot-password": {
++      post: {
++        summary: "Request a password reset email",
++        tags: ["Auth"],
++        requestBody: {
++          required: true,
++          content: {
++            "application/json": {
++              schema: {
++                type: "object",
++                required: ["email"],
++                properties: {
++                  email: { type: "string", format: "email" },
++                },
++              },
++            },
++          },
++        },
++        responses: {
++          "200": { description: "Reset email sent if account exists", content: { "application/json": { schema: { $ref: "#/components/schemas/MessageResponse" } } } },
++          "400": { description: "Invalid input", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
++          "429": { description: "Rate limit exceeded", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
++        },
++      },
++    },
++    "/auth/reset-password": {
++      post: {
++        summary: "Reset password using a reset token",
++        tags: ["Auth"],
++        requestBody: {
++          required: true,
++          content: {
++            "application/json": {
++              schema: {
++                type: "object",
++                required: ["token", "password"],
++                properties: {
++                  token: { type: "string", format: "uuid" },
++                  password: { type: "string", minLength: 8 },
++                },
++              },
++            },
++          },
++        },
++        responses: {
++          "200": { description: "Password reset successfully", content: { "application/json": { schema: { $ref: "#/components/schemas/MessageResponse" } } } },
++          "400": { description: "Invalid or expired reset token", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
++          "429": { description: "Rate limit exceeded", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
++        },
++      },
++    },
++    "/auth/verify-email": {
++      get: {
++        summary: "Verify email address using a verification token",
++        tags: ["Auth"],
++        parameters: [
++          { name: "token", in: "query", required: true, schema: { type: "string", format: "uuid" }, description: "Email verification token" },
++        ],
++        responses: {
++          "200": { description: "Email verified successfully", content: { "application/json": { schema: { $ref: "#/components/schemas/MessageResponse" } } } },
++          "400": { description: "Invalid verification token", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
++          "429": { description: "Rate limit exceeded", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
++        },
++      },
++    },
+   },
+   components: {
+     schemas: {
+@@ -224,6 +362,18 @@ const spec = {
+           error: { type: "string" },
+         },
+       },
++      AccessTokenResponse: {
++        type: "object",
++        properties: {
++          accessToken: { type: "string" },
++        },
++      },
++      MessageResponse: {
++        type: "object",
++        properties: {
++          message: { type: "string" },
++        },
++      },
+     },
+   },
+ };
+diff --git a/packages/api/src/routes/auth.ts b/packages/api/src/routes/auth.ts
+new file mode 100644
+index 0000000..3703fe3
+--- /dev/null
++++ b/packages/api/src/routes/auth.ts
+@@ -0,0 +1,377 @@
++import { Hono } from "hono";
++import { getCookie, setCookie, deleteCookie } from "hono/cookie";
++import crypto from "node:crypto";
++import { eq } from "drizzle-orm";
++import type { Redis as RedisClient } from "ioredis";
++import { db, users } from "@taad/db";
++import { hashPassword, verifyPassword } from "../lib/password.js";
++import {
++  signAccessToken,
++  signRefreshToken,
++  verifyRefreshToken,
++} from "../lib/jwt.js";
++import {
++  sendVerificationEmail,
++  sendPasswordResetEmail,
++} from "../lib/email.js";
++import {
++  registerSchema,
++  loginSchema,
++  forgotPasswordSchema,
++  resetPasswordSchema,
++} from "../lib/validation.js";
++
++const REFRESH_TOKEN_TTL = 30 * 24 * 60 * 60; // 30 days in seconds
++const BRUTE_FORCE_WINDOW = 15 * 60; // 15 minutes in seconds
++const BRUTE_FORCE_MAX_ATTEMPTS = 10;
++
++// In-memory brute-force fallback
++const bruteForceMemory = new Map<
++  string,
++  { count: number; resetAt: number }
++>();
++
++// eslint-disable-next-line @typescript-eslint/no-explicit-any
++function setRefreshCookie(c: any, token: string) {
++  setCookie(c, "refresh_token", token, {
++    httpOnly: true,
++    secure: process.env.NODE_ENV === "production",
++    sameSite: "Strict",
++    path: "/",
++    maxAge: REFRESH_TOKEN_TTL,
++  });
++}
++
++async function incrementBruteForce(
++  redis: RedisClient | null,
++  bruteKey: string,
++  ip: string,
++) {
++  if (redis) {
++    try {
++      const attempts = await redis.incr(bruteKey);
++      if (attempts === 1) {
++        await redis.expire(bruteKey, BRUTE_FORCE_WINDOW);
++      }
++      return;
++    } catch {
++      // Fall through to in-memory
++    }
++  }
++  const now = Date.now();
++  const entry = bruteForceMemory.get(ip);
++  if (entry && now < entry.resetAt) {
++    entry.count++;
++  } else {
++    bruteForceMemory.set(ip, {
++      count: 1,
++      resetAt: now + BRUTE_FORCE_WINDOW * 1000,
++    });
++  }
++}
++
++export function createAuthApp(getRedis: () => RedisClient | null) {
++  const app = new Hono();
++
++  // POST /register
++  app.post("/register", async (c) => {
++    const body = await c.req.json();
++    const parsed = registerSchema.safeParse(body);
++    if (!parsed.success) {
++      return c.json(
++        { error: "Invalid input", details: parsed.error.flatten() },
++        400,
++      );
++    }
++    const { email, password } = parsed.data;
++
++    // Check for existing user
++    const [existing] = await db
++      .select({ id: users.id })
++      .from(users)
++      .where(eq(users.email, email))
++      .limit(1);
++    if (existing) {
++      return c.json({ error: "Email already registered" }, 400);
++    }
++
++    const passwordHash = await hashPassword(password);
++    const emailVerificationToken = crypto.randomUUID();
++
++    const [user] = await db
++      .insert(users)
++      .values({ email, passwordHash, emailVerificationToken })
++      .returning({ id: users.id, email: users.email });
++
++    if (!user) {
++      return c.json({ error: "Failed to create user" }, 400);
++    }
++
++    await sendVerificationEmail(email, emailVerificationToken);
++
++    const accessToken = signAccessToken({ sub: user.id, email: user.email });
++    const refreshToken = signRefreshToken({ sub: user.id });
++
++    // Store refresh token in Redis
++    const redis = getRedis();
++    if (redis) {
++      await redis.set(
++        `refresh:${refreshToken}`,
++        user.id,
++        "EX",
++        REFRESH_TOKEN_TTL,
++      );
++    }
++
++    setRefreshCookie(c, refreshToken);
++
++    return c.json({ accessToken }, 201);
++  });
++
++  // POST /login
++  app.post("/login", async (c) => {
++    const body = await c.req.json();
++    const parsed = loginSchema.safeParse(body);
++    if (!parsed.success) {
++      return c.json(
++        { error: "Invalid input", details: parsed.error.flatten() },
++        400,
++      );
++    }
++    const { email, password } = parsed.data;
++
++    // Brute-force protection
++    const ip =
++      c.req.header("x-forwarded-for")?.split(",")[0]?.trim() ??
++      c.req.header("x-real-ip") ??
++      "unknown";
++    const bruteKey = `brute:${ip}`;
++    const redis = getRedis();
++
++    // Check current attempt count (without incrementing)
++    if (redis) {
++      try {
++        const current = await redis.get(bruteKey);
++        if (current && Number(current) >= BRUTE_FORCE_MAX_ATTEMPTS) {
++          return c.json({ error: "Too many login attempts" }, 429);
++        }
++      } catch {
++        const now = Date.now();
++        const entry = bruteForceMemory.get(ip);
++        if (entry && now < entry.resetAt && entry.count >= BRUTE_FORCE_MAX_ATTEMPTS) {
++          return c.json({ error: "Too many login attempts" }, 429);
++        }
++      }
++    } else {
++      const now = Date.now();
++      const entry = bruteForceMemory.get(ip);
++      if (entry && now < entry.resetAt && entry.count >= BRUTE_FORCE_MAX_ATTEMPTS) {
++        return c.json({ error: "Too many login attempts" }, 429);
++      }
++    }
++
++    const [user] = await db
++      .select({
++        id: users.id,
++        email: users.email,
++        passwordHash: users.passwordHash,
++      })
++      .from(users)
++      .where(eq(users.email, email))
++      .limit(1);
++
++    if (!user || !user.passwordHash) {
++      await incrementBruteForce(redis, bruteKey, ip);
++      return c.json({ error: "Invalid email or password" }, 401);
++    }
++
++    const valid = await verifyPassword(password, user.passwordHash);
++    if (!valid) {
++      await incrementBruteForce(redis, bruteKey, ip);
++      return c.json({ error: "Invalid email or password" }, 401);
++    }
++
++    const accessToken = signAccessToken({ sub: user.id, email: user.email });
++    const refreshToken = signRefreshToken({ sub: user.id });
++
++    if (redis) {
++      await redis.set(
++        `refresh:${refreshToken}`,
++        user.id,
++        "EX",
++        REFRESH_TOKEN_TTL,
++      );
++    }
++
++    setRefreshCookie(c, refreshToken);
++
++    return c.json({ accessToken }, 200);
++  });
++
++  // POST /refresh
++  app.post("/refresh", async (c) => {
++    const token = getCookie(c, "refresh_token");
++    if (!token) {
++      return c.json({ error: "Refresh token required" }, 401);
++    }
++
++    let payload: Record<string, unknown>;
++    try {
++      payload = verifyRefreshToken(token);
++    } catch {
++      return c.json({ error: "Invalid or expired refresh token" }, 401);
++    }
++
++    // Check Redis for revocation
++    const redis = getRedis();
++    if (redis) {
++      const stored = await redis.get(`refresh:${token}`);
++      if (!stored) {
++        return c.json({ error: "Refresh token revoked" }, 401);
++      }
++    }
++
++    const userId = payload.sub as string;
++    const [user] = await db
++      .select({ id: users.id, email: users.email })
++      .from(users)
++      .where(eq(users.id, userId))
++      .limit(1);
++
++    if (!user) {
++      return c.json({ error: "User not found" }, 401);
++    }
++
++    const accessToken = signAccessToken({ sub: user.id, email: user.email });
++
++    return c.json({ accessToken }, 200);
++  });
++
++  // POST /logout
++  app.post("/logout", async (c) => {
++    const token = getCookie(c, "refresh_token");
++    if (token) {
++      const redis = getRedis();
++      if (redis) {
++        await redis.del(`refresh:${token}`);
++      }
++    }
++
++    deleteCookie(c, "refresh_token", { path: "/" });
++
++    return c.json({ message: "Logged out" }, 200);
++  });
++
++  // POST /forgot-password
++  app.post("/forgot-password", async (c) => {
++    const body = await c.req.json();
++    const parsed = forgotPasswordSchema.safeParse(body);
++    if (!parsed.success) {
++      return c.json(
++        { error: "Invalid input", details: parsed.error.flatten() },
++        400,
++      );
++    }
++    const { email } = parsed.data;
++
++    const [user] = await db
++      .select({ id: users.id })
++      .from(users)
++      .where(eq(users.email, email))
++      .limit(1);
++
++    // Always return success to prevent email enumeration
++    if (!user) {
++      return c.json({ message: "If the email exists, a reset link has been sent" }, 200);
++    }
++
++    const resetToken = crypto.randomUUID();
++    const resetExpires = new Date(Date.now() + 15 * 60 * 1000); // 15 min
++
++    await db
++      .update(users)
++      .set({
++        passwordResetToken: resetToken,
++        passwordResetExpires: resetExpires,
++      })
++      .where(eq(users.id, user.id));
++
++    await sendPasswordResetEmail(email, resetToken);
++
++    return c.json({ message: "If the email exists, a reset link has been sent" }, 200);
++  });
++
++  // POST /reset-password
++  app.post("/reset-password", async (c) => {
++    const body = await c.req.json();
++    const parsed = resetPasswordSchema.safeParse(body);
++    if (!parsed.success) {
++      return c.json(
++        { error: "Invalid input", details: parsed.error.flatten() },
++        400,
++      );
++    }
++    const { token, password } = parsed.data;
++
++    const [user] = await db
++      .select({
++        id: users.id,
++        passwordResetToken: users.passwordResetToken,
++        passwordResetExpires: users.passwordResetExpires,
++      })
++      .from(users)
++      .where(eq(users.passwordResetToken, token))
++      .limit(1);
++
++    if (!user) {
++      return c.json({ error: "Invalid or expired reset token" }, 400);
++    }
++
++    if (!user.passwordResetExpires || user.passwordResetExpires < new Date()) {
++      return c.json({ error: "Invalid or expired reset token" }, 400);
++    }
++
++    const passwordHash = await hashPassword(password);
++
++    await db
++      .update(users)
++      .set({
++        passwordHash,
++        passwordResetToken: null,
++        passwordResetExpires: null,
++      })
++      .where(eq(users.id, user.id));
++
++    return c.json({ message: "Password reset successfully" }, 200);
++  });
++
++  // GET /verify-email
++  app.get("/verify-email", async (c) => {
++    const token = c.req.query("token");
++    if (!token) {
++      return c.json({ error: "Token is required" }, 400);
++    }
++
++    const [user] = await db
++      .select({ id: users.id })
++      .from(users)
++      .where(eq(users.emailVerificationToken, token))
++      .limit(1);
++
++    if (!user) {
++      return c.json({ error: "Invalid verification token" }, 400);
++    }
++
++    await db
++      .update(users)
++      .set({
++        emailVerified: true,
++        emailVerificationToken: null,
++      })
++      .where(eq(users.id, user.id));
++
++    return c.json({ message: "Email verified successfully" }, 200);
++  });
++
++  return app;
++}
+diff --git a/packages/api/src/routes/wishlist.ts b/packages/api/src/routes/wishlist.ts
+new file mode 100644
+index 0000000..ea31349
+--- /dev/null
++++ b/packages/api/src/routes/wishlist.ts
+@@ -0,0 +1,227 @@
++import { Hono } from "hono";
++import { eq, sql, and, count, desc } from "drizzle-orm";
++import {
++  db,
++  wishlists,
++  games,
++  storeListings,
++  stores,
++  priceHistory,
++  priceAlerts,
++} from "@taad/db";
++import { addToWishlistSchema, wishlistPaginationSchema } from "../lib/validation.js";
++import { buildEnvelopeResponse } from "../lib/response.js";
++
++type Env = {
++  Variables: {
++    user: Record<string, unknown>;
++  };
++};
++
++export function createWishlistApp() {
++  const app = new Hono<Env>();
++
++  // GET / — paginated wishlist with best prices per game
++  app.get("/", async (c) => {
++    const user = c.get("user") as { sub: string };
++    const parsed = wishlistPaginationSchema.safeParse(c.req.query());
++    if (!parsed.success) {
++      return c.json({ error: "Invalid query parameters", details: parsed.error.flatten() }, 400);
++    }
++    const { page, limit } = parsed.data;
++    const offset = (page - 1) * limit;
++
++    const userCondition = eq(wishlists.userId, user.sub);
++
++    const [totalResult] = await db
++      .select({ total: count() })
++      .from(wishlists)
++      .where(userCondition);
++    const total = totalResult?.total ?? 0;
++
++    const rows = await db
++      .select({
++        wishlistId: wishlists.id,
++        gameId: games.id,
++        gameTitle: games.title,
++        gameSlug: games.slug,
++        headerImageUrl: games.headerImageUrl,
++        source: wishlists.source,
++        addedAt: wishlists.createdAt,
++        storeName: stores.name,
++        storeLogoUrl: stores.logoUrl,
++        currentPriceCents: priceHistory.price,
++        originalPriceCents: priceHistory.originalPrice,
++        discountPercent: priceHistory.discount,
++        buyUrl: storeListings.storeUrl,
++      })
++      .from(wishlists)
++      .innerJoin(games, eq(games.id, wishlists.gameId))
++      .leftJoin(
++        storeListings,
++        sql`${storeListings.gameId} = ${games.id}
++            AND ${storeListings.isActive} = true
++            AND ${storeListings.id} = (
++              SELECT sl2.id FROM store_listings sl2
++              INNER JOIN price_history ph2 ON ph2.store_listing_id = sl2.id
++              WHERE sl2.game_id = ${games.id} AND sl2.is_active = true
++              ORDER BY ph2.price ASC, ph2.recorded_at DESC
++              LIMIT 1
++            )`,
++      )
++      .leftJoin(stores, eq(stores.id, storeListings.storeId))
++      .leftJoin(
++        priceHistory,
++        sql`${priceHistory.storeListingId} = ${storeListings.id}
++            AND ${priceHistory.recordedAt} = (
++              SELECT MAX(ph3.recorded_at) FROM price_history ph3
++              WHERE ph3.store_listing_id = ${storeListings.id}
++            )`,
++      )
++      .where(userCondition)
++      .orderBy(desc(wishlists.createdAt))
++      .limit(limit)
++      .offset(offset);
++
++    return c.json(buildEnvelopeResponse(rows, total, page, limit));
++  });
++
++  // POST / — add a game to the wishlist
++  app.post("/", async (c) => {
++    const user = c.get("user") as { sub: string };
++    const body = await c.req.json();
++    const parsed = addToWishlistSchema.safeParse(body);
++    if (!parsed.success) {
++      return c.json({ error: "Invalid request body", details: parsed.error.flatten() }, 400);
++    }
++    const { gameId } = parsed.data;
++
++    const [entry] = await db
++      .insert(wishlists)
++      .values({ userId: user.sub, gameId, source: "manual" })
++      .onConflictDoNothing()
++      .returning();
++
++    if (!entry) {
++      return c.json({ error: "Game already in wishlist" }, 409);
++    }
++
++    // Check whether an active price alert exists for this user+game
++    const [alert] = await db
++      .select({ id: priceAlerts.id })
++      .from(priceAlerts)
++      .where(
++        and(
++          eq(priceAlerts.userId, user.sub),
++          eq(priceAlerts.gameId, gameId),
++          eq(priceAlerts.isActive, true),
++        ),
++      )
++      .limit(1);
++
++    return c.json({ entry, hasPriceAlert: !!alert }, 201);
++  });
++
++  // DELETE /:gameId — remove a game from the wishlist
++  app.delete("/:gameId", async (c) => {
++    const user = c.get("user") as { sub: string };
++    const { gameId } = c.req.param();
++
++    const deleted = await db
++      .delete(wishlists)
++      .where(and(eq(wishlists.userId, user.sub), eq(wishlists.gameId, gameId)))
++      .returning();
++
++    if (deleted.length === 0) {
++      return c.json({ error: "Wishlist entry not found" }, 404);
++    }
++
++    return c.body(null, 204);
++  });
++
++  // GET /deals — wishlist items currently on sale
++  app.get("/deals", async (c) => {
++    const user = c.get("user") as { sub: string };
++    const parsed = wishlistPaginationSchema.safeParse(c.req.query());
++    if (!parsed.success) {
++      return c.json({ error: "Invalid query parameters", details: parsed.error.flatten() }, 400);
++    }
++    const { page, limit } = parsed.data;
++    const offset = (page - 1) * limit;
++
++    const onSaleCondition = and(
++      eq(wishlists.userId, user.sub),
++      sql`${priceHistory.discount} IS NOT NULL AND ${priceHistory.discount} > 0`,
++    );
++
++    const bestPriceListingCondition = sql`${storeListings.gameId} = ${games.id}
++            AND ${storeListings.isActive} = true
++            AND ${storeListings.id} = (
++              SELECT sl2.id FROM store_listings sl2
++              INNER JOIN price_history ph2 ON ph2.store_listing_id = sl2.id
++              WHERE sl2.game_id = ${games.id} AND sl2.is_active = true
++              ORDER BY ph2.price ASC, ph2.recorded_at DESC
++              LIMIT 1
++            )`;
++
++    const [totalResult] = await db
++      .select({ total: count() })
++      .from(wishlists)
++      .innerJoin(games, eq(games.id, wishlists.gameId))
++      .innerJoin(
++        storeListings,
++        bestPriceListingCondition,
++      )
++      .innerJoin(
++        priceHistory,
++        sql`${priceHistory.storeListingId} = ${storeListings.id}
++            AND ${priceHistory.recordedAt} = (
++              SELECT MAX(ph3.recorded_at) FROM price_history ph3
++              WHERE ph3.store_listing_id = ${storeListings.id}
++            )`,
++      )
++      .innerJoin(stores, eq(stores.id, storeListings.storeId))
++      .where(onSaleCondition);
++    const total = totalResult?.total ?? 0;
++
++    const rows = await db
++      .select({
++        wishlistId: wishlists.id,
++        gameId: games.id,
++        gameTitle: games.title,
++        gameSlug: games.slug,
++        headerImageUrl: games.headerImageUrl,
++        source: wishlists.source,
++        addedAt: wishlists.createdAt,
++        storeName: stores.name,
++        storeLogoUrl: stores.logoUrl,
++        currentPriceCents: priceHistory.price,
++        originalPriceCents: priceHistory.originalPrice,
++        discountPercent: priceHistory.discount,
++        buyUrl: storeListings.storeUrl,
++      })
++      .from(wishlists)
++      .innerJoin(games, eq(games.id, wishlists.gameId))
++      .innerJoin(
++        storeListings,
++        bestPriceListingCondition,
++      )
++      .innerJoin(
++        priceHistory,
++        sql`${priceHistory.storeListingId} = ${storeListings.id}
++            AND ${priceHistory.recordedAt} = (
++              SELECT MAX(ph3.recorded_at) FROM price_history ph3
++              WHERE ph3.store_listing_id = ${storeListings.id}
++            )`,
++      )
++      .innerJoin(stores, eq(stores.id, storeListings.storeId))
++      .where(onSaleCondition)
++      .orderBy(desc(priceHistory.discount))
++      .limit(limit)
++      .offset(offset);
++
++    return c.json(buildEnvelopeResponse(rows, total, page, limit));
++  });
++
++  return app;
++}
+diff --git a/packages/api/tests/env-example.test.ts b/packages/api/tests/env-example.test.ts
+index d0ea688..36050f4 100644
+--- a/packages/api/tests/env-example.test.ts
++++ b/packages/api/tests/env-example.test.ts
+@@ -41,4 +41,12 @@ describe(".env.example", () => {
+   it("should preserve existing NEXT_PUBLIC_API_URL entry", () => {
+     expect(envExampleContent).toMatch(/^NEXT_PUBLIC_API_URL=/m);
+   });
++
++  it("should contain a JWT_SECRET entry", () => {
++    expect(envExampleContent).toMatch(/^JWT_SECRET=/m);
++  });
++
++  it("should contain a JWT_REFRESH_SECRET entry", () => {
++    expect(envExampleContent).toMatch(/^JWT_REFRESH_SECRET=/m);
++  });
+ });
+diff --git a/packages/api/tests/index.test.ts b/packages/api/tests/index.test.ts
+index 0395920..04377fe 100644
+--- a/packages/api/tests/index.test.ts
++++ b/packages/api/tests/index.test.ts
+@@ -35,9 +35,24 @@ vi.mock("@taad/db", () => ({
+   gameGenres: stubTable({ gameId: "gameId", genreId: "genreId" }),
+   platforms: stubTable({ id: "id", name: "name", slug: "slug" }),
+   gamePlatforms: stubTable({ gameId: "gameId", platformId: "platformId" }),
++  users: stubTable({ id: "id", email: "email", name: "name", passwordHash: "passwordHash", emailVerified: "emailVerified" }),
++  refreshTokens: stubTable({ id: "id", userId: "userId", token: "token", expiresAt: "expiresAt", revokedAt: "revokedAt", createdAt: "createdAt" }),
+   searchAnalytics: stubTable({ id: "id", query: "query", resultCount: "resultCount", searchedAt: "searchedAt" }),
+ }));
+ 
++// Mock auth utilities used by auth routes
++vi.mock("bcryptjs", () => ({
++  default: { hash: vi.fn(), compare: vi.fn() },
++  hash: vi.fn(),
++  compare: vi.fn(),
++}));
++
++vi.mock("jsonwebtoken", () => ({
++  default: { sign: vi.fn(), verify: vi.fn() },
++  sign: vi.fn(),
++  verify: vi.fn(),
++}));
++
+ // Mock ioredis
+ const mockZrevrangebyscore = vi.fn();
+ const mockIncr = vi.fn();
+@@ -60,6 +75,8 @@ vi.mock("ioredis", () => ({
+ // Set REDIS_URL so the lazy Redis client initialises using the mock constructor
+ process.env.REDIS_URL = "redis://localhost:6379";
+ process.env.DATABASE_URL = "postgres://test";
++process.env.JWT_SECRET = "test-jwt-secret";
++process.env.JWT_REFRESH_SECRET = "test-jwt-refresh-secret";
+ 
+ const { app } = await import("../src/index.js");
+ 
+@@ -323,6 +340,18 @@ describe("GET /api/v1/deals/all-time-lows", () => {
+   });
+ });
+ 
++describe("POST /api/v1/auth/register", () => {
++  beforeEach(() => {
++    mockDb.select.mockReturnValue(createBuilder());
++    mockExec.mockResolvedValue([[null, 1], [null, -1]]);
++  });
++
++  it("returns a non-404 response confirming auth routes are mounted", async () => {
++    const res = await app.request("/api/v1/auth/register", { method: "POST" });
++    expect(res.status).not.toBe(404);
++  });
++});
++
+ describe("GET /api/docs", () => {
+   beforeEach(() => {
+     mockExec.mockResolvedValue([[null, 1], [null, -1]]);
+diff --git a/packages/api/tests/lib/email.test.ts b/packages/api/tests/lib/email.test.ts
+new file mode 100644
+index 0000000..ae9d6fb
+--- /dev/null
++++ b/packages/api/tests/lib/email.test.ts
+@@ -0,0 +1,90 @@
++import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
++import { sendVerificationEmail, sendPasswordResetEmail } from "../../src/lib/email.js";
++
++describe("sendVerificationEmail", () => {
++  beforeEach(() => {
++    vi.spyOn(console, "log").mockImplementation(() => {});
++  });
++
++  afterEach(() => {
++    vi.restoreAllMocks();
++    delete process.env.APP_URL;
++  });
++
++  it("should log a verification URL containing the token", async () => {
++    await sendVerificationEmail("user@example.com", "abc123");
++    expect(console.log).toHaveBeenCalledWith(
++      expect.stringContaining("token=abc123"),
++    );
++  });
++
++  it("should log the email address", async () => {
++    await sendVerificationEmail("user@example.com", "tok");
++    expect(console.log).toHaveBeenCalledWith(
++      expect.stringContaining("user@example.com"),
++    );
++  });
++
++  it("should use the default APP_URL when env var is not set", async () => {
++    await sendVerificationEmail("a@b.com", "t1");
++    expect(console.log).toHaveBeenCalledWith(
++      expect.stringContaining("http://localhost:3000/api/auth/verify-email"),
++    );
++  });
++
++  it("should use the APP_URL env var when set", async () => {
++    process.env.APP_URL = "https://myapp.com";
++    await sendVerificationEmail("a@b.com", "t2");
++    expect(console.log).toHaveBeenCalledWith(
++      expect.stringContaining("https://myapp.com/api/auth/verify-email"),
++    );
++  });
++
++  it("should resolve without throwing", async () => {
++    await expect(sendVerificationEmail("a@b.com", "t")).resolves.toBeUndefined();
++  });
++});
++
++describe("sendPasswordResetEmail", () => {
++  beforeEach(() => {
++    vi.spyOn(console, "log").mockImplementation(() => {});
++  });
++
++  afterEach(() => {
++    vi.restoreAllMocks();
++    delete process.env.APP_URL;
++  });
++
++  it("should log a reset URL containing the token", async () => {
++    await sendPasswordResetEmail("user@example.com", "reset-tok");
++    expect(console.log).toHaveBeenCalledWith(
++      expect.stringContaining("token=reset-tok"),
++    );
++  });
++
++  it("should log the email address", async () => {
++    await sendPasswordResetEmail("user@example.com", "tok");
++    expect(console.log).toHaveBeenCalledWith(
++      expect.stringContaining("user@example.com"),
++    );
++  });
++
++  it("should use the default APP_URL when env var is not set", async () => {
++    await sendPasswordResetEmail("a@b.com", "t1");
++    expect(console.log).toHaveBeenCalledWith(
++      expect.stringContaining("http://localhost:3000/api/auth/reset-password"),
++    );
++  });
++
++  it("should use the APP_URL env var when set", async () => {
++    process.env.APP_URL = "https://production.app";
++    await sendPasswordResetEmail("a@b.com", "t2");
++    expect(console.log).toHaveBeenCalledWith(
++      expect.stringContaining("https://production.app/api/auth/reset-password"),
++    );
++  });
++
++  it("should resolve without throwing", async () => {
++    await expect(sendPasswordResetEmail("a@b.com", "t")).resolves.toBeUndefined();
++  });
++});
+diff --git a/packages/api/tests/lib/jwt.test.ts b/packages/api/tests/lib/jwt.test.ts
+new file mode 100644
+index 0000000..b914513
+--- /dev/null
++++ b/packages/api/tests/lib/jwt.test.ts
+@@ -0,0 +1,92 @@
++import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
++
++// Set env vars before importing the module
++beforeEach(() => {
++  process.env.JWT_SECRET = "test-access-secret";
++  process.env.JWT_REFRESH_SECRET = "test-refresh-secret";
++});
++
++afterEach(() => {
++  delete process.env.JWT_SECRET;
++  delete process.env.JWT_REFRESH_SECRET;
++  vi.resetModules();
++});
++
++const { signAccessToken, signRefreshToken, verifyAccessToken, verifyRefreshToken } =
++  await import("../../src/lib/jwt.js");
++
++describe("signAccessToken", () => {
++  it("should return a JWT string with three dot-separated parts", () => {
++    const token = signAccessToken({ userId: "123" });
++    expect(token.split(".")).toHaveLength(3);
++  });
++
++  it("should embed the payload in the token", () => {
++    const token = signAccessToken({ userId: "abc", role: "admin" });
++    const decoded = verifyAccessToken(token);
++    expect(decoded.userId).toBe("abc");
++    expect(decoded.role).toBe("admin");
++  });
++});
++
++describe("verifyAccessToken", () => {
++  it("should decode a valid access token", () => {
++    const token = signAccessToken({ sub: "user-1" });
++    const payload = verifyAccessToken(token);
++    expect(payload.sub).toBe("user-1");
++    expect(payload.exp).toBeDefined();
++    expect(payload.iat).toBeDefined();
++  });
++
++  it("should throw for a token signed with a different secret", () => {
++    const token = signRefreshToken({ sub: "user-1" });
++    expect(() => verifyAccessToken(token)).toThrow();
++  });
++
++  it("should throw for a malformed token", () => {
++    expect(() => verifyAccessToken("not.a.token")).toThrow();
++  });
++});
++
++describe("signRefreshToken", () => {
++  it("should return a JWT string", () => {
++    const token = signRefreshToken({ userId: "456" });
++    expect(token.split(".")).toHaveLength(3);
++  });
++
++  it("should embed the payload in the token", () => {
++    const token = signRefreshToken({ userId: "xyz" });
++    const decoded = verifyRefreshToken(token);
++    expect(decoded.userId).toBe("xyz");
++  });
++});
++
++describe("verifyRefreshToken", () => {
++  it("should decode a valid refresh token", () => {
++    const token = signRefreshToken({ sub: "user-2" });
++    const payload = verifyRefreshToken(token);
++    expect(payload.sub).toBe("user-2");
++    expect(payload.exp).toBeDefined();
++  });
++
++  it("should throw for a token signed with the access secret", () => {
++    const token = signAccessToken({ sub: "user-2" });
++    expect(() => verifyRefreshToken(token)).toThrow();
++  });
++});
++
++describe("missing environment variables", () => {
++  it("should throw when JWT_SECRET is missing", async () => {
++    delete process.env.JWT_SECRET;
++    expect(() => signAccessToken({ id: "1" })).toThrow(
++      "JWT_SECRET environment variable is required",
++    );
++  });
++
++  it("should throw when JWT_REFRESH_SECRET is missing", async () => {
++    delete process.env.JWT_REFRESH_SECRET;
++    expect(() => signRefreshToken({ id: "1" })).toThrow(
++      "JWT_REFRESH_SECRET environment variable is required",
++    );
++  });
++});
+diff --git a/packages/api/tests/lib/password.test.ts b/packages/api/tests/lib/password.test.ts
+new file mode 100644
+index 0000000..237027a
+--- /dev/null
++++ b/packages/api/tests/lib/password.test.ts
+@@ -0,0 +1,35 @@
++import { describe, it, expect } from "vitest";
++import { hashPassword, verifyPassword } from "../../src/lib/password.js";
++
++describe("hashPassword", () => {
++  it("should return a bcrypt hash string", async () => {
++    const hash = await hashPassword("my-secret");
++    expect(hash).toMatch(/^\$2[aby]?\$/);
++  });
++
++  it("should produce different hashes for the same input (salt)", async () => {
++    const h1 = await hashPassword("same-password");
++    const h2 = await hashPassword("same-password");
++    expect(h1).not.toBe(h2);
++  });
++});
++
++describe("verifyPassword", () => {
++  it("should return true for a matching plaintext and hash", async () => {
++    const hash = await hashPassword("correct-password");
++    const result = await verifyPassword("correct-password", hash);
++    expect(result).toBe(true);
++  });
++
++  it("should return false for a non-matching plaintext", async () => {
++    const hash = await hashPassword("correct-password");
++    const result = await verifyPassword("wrong-password", hash);
++    expect(result).toBe(false);
++  });
++
++  it("should return false for an empty plaintext against a valid hash", async () => {
++    const hash = await hashPassword("some-password");
++    const result = await verifyPassword("", hash);
++    expect(result).toBe(false);
++  });
++});
+diff --git a/packages/api/tests/lib/validation.test.ts b/packages/api/tests/lib/validation.test.ts
+index 85da92b..ec75e6f 100644
+--- a/packages/api/tests/lib/validation.test.ts
++++ b/packages/api/tests/lib/validation.test.ts
+@@ -318,3 +318,150 @@ describe("priceHistoryQuerySchema", () => {
+     expect(result.store).toBe("steam");
+   });
+ });
++
++// ─── Auth Schemas ─────────────────────────────────────────────────────────────
++
++import {
++  registerSchema,
++  loginSchema,
++  forgotPasswordSchema,
++  resetPasswordSchema,
++  addToWishlistSchema,
++  wishlistPaginationSchema,
++} from "../../src/lib/validation.js";
++
++describe("registerSchema", () => {
++  it("should parse valid email and password", () => {
++    const result = registerSchema.parse({ email: "user@example.com", password: "securepass" });
++    expect(result).toEqual({ email: "user@example.com", password: "securepass" });
++  });
++
++  it("should reject invalid email", () => {
++    expect(() => registerSchema.parse({ email: "not-an-email", password: "securepass" })).toThrow();
++  });
++
++  it("should reject password shorter than 8 characters", () => {
++    expect(() => registerSchema.parse({ email: "user@example.com", password: "short" })).toThrow();
++  });
++
++  it("should accept password of exactly 8 characters", () => {
++    const result = registerSchema.parse({ email: "user@example.com", password: "12345678" });
++    expect(result.password).toBe("12345678");
++  });
++
++  it("should reject missing email", () => {
++    expect(() => registerSchema.parse({ password: "securepass" })).toThrow();
++  });
++
++  it("should reject missing password", () => {
++    expect(() => registerSchema.parse({ email: "user@example.com" })).toThrow();
++  });
++});
++
++describe("loginSchema", () => {
++  it("should parse valid email and password", () => {
++    const result = loginSchema.parse({ email: "user@example.com", password: "x" });
++    expect(result).toEqual({ email: "user@example.com", password: "x" });
++  });
++
++  it("should reject invalid email", () => {
++    expect(() => loginSchema.parse({ email: "bad", password: "x" })).toThrow();
++  });
++
++  it("should reject empty password", () => {
++    expect(() => loginSchema.parse({ email: "user@example.com", password: "" })).toThrow();
++  });
++
++  it("should accept password of 1 character", () => {
++    const result = loginSchema.parse({ email: "user@example.com", password: "a" });
++    expect(result.password).toBe("a");
++  });
++});
++
++describe("forgotPasswordSchema", () => {
++  it("should parse valid email", () => {
++    const result = forgotPasswordSchema.parse({ email: "user@example.com" });
++    expect(result).toEqual({ email: "user@example.com" });
++  });
++
++  it("should reject invalid email", () => {
++    expect(() => forgotPasswordSchema.parse({ email: "not-email" })).toThrow();
++  });
++
++  it("should reject missing email", () => {
++    expect(() => forgotPasswordSchema.parse({})).toThrow();
++  });
++});
++
++describe("resetPasswordSchema", () => {
++  it("should parse valid token and password", () => {
++    const result = resetPasswordSchema.parse({ token: "abc-123", password: "newpasswd" });
++    expect(result).toEqual({ token: "abc-123", password: "newpasswd" });
++  });
++
++  it("should reject empty token", () => {
++    expect(() => resetPasswordSchema.parse({ token: "", password: "newpasswd" })).toThrow();
++  });
++
++  it("should reject password shorter than 8 characters", () => {
++    expect(() => resetPasswordSchema.parse({ token: "abc", password: "short" })).toThrow();
++  });
++
++  it("should reject missing token", () => {
++    expect(() => resetPasswordSchema.parse({ password: "newpasswd" })).toThrow();
++  });
++
++  it("should reject missing password", () => {
++    expect(() => resetPasswordSchema.parse({ token: "abc-123" })).toThrow();
++  });
++});
++
++// ─── Wishlist Schemas ─────────────────────────────────────────────────────────
++
++describe("addToWishlistSchema", () => {
++  it("should parse a valid UUID gameId", () => {
++    const result = addToWishlistSchema.parse({ gameId: "550e8400-e29b-41d4-a716-446655440000" });
++    expect(result.gameId).toBe("550e8400-e29b-41d4-a716-446655440000");
++  });
++
++  it("should reject a non-UUID gameId", () => {
++    expect(() => addToWishlistSchema.parse({ gameId: "not-a-uuid" })).toThrow();
++  });
++
++  it("should reject missing gameId", () => {
++    expect(() => addToWishlistSchema.parse({})).toThrow();
++  });
++
++  it("should reject empty string gameId", () => {
++    expect(() => addToWishlistSchema.parse({ gameId: "" })).toThrow();
++  });
++});
++
++describe("wishlistPaginationSchema", () => {
++  it("should use defaults when no values provided", () => {
++    const result = wishlistPaginationSchema.parse({});
++    expect(result).toEqual({ page: 1, limit: 24 });
++  });
++
++  it("should coerce string values to numbers", () => {
++    const result = wishlistPaginationSchema.parse({ page: "2", limit: "50" });
++    expect(result).toEqual({ page: 2, limit: 50 });
++  });
++
++  it("should reject limit greater than 100", () => {
++    expect(() => wishlistPaginationSchema.parse({ limit: 101 })).toThrow();
++  });
++
++  it("should accept limit of exactly 100", () => {
++    const result = wishlistPaginationSchema.parse({ limit: 100 });
++    expect(result.limit).toBe(100);
++  });
++
++  it("should reject page of 0", () => {
++    expect(() => wishlistPaginationSchema.parse({ page: 0 })).toThrow();
++  });
++
++  it("should reject negative page", () => {
++    expect(() => wishlistPaginationSchema.parse({ page: -1 })).toThrow();
++  });
++});
+diff --git a/packages/api/tests/middleware/auth.test.ts b/packages/api/tests/middleware/auth.test.ts
+new file mode 100644
+index 0000000..f3decd6
+--- /dev/null
++++ b/packages/api/tests/middleware/auth.test.ts
+@@ -0,0 +1,81 @@
++import { describe, it, expect, vi, beforeEach } from "vitest";
++import { Hono } from "hono";
++
++const mockVerifyAccessToken = vi.fn();
++
++vi.mock("../../src/lib/jwt.js", () => ({
++  verifyAccessToken: (...args: unknown[]) => mockVerifyAccessToken(...args),
++}));
++
++const { authMiddleware } = await import("../../src/middleware/auth.js");
++
++describe("authMiddleware", () => {
++  let app: Hono;
++
++  beforeEach(() => {
++    vi.clearAllMocks();
++    app = new Hono();
++    app.use("*", authMiddleware);
++    app.get("/protected", (c) => c.json({ user: c.get("user") }));
++  });
++
++  it("should return 401 when Authorization header is missing", async () => {
++    const res = await app.request("/protected");
++    expect(res.status).toBe(401);
++    const body = await res.json();
++    expect(body).toEqual({ error: "Authorization header required" });
++  });
++
++  it("should return 401 for non-Bearer authorization", async () => {
++    const res = await app.request("/protected", {
++      headers: { Authorization: "Basic abc123" },
++    });
++    expect(res.status).toBe(401);
++    const body = await res.json();
++    expect(body).toEqual({ error: "Invalid authorization format" });
++  });
++
++  it("should return 401 when Bearer token has extra parts", async () => {
++    const res = await app.request("/protected", {
++      headers: { Authorization: "Bearer token extra" },
++    });
++    expect(res.status).toBe(401);
++    const body = await res.json();
++    expect(body).toEqual({ error: "Invalid authorization format" });
++  });
++
++  it("should return 401 when token verification fails", async () => {
++    mockVerifyAccessToken.mockImplementation(() => {
++      throw new Error("invalid token");
++    });
++
++    const res = await app.request("/protected", {
++      headers: { Authorization: "Bearer bad-token" },
++    });
++    expect(res.status).toBe(401);
++    const body = await res.json();
++    expect(body).toEqual({ error: "Invalid or expired token" });
++  });
++
++  it("should set user on context and call next for valid token", async () => {
++    const payload = { sub: "user-1", email: "test@example.com" };
++    mockVerifyAccessToken.mockReturnValue(payload);
++
++    const res = await app.request("/protected", {
++      headers: { Authorization: "Bearer valid-token" },
++    });
++    expect(res.status).toBe(200);
++    const body = await res.json();
++    expect(body.user).toEqual(payload);
++    expect(mockVerifyAccessToken).toHaveBeenCalledWith("valid-token");
++  });
++
++  it("should return 401 for Authorization header with only 'Bearer'", async () => {
++    const res = await app.request("/protected", {
++      headers: { Authorization: "Bearer" },
++    });
++    expect(res.status).toBe(401);
++    const body = await res.json();
++    expect(body).toEqual({ error: "Invalid authorization format" });
++  });
++});
+diff --git a/packages/api/tests/openapi.test.ts b/packages/api/tests/openapi.test.ts
+index 9284231..e9d2e06 100644
+--- a/packages/api/tests/openapi.test.ts
++++ b/packages/api/tests/openapi.test.ts
+@@ -82,6 +82,16 @@ describe("GET /openapi.json", () => {
+     expect(spec.paths["/stores"].get).toBeDefined();
+   });
+ 
++  it("should document all auth endpoints", async () => {
++    const res = await openApiApp.request("/openapi.json");
++    const spec = await res.json();
++
++    expect(spec.paths["/auth/register"]).toBeDefined();
++    expect(spec.paths["/auth/login"]).toBeDefined();
++    expect(spec.paths["/auth/refresh"]).toBeDefined();
++    expect(spec.paths["/auth/logout"]).toBeDefined();
++  });
++
+   it("should include component schemas for EnvelopeResponse and Error", async () => {
+     const res = await openApiApp.request("/openapi.json");
+     const spec = await res.json();
+diff --git a/packages/api/tests/routes/auth.test.ts b/packages/api/tests/routes/auth.test.ts
+new file mode 100644
+index 0000000..5e2ca66
+--- /dev/null
++++ b/packages/api/tests/routes/auth.test.ts
+@@ -0,0 +1,684 @@
++import { describe, it, expect, vi, beforeEach } from "vitest";
++
++// ─── Mocks (hoisted before imports) ──────────────────────────────────────────
++
++const mockHashPassword = vi.fn();
++const mockVerifyPassword = vi.fn();
++vi.mock("../../src/lib/password.js", () => ({
++  hashPassword: (...args: unknown[]) => mockHashPassword(...args),
++  verifyPassword: (...args: unknown[]) => mockVerifyPassword(...args),
++}));
++
++const mockSignAccessToken = vi.fn();
++const mockSignRefreshToken = vi.fn();
++const mockVerifyRefreshToken = vi.fn();
++vi.mock("../../src/lib/jwt.js", () => ({
++  signAccessToken: (...args: unknown[]) => mockSignAccessToken(...args),
++  signRefreshToken: (...args: unknown[]) => mockSignRefreshToken(...args),
++  verifyRefreshToken: (...args: unknown[]) => mockVerifyRefreshToken(...args),
++}));
++
++const mockSendVerificationEmail = vi.fn();
++const mockSendPasswordResetEmail = vi.fn();
++vi.mock("../../src/lib/email.js", () => ({
++  sendVerificationEmail: (...args: unknown[]) => mockSendVerificationEmail(...args),
++  sendPasswordResetEmail: (...args: unknown[]) => mockSendPasswordResetEmail(...args),
++}));
++
++// DB mock
++let mockDbSelectResult: any[] = [];
++let mockDbInsertResult: any[] = [];
++let mockDbUpdateResult: any[] = [];
++
++function createSelectBuilder() {
++  const builder: any = {
++    from: () => builder,
++    where: () => builder,
++    limit: () => Promise.resolve(mockDbSelectResult),
++    then: (resolve: (v: any) => any, reject: (e: any) => any) =>
++      Promise.resolve(mockDbSelectResult).then(resolve, reject),
++  };
++  return builder;
++}
++
++const mockDb = {
++  select: vi.fn().mockReturnValue(createSelectBuilder()),
++  insert: vi.fn().mockReturnValue({
++    values: vi.fn().mockReturnValue({
++      returning: vi.fn().mockImplementation(() => Promise.resolve(mockDbInsertResult)),
++    }),
++  }),
++  update: vi.fn().mockReturnValue({
++    set: vi.fn().mockReturnValue({
++      where: vi.fn().mockImplementation(() => Promise.resolve(mockDbUpdateResult)),
++    }),
++  }),
++};
++
++const stubTable = (cols: Record<string, string>) => cols;
++
++vi.mock("@taad/db", () => ({
++  db: mockDb,
++  users: stubTable({
++    id: "id",
++    email: "email",
++    passwordHash: "passwordHash",
++    emailVerified: "emailVerified",
++    emailVerificationToken: "emailVerificationToken",
++    passwordResetToken: "passwordResetToken",
++    passwordResetExpires: "passwordResetExpires",
++  }),
++}));
++
++vi.mock("drizzle-orm", () => ({
++  eq: vi.fn((col: string, val: unknown) => ({ col, val })),
++}));
++
++// ─── App under test ───────────────────────────────────────────────────────────
++
++const { createAuthApp } = await import("../../src/routes/auth.js");
++
++// ─── Helpers ──────────────────────────────────────────────────────────────────
++
++function createMockRedis() {
++  return {
++    set: vi.fn().mockResolvedValue("OK"),
++    get: vi.fn().mockResolvedValue(null),
++    del: vi.fn().mockResolvedValue(1),
++    incr: vi.fn().mockResolvedValue(1),
++    expire: vi.fn().mockResolvedValue(1),
++  } as any;
++}
++
++function makeApp(redis: any = null) {
++  return createAuthApp(() => redis);
++}
++
++function jsonRequest(app: any, path: string, body?: any, opts: RequestInit = {}) {
++  return app.request(path, {
++    method: "POST",
++    headers: { "Content-Type": "application/json", ...opts.headers },
++    body: body ? JSON.stringify(body) : undefined,
++    ...opts,
++  });
++}
++
++// ─── Tests ────────────────────────────────────────────────────────────────────
++
++describe("createAuthApp", () => {
++  it("should return a Hono app", () => {
++    const app = makeApp();
++    expect(app).toBeDefined();
++    expect(typeof app.request).toBe("function");
++  });
++});
++
++describe("POST /register", () => {
++  beforeEach(() => {
++    vi.clearAllMocks();
++    mockDbSelectResult = [];
++    mockDbInsertResult = [{ id: "user-1", email: "test@example.com" }];
++    mockHashPassword.mockResolvedValue("hashed");
++    mockSignAccessToken.mockReturnValue("access-token");
++    mockSignRefreshToken.mockReturnValue("refresh-token");
++    mockSendVerificationEmail.mockResolvedValue(undefined);
++    mockDb.select.mockReturnValue(createSelectBuilder());
++    mockDb.insert.mockReturnValue({
++      values: vi.fn().mockReturnValue({
++        returning: vi.fn().mockImplementation(() => Promise.resolve(mockDbInsertResult)),
++      }),
++    });
++  });
++
++  it("should register a new user and return 201 with accessToken", async () => {
++    const app = makeApp();
++    const res = await jsonRequest(app, "/register", {
++      email: "test@example.com",
++      password: "securepassword",
++    });
++
++    expect(res.status).toBe(201);
++    const body = await res.json();
++    expect(body).toEqual({ accessToken: "access-token" });
++    expect(mockHashPassword).toHaveBeenCalledWith("securepassword");
++    expect(mockSendVerificationEmail).toHaveBeenCalled();
++  });
++
++  it("should return 400 for invalid input (missing password)", async () => {
++    const app = makeApp();
++    const res = await jsonRequest(app, "/register", { email: "test@example.com" });
++
++    expect(res.status).toBe(400);
++    const body = await res.json();
++    expect(body.error).toBe("Invalid input");
++    expect(body.details).toBeDefined();
++  });
++
++  it("should return 400 for invalid email", async () => {
++    const app = makeApp();
++    const res = await jsonRequest(app, "/register", {
++      email: "not-email",
++      password: "securepassword",
++    });
++
++    expect(res.status).toBe(400);
++    const body = await res.json();
++    expect(body.error).toBe("Invalid input");
++  });
++
++  it("should return 400 for short password", async () => {
++    const app = makeApp();
++    const res = await jsonRequest(app, "/register", {
++      email: "test@example.com",
++      password: "short",
++    });
++
++    expect(res.status).toBe(400);
++    const body = await res.json();
++    expect(body.error).toBe("Invalid input");
++  });
++
++  it("should return 400 when email already registered", async () => {
++    mockDbSelectResult = [{ id: "existing-user" }];
++    mockDb.select.mockReturnValue(createSelectBuilder());
++
++    const app = makeApp();
++    const res = await jsonRequest(app, "/register", {
++      email: "existing@example.com",
++      password: "securepassword",
++    });
++
++    expect(res.status).toBe(400);
++    const body = await res.json();
++    expect(body.error).toBe("Email already registered");
++  });
++
++  it("should store refresh token in Redis when available", async () => {
++    const redis = createMockRedis();
++    const app = makeApp(redis);
++    await jsonRequest(app, "/register", {
++      email: "test@example.com",
++      password: "securepassword",
++    });
++
++    expect(redis.set).toHaveBeenCalledWith(
++      "refresh:refresh-token",
++      "user-1",
++      "EX",
++      expect.any(Number),
++    );
++  });
++
++  it("should return 400 when user insert fails", async () => {
++    mockDbInsertResult = [];
++    mockDb.insert.mockReturnValue({
++      values: vi.fn().mockReturnValue({
++        returning: vi.fn().mockImplementation(() => Promise.resolve([])),
++      }),
++    });
++
++    const app = makeApp();
++    const res = await jsonRequest(app, "/register", {
++      email: "test@example.com",
++      password: "securepassword",
++    });
++
++    expect(res.status).toBe(400);
++    const body = await res.json();
++    expect(body.error).toBe("Failed to create user");
++  });
++});
++
++describe("POST /login", () => {
++  beforeEach(() => {
++    vi.clearAllMocks();
++    mockDbSelectResult = [
++      { id: "user-1", email: "test@example.com", passwordHash: "hashed" },
++    ];
++    mockVerifyPassword.mockResolvedValue(true);
++    mockSignAccessToken.mockReturnValue("access-token");
++    mockSignRefreshToken.mockReturnValue("refresh-token");
++    mockDb.select.mockReturnValue(createSelectBuilder());
++  });
++
++  it("should login and return 200 with accessToken", async () => {
++    const app = makeApp();
++    const res = await jsonRequest(app, "/login", {
++      email: "test@example.com",
++      password: "securepassword",
++    });
++
++    expect(res.status).toBe(200);
++    const body = await res.json();
++    expect(body).toEqual({ accessToken: "access-token" });
++  });
++
++  it("should return 400 for invalid input", async () => {
++    const app = makeApp();
++    const res = await jsonRequest(app, "/login", { email: "bad" });
++
++    expect(res.status).toBe(400);
++    const body = await res.json();
++    expect(body.error).toBe("Invalid input");
++  });
++
++  it("should return 401 when user not found", async () => {
++    mockDbSelectResult = [];
++    mockDb.select.mockReturnValue(createSelectBuilder());
++
++    const app = makeApp();
++    const res = await jsonRequest(app, "/login", {
++      email: "nouser@example.com",
++      password: "securepassword",
++    });
++
++    expect(res.status).toBe(401);
++    const body = await res.json();
++    expect(body.error).toBe("Invalid email or password");
++  });
++
++  it("should return 401 when password is invalid", async () => {
++    mockVerifyPassword.mockResolvedValue(false);
++
++    const app = makeApp();
++    const res = await jsonRequest(app, "/login", {
++      email: "test@example.com",
++      password: "wrongpassword",
++    });
++
++    expect(res.status).toBe(401);
++    const body = await res.json();
++    expect(body.error).toBe("Invalid email or password");
++  });
++
++  it("should return 401 when user has no passwordHash", async () => {
++    mockDbSelectResult = [{ id: "user-1", email: "test@example.com", passwordHash: null }];
++    mockDb.select.mockReturnValue(createSelectBuilder());
++
++    const app = makeApp();
++    const res = await jsonRequest(app, "/login", {
++      email: "test@example.com",
++      password: "securepassword",
++    });
++
++    expect(res.status).toBe(401);
++    const body = await res.json();
++    expect(body.error).toBe("Invalid email or password");
++  });
++
++  it("should store refresh token in Redis when available", async () => {
++    const redis = createMockRedis();
++    const app = makeApp(redis);
++    await jsonRequest(app, "/login", {
++      email: "test@example.com",
++      password: "securepassword",
++    });
++
++    expect(redis.set).toHaveBeenCalledWith(
++      "refresh:refresh-token",
++      "user-1",
++      "EX",
++      expect.any(Number),
++    );
++  });
++
++  it("should return 429 after too many login attempts (Redis)", async () => {
++    const redis = createMockRedis();
++    redis.get.mockResolvedValue("11");
++    const app = makeApp(redis);
++
++    const res = await jsonRequest(app, "/login", {
++      email: "test@example.com",
++      password: "securepassword",
++    });
++
++    expect(res.status).toBe(429);
++    const body = await res.json();
++    expect(body.error).toBe("Too many login attempts");
++  });
++
++  it("should set expire on first brute-force key in Redis", async () => {
++    mockVerifyPassword.mockResolvedValue(false);
++    const redis = createMockRedis();
++    redis.incr.mockResolvedValue(1);
++    const app = makeApp(redis);
++
++    await jsonRequest(app, "/login", {
++      email: "test@example.com",
++      password: "wrongpassword",
++    });
++
++    expect(redis.expire).toHaveBeenCalled();
++  });
++});
++
++describe("POST /refresh", () => {
++  beforeEach(() => {
++    vi.clearAllMocks();
++    mockDbSelectResult = [{ id: "user-1", email: "test@example.com" }];
++    mockVerifyRefreshToken.mockReturnValue({ sub: "user-1" });
++    mockSignAccessToken.mockReturnValue("new-access-token");
++    mockDb.select.mockReturnValue(createSelectBuilder());
++  });
++
++  it("should return 401 when refresh_token cookie is missing", async () => {
++    const app = makeApp();
++    const res = await app.request("/refresh", { method: "POST" });
++
++    expect(res.status).toBe(401);
++    const body = await res.json();
++    expect(body.error).toBe("Refresh token required");
++  });
++
++  it("should return 401 when refresh token verification fails", async () => {
++    mockVerifyRefreshToken.mockImplementation(() => {
++      throw new Error("expired");
++    });
++
++    const app = makeApp();
++    const res = await app.request("/refresh", {
++      method: "POST",
++      headers: { Cookie: "refresh_token=bad-token" },
++    });
++
++    expect(res.status).toBe(401);
++    const body = await res.json();
++    expect(body.error).toBe("Invalid or expired refresh token");
++  });
++
++  it("should return 401 when refresh token is revoked in Redis", async () => {
++    const redis = createMockRedis();
++    redis.get.mockResolvedValue(null);
++    const app = makeApp(redis);
++
++    const res = await app.request("/refresh", {
++      method: "POST",
++      headers: { Cookie: "refresh_token=revoked-token" },
++    });
++
++    expect(res.status).toBe(401);
++    const body = await res.json();
++    expect(body.error).toBe("Refresh token revoked");
++  });
++
++  it("should return new access token for valid refresh", async () => {
++    const redis = createMockRedis();
++    redis.get.mockResolvedValue("user-1");
++    const app = makeApp(redis);
++
++    const res = await app.request("/refresh", {
++      method: "POST",
++      headers: { Cookie: "refresh_token=valid-token" },
++    });
++
++    expect(res.status).toBe(200);
++    const body = await res.json();
++    expect(body).toEqual({ accessToken: "new-access-token" });
++  });
++
++  it("should return 401 when user not found", async () => {
++    mockDbSelectResult = [];
++    mockDb.select.mockReturnValue(createSelectBuilder());
++
++    const app = makeApp();
++    const res = await app.request("/refresh", {
++      method: "POST",
++      headers: { Cookie: "refresh_token=valid-token" },
++    });
++
++    expect(res.status).toBe(401);
++    const body = await res.json();
++    expect(body.error).toBe("User not found");
++  });
++
++  it("should succeed without Redis (no revocation check)", async () => {
++    const app = makeApp(null);
++
++    const res = await app.request("/refresh", {
++      method: "POST",
++      headers: { Cookie: "refresh_token=valid-token" },
++    });
++
++    expect(res.status).toBe(200);
++    const body = await res.json();
++    expect(body).toEqual({ accessToken: "new-access-token" });
++  });
++});
++
++describe("POST /logout", () => {
++  beforeEach(() => {
++    vi.clearAllMocks();
++  });
++
++  it("should return 200 and delete refresh cookie", async () => {
++    const app = makeApp();
++    const res = await app.request("/logout", {
++      method: "POST",
++      headers: { Cookie: "refresh_token=some-token" },
++    });
++
++    expect(res.status).toBe(200);
++    const body = await res.json();
++    expect(body).toEqual({ message: "Logged out" });
++  });
++
++  it("should delete refresh token from Redis when available", async () => {
++    const redis = createMockRedis();
++    const app = makeApp(redis);
++
++    await app.request("/logout", {
++      method: "POST",
++      headers: { Cookie: "refresh_token=some-token" },
++    });
++
++    expect(redis.del).toHaveBeenCalledWith("refresh:some-token");
++  });
++
++  it("should succeed even without refresh_token cookie", async () => {
++    const app = makeApp();
++    const res = await app.request("/logout", { method: "POST" });
++
++    expect(res.status).toBe(200);
++    const body = await res.json();
++    expect(body).toEqual({ message: "Logged out" });
++  });
++});
++
++describe("POST /forgot-password", () => {
++  beforeEach(() => {
++    vi.clearAllMocks();
++    mockSendPasswordResetEmail.mockResolvedValue(undefined);
++    mockDb.select.mockReturnValue(createSelectBuilder());
++    mockDb.update.mockReturnValue({
++      set: vi.fn().mockReturnValue({
++        where: vi.fn().mockImplementation(() => Promise.resolve(mockDbUpdateResult)),
++      }),
++    });
++  });
++
++  it("should return 400 for invalid input", async () => {
++    const app = makeApp();
++    const res = await jsonRequest(app, "/forgot-password", { email: "bad" });
++
++    expect(res.status).toBe(400);
++    const body = await res.json();
++    expect(body.error).toBe("Invalid input");
++  });
++
++  it("should return 200 even when user does not exist (prevent enumeration)", async () => {
++    mockDbSelectResult = [];
++    mockDb.select.mockReturnValue(createSelectBuilder());
++
++    const app = makeApp();
++    const res = await jsonRequest(app, "/forgot-password", {
++      email: "nouser@example.com",
++    });
++
++    expect(res.status).toBe(200);
++    const body = await res.json();
++    expect(body.message).toBe("If the email exists, a reset link has been sent");
++    expect(mockSendPasswordResetEmail).not.toHaveBeenCalled();
++  });
++
++  it("should send password reset email when user exists", async () => {
++    mockDbSelectResult = [{ id: "user-1" }];
++    mockDb.select.mockReturnValue(createSelectBuilder());
++
++    const app = makeApp();
++    const res = await jsonRequest(app, "/forgot-password", {
++      email: "test@example.com",
++    });
++
++    expect(res.status).toBe(200);
++    expect(mockSendPasswordResetEmail).toHaveBeenCalledWith(
++      "test@example.com",
++      expect.any(String),
++    );
++  });
++});
++
++describe("POST /reset-password", () => {
++  beforeEach(() => {
++    vi.clearAllMocks();
++    mockHashPassword.mockResolvedValue("new-hash");
++    mockDb.select.mockReturnValue(createSelectBuilder());
++    mockDb.update.mockReturnValue({
++      set: vi.fn().mockReturnValue({
++        where: vi.fn().mockImplementation(() => Promise.resolve(mockDbUpdateResult)),
++      }),
++    });
++  });
++
++  it("should return 400 for invalid input", async () => {
++    const app = makeApp();
++    const res = await jsonRequest(app, "/reset-password", { token: "" });
++
++    expect(res.status).toBe(400);
++    const body = await res.json();
++    expect(body.error).toBe("Invalid input");
++  });
++
++  it("should return 400 when token not found", async () => {
++    mockDbSelectResult = [];
++    mockDb.select.mockReturnValue(createSelectBuilder());
++
++    const app = makeApp();
++    const res = await jsonRequest(app, "/reset-password", {
++      token: "bad-token",
++      password: "newpassword",
++    });
++
++    expect(res.status).toBe(400);
++    const body = await res.json();
++    expect(body.error).toBe("Invalid or expired reset token");
++  });
++
++  it("should return 400 when token is expired", async () => {
++    mockDbSelectResult = [
++      {
++        id: "user-1",
++        passwordResetToken: "valid-token",
++        passwordResetExpires: new Date(Date.now() - 1000),
++      },
++    ];
++    mockDb.select.mockReturnValue(createSelectBuilder());
++
++    const app = makeApp();
++    const res = await jsonRequest(app, "/reset-password", {
++      token: "valid-token",
++      password: "newpassword",
++    });
++
++    expect(res.status).toBe(400);
++    const body = await res.json();
++    expect(body.error).toBe("Invalid or expired reset token");
++  });
++
++  it("should return 400 when passwordResetExpires is null", async () => {
++    mockDbSelectResult = [
++      {
++        id: "user-1",
++        passwordResetToken: "valid-token",
++        passwordResetExpires: null,
++      },
++    ];
++    mockDb.select.mockReturnValue(createSelectBuilder());
++
++    const app = makeApp();
++    const res = await jsonRequest(app, "/reset-password", {
++      token: "valid-token",
++      password: "newpassword",
++    });
++
++    expect(res.status).toBe(400);
++    const body = await res.json();
++    expect(body.error).toBe("Invalid or expired reset token");
++  });
++
++  it("should reset password successfully", async () => {
++    mockDbSelectResult = [
++      {
++        id: "user-1",
++        passwordResetToken: "valid-token",
++        passwordResetExpires: new Date(Date.now() + 60000),
++      },
++    ];
++    mockDb.select.mockReturnValue(createSelectBuilder());
++
++    const app = makeApp();
++    const res = await jsonRequest(app, "/reset-password", {
++      token: "valid-token",
++      password: "newpassword",
++    });
++
++    expect(res.status).toBe(200);
++    const body = await res.json();
++    expect(body.message).toBe("Password reset successfully");
++    expect(mockHashPassword).toHaveBeenCalledWith("newpassword");
++  });
++});
++
++describe("GET /verify-email", () => {
++  beforeEach(() => {
++    vi.clearAllMocks();
++    mockDb.select.mockReturnValue(createSelectBuilder());
++    mockDb.update.mockReturnValue({
++      set: vi.fn().mockReturnValue({
++        where: vi.fn().mockImplementation(() => Promise.resolve(mockDbUpdateResult)),
++      }),
++    });
++  });
++
++  it("should return 400 when token query param is missing", async () => {
++    const app = makeApp();
++    const res = await app.request("/verify-email");
++
++    expect(res.status).toBe(400);
++    const body = await res.json();
++    expect(body.error).toBe("Token is required");
++  });
++
++  it("should return 400 when verification token is invalid", async () => {
++    mockDbSelectResult = [];
++    mockDb.select.mockReturnValue(createSelectBuilder());
++
++    const app = makeApp();
++    const res = await app.request("/verify-email?token=bad-token");
++
++    expect(res.status).toBe(400);
++    const body = await res.json();
++    expect(body.error).toBe("Invalid verification token");
++  });
++
++  it("should verify email successfully", async () => {
++    mockDbSelectResult = [{ id: "user-1" }];
++    mockDb.select.mockReturnValue(createSelectBuilder());
++
++    const app = makeApp();
++    const res = await app.request("/verify-email?token=valid-token");
++
++    expect(res.status).toBe(200);
++    const body = await res.json();
++    expect(body.message).toBe("Email verified successfully");
++  });
++});
+diff --git a/packages/api/tests/routes/wishlist.test.ts b/packages/api/tests/routes/wishlist.test.ts
+new file mode 100644
+index 0000000..49310bb
+--- /dev/null
++++ b/packages/api/tests/routes/wishlist.test.ts
+@@ -0,0 +1,517 @@
++import { describe, it, expect, vi, beforeEach } from "vitest";
++import { Hono } from "hono";
++
++// ─── Mocks (hoisted before imports) ──────────────────────────────────────────
++
++let mockSelectResult: any[] = [];
++let mockInsertResult: any[] = [];
++let mockDeleteResult: any[] = [];
++
++function createSelectBuilder(getResult?: () => any[]) {
++  const builder: any = {
++    from: () => builder,
++    where: () => builder,
++    orderBy: () => builder,
++    limit: () => builder,
++    offset: () => Promise.resolve(getResult ? getResult() : mockSelectResult),
++    innerJoin: () => builder,
++    leftJoin: () => builder,
++    then: (resolve: (v: any) => any, reject: (e: any) => any) =>
++      Promise.resolve(getResult ? getResult() : mockSelectResult).then(resolve, reject),
++  };
++  return builder;
++}
++
++function createInsertBuilder() {
++  const builder: any = {
++    values: () => builder,
++    onConflictDoNothing: () => builder,
++    returning: () => Promise.resolve(mockInsertResult),
++    then: (resolve: (v: any) => any, reject: (e: any) => any) =>
++      Promise.resolve(mockInsertResult).then(resolve, reject),
++  };
++  return builder;
++}
++
++function createDeleteBuilder() {
++  const builder: any = {
++    where: () => builder,
++    returning: () => Promise.resolve(mockDeleteResult),
++    then: (resolve: (v: any) => any, reject: (e: any) => any) =>
++      Promise.resolve(mockDeleteResult).then(resolve, reject),
++  };
++  return builder;
++}
++
++const mockDb = {
++  select: vi.fn(() => createSelectBuilder()),
++  insert: vi.fn(() => createInsertBuilder()),
++  delete: vi.fn(() => createDeleteBuilder()),
++};
++const stubTable = (cols: Record<string, string>) => cols;
++
++vi.mock("@taad/db", () => ({
++  db: mockDb,
++  wishlists: stubTable({ id: "id", userId: "userId", gameId: "gameId", source: "source", createdAt: "createdAt" }),
++  games: stubTable({ id: "id", title: "title", slug: "slug", headerImageUrl: "headerImageUrl" }),
++  stores: stubTable({ id: "id", name: "name", logoUrl: "logoUrl" }),
++  storeListings: stubTable({ id: "id", gameId: "gameId", storeId: "storeId", storeUrl: "storeUrl", isActive: "isActive" }),
++  priceHistory: stubTable({ id: "id", storeListingId: "storeListingId", price: "price", originalPrice: "originalPrice", discount: "discount", recordedAt: "recordedAt" }),
++  priceAlerts: stubTable({ id: "id", userId: "userId", gameId: "gameId", isActive: "isActive" }),
++}));
++
++// ─── App under test ───────────────────────────────────────────────────────────
++
++const { createWishlistApp } = await import("../../src/routes/wishlist.js");
++
++const TEST_USER_ID = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee";
++const TEST_GAME_ID = "550e8400-e29b-41d4-a716-446655440000";
++
++function buildTestApp() {
++  const outer = new Hono();
++  outer.use("*", async (c, next) => {
++    c.set("user", { sub: TEST_USER_ID });
++    await next();
++  });
++  outer.route("/", createWishlistApp());
++  return outer;
++}
++
++const app = buildTestApp();
++
++// ─── Tests ────────────────────────────────────────────────────────────────────
++
++describe("createWishlistApp", () => {
++  it("should return a Hono app", () => {
++    const wishlistApp = createWishlistApp();
++    expect(wishlistApp).toBeDefined();
++    expect(typeof wishlistApp.request).toBe("function");
++  });
++});
++
++describe("GET / (paginated wishlist)", () => {
++  beforeEach(() => {
++    vi.clearAllMocks();
++    mockSelectResult = [];
++    mockInsertResult = [];
++    mockDeleteResult = [];
++  });
++
++  it("should return 200 with envelope response for empty wishlist", async () => {
++    let callCount = 0;
++    mockDb.select.mockImplementation(() => {
++      callCount++;
++      const isCountQuery = callCount === 1;
++      const result = isCountQuery ? [{ total: 0 }] : [];
++      return createSelectBuilder(() => result);
++    });
++
++    const res = await app.request("/");
++    expect(res.status).toBe(200);
++
++    const body = await res.json();
++    expect(body).toHaveProperty("data");
++    expect(body).toHaveProperty("meta");
++    expect(body.data).toEqual([]);
++    expect(body.meta.total).toBe(0);
++    expect(body.meta.page).toBe(1);
++    expect(body.meta.limit).toBe(24);
++    expect(body.meta.hasNext).toBe(false);
++  });
++
++  it("should return 200 with wishlist data", async () => {
++    const wishlistItem = {
++      wishlistId: "w1",
++      gameId: TEST_GAME_ID,
++      gameTitle: "Cool Game",
++      gameSlug: "cool-game",
++      headerImageUrl: "https://example.com/img.jpg",
++      source: "manual",
++      addedAt: "2025-01-01T00:00:00Z",
++      storeName: "Steam",
++      storeLogoUrl: "https://steam.com/logo.png",
++      currentPriceCents: "999",
++      originalPriceCents: "1999",
++      discountPercent: "50",
++      buyUrl: "https://steam.com/game",
++    };
++    let callCount = 0;
++    mockDb.select.mockImplementation(() => {
++      callCount++;
++      const isCountQuery = callCount === 1;
++      const result = isCountQuery ? [{ total: 1 }] : [wishlistItem];
++      return createSelectBuilder(() => result);
++    });
++
++    const res = await app.request("/");
++    expect(res.status).toBe(200);
++
++    const body = await res.json();
++    expect(body.data).toEqual([wishlistItem]);
++    expect(body.meta.total).toBe(1);
++    expect(body.meta.page).toBe(1);
++  });
++
++  it("should accept pagination params", async () => {
++    let callCount = 0;
++    mockDb.select.mockImplementation(() => {
++      callCount++;
++      const isCountQuery = callCount === 1;
++      const result = isCountQuery ? [{ total: 0 }] : [];
++      return createSelectBuilder(() => result);
++    });
++
++    const res = await app.request("/?page=2&limit=10");
++    expect(res.status).toBe(200);
++
++    const body = await res.json();
++    expect(body.meta.page).toBe(2);
++    expect(body.meta.limit).toBe(10);
++  });
++
++  it("should use default limit of 24", async () => {
++    let callCount = 0;
++    mockDb.select.mockImplementation(() => {
++      callCount++;
++      const isCountQuery = callCount === 1;
++      const result = isCountQuery ? [{ total: 0 }] : [];
++      return createSelectBuilder(() => result);
++    });
++
++    const res = await app.request("/");
++    expect(res.status).toBe(200);
++
++    const body = await res.json();
++    expect(body.meta.limit).toBe(24);
++  });
++
++  it("should return 400 for invalid pagination (negative page)", async () => {
++    const res = await app.request("/?page=-1");
++    expect(res.status).toBe(400);
++
++    const body = await res.json();
++    expect(body).toHaveProperty("error", "Invalid query parameters");
++    expect(body).toHaveProperty("details");
++  });
++
++  it("should return 400 for limit exceeding max (101)", async () => {
++    const res = await app.request("/?limit=101");
++    expect(res.status).toBe(400);
++
++    const body = await res.json();
++    expect(body).toHaveProperty("error", "Invalid query parameters");
++  });
++
++  it("should return 400 for page of 0", async () => {
++    const res = await app.request("/?page=0");
++    expect(res.status).toBe(400);
++  });
++
++  it("should compute hasNext correctly when more pages exist", async () => {
++    let callCount = 0;
++    mockDb.select.mockImplementation(() => {
++      callCount++;
++      const isCountQuery = callCount === 1;
++      const items = Array.from({ length: 10 }, (_, i) => ({ wishlistId: `w${i}` }));
++      const result = isCountQuery ? [{ total: 25 }] : items;
++      return createSelectBuilder(() => result);
++    });
++
++    const res = await app.request("/?page=1&limit=10");
++    expect(res.status).toBe(200);
++
++    const body = await res.json();
++    expect(body.meta.hasNext).toBe(true);
++  });
++
++  it("should compute hasNext as false on last page", async () => {
++    let callCount = 0;
++    mockDb.select.mockImplementation(() => {
++      callCount++;
++      const isCountQuery = callCount === 1;
++      const items = [{ wishlistId: "w1" }];
++      const result = isCountQuery ? [{ total: 5 }] : items;
++      return createSelectBuilder(() => result);
++    });
++
++    const res = await app.request("/?page=1&limit=10");
++    expect(res.status).toBe(200);
++
++    const body = await res.json();
++    expect(body.meta.hasNext).toBe(false);
++  });
++});
++
++describe("POST / (add to wishlist)", () => {
++  beforeEach(() => {
++    vi.clearAllMocks();
++    mockSelectResult = [];
++    mockInsertResult = [];
++    mockDeleteResult = [];
++  });
++
++  it("should return 201 with entry and hasPriceAlert false when no alert exists", async () => {
++    const entry = { id: "w1", userId: TEST_USER_ID, gameId: TEST_GAME_ID, source: "manual" };
++    mockInsertResult = [entry];
++    mockSelectResult = [];
++    mockDb.insert.mockReturnValue(createInsertBuilder());
++    mockDb.select.mockReturnValue(createSelectBuilder());
++
++    const res = await app.request("/", {
++      method: "POST",
++      headers: { "Content-Type": "application/json" },
++      body: JSON.stringify({ gameId: TEST_GAME_ID }),
++    });
++    expect(res.status).toBe(201);
++
++    const body = await res.json();
++    expect(body.entry).toEqual(entry);
++    expect(body.hasPriceAlert).toBe(false);
++  });
++
++  it("should return 201 with hasPriceAlert true when an active alert exists", async () => {
++    const entry = { id: "w1", userId: TEST_USER_ID, gameId: TEST_GAME_ID, source: "manual" };
++    mockInsertResult = [entry];
++    mockSelectResult = [{ id: "alert-1" }];
++    mockDb.insert.mockReturnValue(createInsertBuilder());
++    mockDb.select.mockReturnValue(createSelectBuilder());
++
++    const res = await app.request("/", {
++      method: "POST",
++      headers: { "Content-Type": "application/json" },
++      body: JSON.stringify({ gameId: TEST_GAME_ID }),
++    });
++    expect(res.status).toBe(201);
++
++    const body = await res.json();
++    expect(body.entry).toEqual(entry);
++    expect(body.hasPriceAlert).toBe(true);
++  });
++
++  it("should return 400 for missing gameId", async () => {
++    const res = await app.request("/", {
++      method: "POST",
++      headers: { "Content-Type": "application/json" },
++      body: JSON.stringify({}),
++    });
++    expect(res.status).toBe(400);
++
++    const body = await res.json();
++    expect(body).toHaveProperty("error", "Invalid request body");
++    expect(body).toHaveProperty("details");
++  });
++
++  it("should return 400 for non-UUID gameId", async () => {
++    const res = await app.request("/", {
++      method: "POST",
++      headers: { "Content-Type": "application/json" },
++      body: JSON.stringify({ gameId: "not-a-uuid" }),
++    });
++    expect(res.status).toBe(400);
++
++    const body = await res.json();
++    expect(body).toHaveProperty("error", "Invalid request body");
++  });
++
++  it("should return 400 for empty string gameId", async () => {
++    const res = await app.request("/", {
++      method: "POST",
++      headers: { "Content-Type": "application/json" },
++      body: JSON.stringify({ gameId: "" }),
++    });
++    expect(res.status).toBe(400);
++  });
++
++  it("should call db.insert with correct table", async () => {
++    const entry = { id: "w1", userId: TEST_USER_ID, gameId: TEST_GAME_ID, source: "manual" };
++    mockInsertResult = [entry];
++    mockSelectResult = [];
++    mockDb.insert.mockReturnValue(createInsertBuilder());
++    mockDb.select.mockReturnValue(createSelectBuilder());
++
++    await app.request("/", {
++      method: "POST",
++      headers: { "Content-Type": "application/json" },
++      body: JSON.stringify({ gameId: TEST_GAME_ID }),
++    });
++
++    expect(mockDb.insert).toHaveBeenCalled();
++  });
++});
++
++describe("DELETE /:gameId (remove from wishlist)", () => {
++  beforeEach(() => {
++    vi.clearAllMocks();
++    mockSelectResult = [];
++    mockInsertResult = [];
++    mockDeleteResult = [];
++  });
++
++  it("should return 204 when entry is successfully deleted", async () => {
++    const deleted = { id: "w1", userId: TEST_USER_ID, gameId: TEST_GAME_ID };
++    mockDeleteResult = [deleted];
++    mockDb.delete.mockReturnValue(createDeleteBuilder());
++
++    const res = await app.request(`/${TEST_GAME_ID}`, { method: "DELETE" });
++    expect(res.status).toBe(204);
++  });
++
++  it("should return 404 when entry does not exist", async () => {
++    mockDeleteResult = [];
++    mockDb.delete.mockReturnValue(createDeleteBuilder());
++
++    const res = await app.request(`/${TEST_GAME_ID}`, { method: "DELETE" });
++    expect(res.status).toBe(404);
++
++    const body = await res.json();
++    expect(body).toEqual({ error: "Wishlist entry not found" });
++  });
++
++  it("should call db.delete", async () => {
++    mockDeleteResult = [{ id: "w1" }];
++    mockDb.delete.mockReturnValue(createDeleteBuilder());
++
++    await app.request(`/${TEST_GAME_ID}`, { method: "DELETE" });
++    expect(mockDb.delete).toHaveBeenCalled();
++  });
++
++  it("should return empty body on 204", async () => {
++    mockDeleteResult = [{ id: "w1" }];
++    mockDb.delete.mockReturnValue(createDeleteBuilder());
++
++    const res = await app.request(`/${TEST_GAME_ID}`, { method: "DELETE" });
++    expect(res.status).toBe(204);
++
++    const text = await res.text();
++    expect(text).toBe("");
++  });
++});
++
++describe("GET /deals (wishlist items on sale)", () => {
++  beforeEach(() => {
++    vi.clearAllMocks();
++    mockSelectResult = [];
++    mockInsertResult = [];
++    mockDeleteResult = [];
++  });
++
++  it("should return 200 with envelope response for empty deals", async () => {
++    let callCount = 0;
++    mockDb.select.mockImplementation(() => {
++      callCount++;
++      const isCountQuery = callCount === 1;
++      const result = isCountQuery ? [{ total: 0 }] : [];
++      return createSelectBuilder(() => result);
++    });
++
++    const res = await app.request("/deals");
++    expect(res.status).toBe(200);
++
++    const body = await res.json();
++    expect(body).toHaveProperty("data");
++    expect(body).toHaveProperty("meta");
++    expect(body.data).toEqual([]);
++    expect(body.meta.total).toBe(0);
++  });
++
++  it("should return 200 with on-sale wishlist items", async () => {
++    const deal = {
++      wishlistId: "w1",
++      gameId: TEST_GAME_ID,
++      gameTitle: "On Sale Game",
++      gameSlug: "on-sale-game",
++      headerImageUrl: "https://example.com/img.jpg",
++      source: "manual",
++      addedAt: "2025-01-01T00:00:00Z",
++      storeName: "Steam",
++      storeLogoUrl: "https://steam.com/logo.png",
++      currentPriceCents: "999",
++      originalPriceCents: "1999",
++      discountPercent: "50",
++      buyUrl: "https://steam.com/game",
++    };
++    let callCount = 0;
++    mockDb.select.mockImplementation(() => {
++      callCount++;
++      const isCountQuery = callCount === 1;
++      const result = isCountQuery ? [{ total: 1 }] : [deal];
++      return createSelectBuilder(() => result);
++    });
++
++    const res = await app.request("/deals");
++    expect(res.status).toBe(200);
++
++    const body = await res.json();
++    expect(body.data).toEqual([deal]);
++    expect(body.meta.total).toBe(1);
++    expect(body.meta.page).toBe(1);
++  });
++
++  it("should accept pagination params", async () => {
++    let callCount = 0;
++    mockDb.select.mockImplementation(() => {
++      callCount++;
++      const isCountQuery = callCount === 1;
++      const result = isCountQuery ? [{ total: 0 }] : [];
++      return createSelectBuilder(() => result);
++    });
++
++    const res = await app.request("/deals?page=3&limit=5");
++    expect(res.status).toBe(200);
++
++    const body = await res.json();
++    expect(body.meta.page).toBe(3);
++    expect(body.meta.limit).toBe(5);
++  });
++
++  it("should use default limit of 24 for deals", async () => {
++    let callCount = 0;
++    mockDb.select.mockImplementation(() => {
++      callCount++;
++      const isCountQuery = callCount === 1;
++      const result = isCountQuery ? [{ total: 0 }] : [];
++      return createSelectBuilder(() => result);
++    });
++
++    const res = await app.request("/deals");
++    expect(res.status).toBe(200);
++
++    const body = await res.json();
++    expect(body.meta.limit).toBe(24);
++  });
++
++  it("should return 400 for invalid pagination on deals", async () => {
++    const res = await app.request("/deals?page=-1");
++    expect(res.status).toBe(400);
++
++    const body = await res.json();
++    expect(body).toHaveProperty("error", "Invalid query parameters");
++    expect(body).toHaveProperty("details");
++  });
++
++  it("should return 400 for limit exceeding max on deals", async () => {
++    const res = await app.request("/deals?limit=101");
++    expect(res.status).toBe(400);
++
++    const body = await res.json();
++    expect(body).toHaveProperty("error", "Invalid query parameters");
++  });
++
++  it("should compute hasNext correctly for deals", async () => {
++    let callCount = 0;
++    mockDb.select.mockImplementation(() => {
++      callCount++;
++      const isCountQuery = callCount === 1;
++      const items = Array.from({ length: 5 }, (_, i) => ({ wishlistId: `w${i}` }));
++      const result = isCountQuery ? [{ total: 20 }] : items;
++      return createSelectBuilder(() => result);
++    });
++
++    const res = await app.request("/deals?page=1&limit=5");
++    expect(res.status).toBe(200);
++
++    const body = await res.json();
++    expect(body.meta.hasNext).toBe(true);
++    expect(body.meta.total).toBe(20);
++  });
++});
+diff --git a/packages/db/src/schema.ts b/packages/db/src/schema.ts
+index 8ee674a..7d91de8 100644
+--- a/packages/db/src/schema.ts
++++ b/packages/db/src/schema.ts
+@@ -73,19 +73,37 @@ export const users = pgTable("users", {
+   id: uuid("id").defaultRandom().primaryKey(),
+   email: varchar("email", { length: 255 }).notNull().unique(),
+   name: varchar("name", { length: 255 }),
++  passwordHash: text("password_hash"),
++  emailVerified: boolean("email_verified").default(false).notNull(),
++  emailVerificationToken: text("email_verification_token"),
++  passwordResetToken: text("password_reset_token"),
++  passwordResetExpires: timestamp("password_reset_expires"),
+   steamId: varchar("steam_id", { length: 100 }),
+   steamAccessToken: text("steam_access_token"),
+   createdAt: timestamp("created_at").defaultNow().notNull(),
+   updatedAt: timestamp("updated_at").defaultNow().notNull(),
+ });
+ 
++// ─── Refresh Tokens ───────────────────────────────────────────────────────────
++export const refreshTokens = pgTable("refresh_tokens", {
++  id: uuid("id").defaultRandom().primaryKey(),
++  userId: uuid("user_id").references(() => users.id).notNull(),
++  token: text("token").notNull().unique(),
++  expiresAt: timestamp("expires_at").notNull(),
++  revokedAt: timestamp("revoked_at"),
++  createdAt: timestamp("created_at").defaultNow().notNull(),
++});
++
+ // ─── Wishlists ────────────────────────────────────────────────────────────────
+ export const wishlists = pgTable("wishlists", {
+   id: uuid("id").defaultRandom().primaryKey(),
+   userId: uuid("user_id").references(() => users.id).notNull(),
+   gameId: uuid("game_id").references(() => games.id).notNull(),
++  source: varchar("source", { length: 50 }).default("manual").notNull(),
+   createdAt: timestamp("created_at").defaultNow().notNull(),
+-});
++}, (t) => [
++  unique().on(t.userId, t.gameId),
++]);
+ 
+ // ─── Price Alerts ─────────────────────────────────────────────────────────────
+ export const priceAlerts = pgTable("price_alerts", {
+diff --git a/packages/db/tests/schema.test.ts b/packages/db/tests/schema.test.ts
+index 514f983..c8d4031 100644
+--- a/packages/db/tests/schema.test.ts
++++ b/packages/db/tests/schema.test.ts
+@@ -6,6 +6,7 @@ import {
+   storeListings,
+   priceHistory,
+   users,
++  refreshTokens,
+   wishlists,
+   priceAlerts,
+   alertNotifications,
+@@ -119,6 +120,11 @@ describe("schema", () => {
+       expect(columns).toContain("id");
+       expect(columns).toContain("email");
+       expect(columns).toContain("name");
++      expect(columns).toContain("passwordHash");
++      expect(columns).toContain("emailVerified");
++      expect(columns).toContain("emailVerificationToken");
++      expect(columns).toContain("passwordResetToken");
++      expect(columns).toContain("passwordResetExpires");
+       expect(columns).toContain("steamId");
+       expect(columns).toContain("steamAccessToken");
+       expect(columns).toContain("createdAt");
+@@ -130,6 +136,26 @@ describe("schema", () => {
+     });
+   });
+ 
++  describe("refreshTokens", () => {
++    it("should export the refreshTokens table", () => {
++      expect(refreshTokens).toBeDefined();
++    });
++
++    it("should have the correct columns", () => {
++      const columns = Object.keys(refreshTokens);
++      expect(columns).toContain("id");
++      expect(columns).toContain("userId");
++      expect(columns).toContain("token");
++      expect(columns).toContain("expiresAt");
++      expect(columns).toContain("revokedAt");
++      expect(columns).toContain("createdAt");
++    });
++
++    it("should have the correct table name", () => {
++      expect(getTableName(refreshTokens)).toBe("refresh_tokens");
++    });
++  });
++
+   describe("wishlists", () => {
+     it("should export the wishlists table", () => {
+       expect(wishlists).toBeDefined();
+@@ -140,6 +166,7 @@ describe("schema", () => {
+       expect(columns).toContain("id");
+       expect(columns).toContain("userId");
+       expect(columns).toContain("gameId");
++      expect(columns).toContain("source");
+       expect(columns).toContain("createdAt");
+     });
+ 
+diff --git a/pnpm-lock.yaml b/pnpm-lock.yaml
+index d3face8..685fb39 100644
+--- a/pnpm-lock.yaml
++++ b/pnpm-lock.yaml
+@@ -50,6 +50,9 @@ importers:
+       '@taad/db':
+         specifier: workspace:*
+         version: link:../db
++      bcryptjs:
++        specifier: ^2.4.3
++        version: 2.4.3
+       drizzle-orm:
+         specifier: ^0.39.0
+         version: 0.39.3(@neondatabase/serverless@0.10.4)(@types/pg@8.11.6)(postgres@3.4.8)
+@@ -59,10 +62,19 @@ importers:
+       ioredis:
+         specifier: ^5.0.0
+         version: 5.9.3
++      jsonwebtoken:
++        specifier: ^9.0.0
++        version: 9.0.3
+       zod:
+         specifier: ^3.24.0
+         version: 3.25.76
+     devDependencies:
++      '@types/bcryptjs':
++        specifier: ^2.4.0
++        version: 2.4.6
++      '@types/jsonwebtoken':
++        specifier: ^9.0.0
++        version: 9.0.10
+       '@types/node':
+         specifier: ^22.0.0
+         version: 22.19.11
+@@ -1534,12 +1546,21 @@ packages:
+     peerDependencies:
+       react: ^18 || ^19
+ 
++  '@types/bcryptjs@2.4.6':
++    resolution: {integrity: sha512-9xlo6R2qDs5uixm0bcIqCeMCE6HiQsIyel9KQySStiyqNl2tnj2mP3DX1Nf56MD6KMenNNlBBsy3LJ7gUEQPXQ==}
++
+   '@types/estree@1.0.8':
+     resolution: {integrity: sha512-dWHzHa2WqEXI/O1E9OjrocMTKJl2mSrEolh1Iomrv6U+JuNwaHXsXx9bLu5gG7BUWFIN0skIQJQ/L1rIex4X6w==}
+ 
+   '@types/json-schema@7.0.15':
+     resolution: {integrity: sha512-5+fP8P8MFNC+AyZCDxrB2pkZFPGzqQWUzpSeuuVLvm8VMcorNYavBqoFcxK8bQz4Qsbn4oUEEem4wDLfcysGHA==}
+ 
++  '@types/jsonwebtoken@9.0.10':
++    resolution: {integrity: sha512-asx5hIG9Qmf/1oStypjanR7iKTv0gXQ1Ov/jfrX6kS/EO0OFni8orbmGCn0672NHR3kXHwpAwR+B368ZGN/2rA==}
++
++  '@types/ms@2.1.0':
++    resolution: {integrity: sha512-GsCCIZDE/p3i96vtEqx+7dBUGXrc7zeSK3wwPHIaRThS+9OhWIXRqzs4d6k1SVU8g91DrNRWxWUGhp5KXQb2VA==}
++
+   '@types/node@22.19.11':
+     resolution: {integrity: sha512-BH7YwL6rA93ReqeQS1c4bsPpcfOmJasG+Fkr6Y59q83f9M1WcBRHR2vM+P9eOisYRcN3ujQoiZY8uk5W+1WL8w==}
+ 
+@@ -1677,6 +1698,9 @@ packages:
+     resolution: {integrity: sha512-BLrgEcRTwX2o6gGxGOCNyMvGSp35YofuYzw9h1IMTRmKqttAZZVU67bdb9Pr2vUHA8+j3i2tJfjO6C6+4myGTA==}
+     engines: {node: 18 || 20 || >=22}
+ 
++  bcryptjs@2.4.3:
++    resolution: {integrity: sha512-V/Hy/X9Vt7f3BbPJEi8BdVFMByHi+jNXrYkW3huaybV/kQ0KJg0Y6PkEMbn+zeT+i+SiKZ/HMqJGIIt4LZDqNQ==}
++
+   boolbase@1.0.0:
+     resolution: {integrity: sha512-JZOSA7Mo9sNGB8+UjSgzdLtokWAky1zbztM3WRLCbZ70/3cTANmQmOdR7y2g+J0e2WXywy1yS468tY+IruqEww==}
+ 
+@@ -1687,6 +1711,9 @@ packages:
+     resolution: {integrity: sha512-fy6KJm2RawA5RcHkLa1z/ScpBeA762UF9KmZQxwIbDtRJrgLzM10depAiEQ+CXYcoiqW1/m96OAAoke2nE9EeA==}
+     engines: {node: 18 || 20 || >=22}
+ 
++  buffer-equal-constant-time@1.0.1:
++    resolution: {integrity: sha512-zRpUiDwd/xk6ADqPMATG8vc9VPrkck7T07OIx0gnjmJAnHnTVXNQG3vfvWNuiZIkwu9KrKdA1iJKfsfTVxE6NA==}
++
+   buffer-from@1.1.2:
+     resolution: {integrity: sha512-E+XQCRwSbaaiChtv6k6Dwgc+bx+Bs6vuKJHHl5kox/BaKbhiXzqQOwK4cO22yElGp2OCmjwVhT3HmxgyPGnJfQ==}
+ 
+@@ -1895,6 +1922,9 @@ packages:
+       sqlite3:
+         optional: true
+ 
++  ecdsa-sig-formatter@1.0.11:
++    resolution: {integrity: sha512-nagl3RYrbNv6kQkeJIpt6NJZy8twLB/2vtz6yN9Z4vRKHN4/QZJIEbqohALSgwKdnksuY3k5Addp5lg8sVoVcQ==}
++
+   encoding-sniffer@0.2.1:
+     resolution: {integrity: sha512-5gvq20T6vfpekVtqrYQsSCFZ1wEg5+wW0/QaZMWkFr6BqD3NfKs0rLCx4rrVlSWJeZb5NBJgVLswK/w2MWU+Gw==}
+ 
+@@ -2151,6 +2181,16 @@ packages:
+   json-stable-stringify-without-jsonify@1.0.1:
+     resolution: {integrity: sha512-Bdboy+l7tA3OGW6FjyFHWkP5LuByj1Tk33Ljyq0axyzdk9//JSi2u3fP1QSmd1KNwq6VOKYGlAu87CisVir6Pw==}
+ 
++  jsonwebtoken@9.0.3:
++    resolution: {integrity: sha512-MT/xP0CrubFRNLNKvxJ2BYfy53Zkm++5bX9dtuPbqAeQpTVe0MQTFhao8+Cp//EmJp244xt6Drw/GVEGCUj40g==}
++    engines: {node: '>=12', npm: '>=6'}
++
++  jwa@2.0.1:
++    resolution: {integrity: sha512-hRF04fqJIP8Abbkq5NKGN0Bbr3JxlQ+qhZufXVr0DvujKy93ZCbXZMHDL4EOtodSbCWxOqR8MS1tXA5hwqCXDg==}
++
++  jws@4.0.1:
++    resolution: {integrity: sha512-EKI/M/yqPncGUUh44xz0PxSidXFr/+r0pA70+gIYhjv+et7yxM+s29Y+VGDkovRofQem0fs7Uvf4+YmAdyRduA==}
++
+   keyv@4.5.4:
+     resolution: {integrity: sha512-oxVHkHR/EJf2CNXnWxRLW6mg7JyCCUcG0DtEGmL2ctUo1PNTin1PUil+r/+4r5MpVgC/fn1kjsx7mjSujKqIpw==}
+ 
+@@ -2235,12 +2275,33 @@ packages:
+   lodash.defaults@4.2.0:
+     resolution: {integrity: sha512-qjxPLHd3r5DnsdGacqOMU6pb/avJzdh9tFX2ymgoZE27BmjXrNy/y4LoaiTeAb+O3gL8AfpJGtqfX/ae2leYYQ==}
+ 
++  lodash.includes@4.3.0:
++    resolution: {integrity: sha512-W3Bx6mdkRTGtlJISOvVD/lbqjTlPPUDTMnlXZFnVwi9NKJ6tiAk6LVdlhZMm17VZisqhKcgzpO5Wz91PCt5b0w==}
++
+   lodash.isarguments@3.1.0:
+     resolution: {integrity: sha512-chi4NHZlZqZD18a0imDHnZPrDeBbTtVN7GXMwuGdRH9qotxAjYs3aVLKc7zNOG9eddR5Ksd8rvFEBc9SsggPpg==}
+ 
++  lodash.isboolean@3.0.3:
++    resolution: {integrity: sha512-Bz5mupy2SVbPHURB98VAcw+aHh4vRV5IPNhILUCsOzRmsTmSQ17jIuqopAentWoehktxGd9e/hbIXq980/1QJg==}
++
++  lodash.isinteger@4.0.4:
++    resolution: {integrity: sha512-DBwtEWN2caHQ9/imiNeEA5ys1JoRtRfY3d7V9wkqtbycnAmTvRRmbHKDV4a0EYc678/dia0jrte4tjYwVBaZUA==}
++
++  lodash.isnumber@3.0.3:
++    resolution: {integrity: sha512-QYqzpfwO3/CWf3XP+Z+tkQsfaLL/EnUlXWVkIk5FUPc4sBdTehEqZONuyRt2P67PXAk+NXmTBcc97zw9t1FQrw==}
++
++  lodash.isplainobject@4.0.6:
++    resolution: {integrity: sha512-oSXzaWypCMHkPC3NvBEaPHf0KsA5mvPrOPgQWDsbg8n7orZ290M0BmC/jgRZ4vcJ6DTAhjrsSYgdsW/F+MFOBA==}
++
++  lodash.isstring@4.0.1:
++    resolution: {integrity: sha512-0wJxfxH1wgO3GrbuP+dTTk7op+6L41QCXbGINEmD+ny/G/eCqGzxyCsh7159S+mgDDcoarnBw6PC1PS5+wUGgw==}
++
+   lodash.merge@4.6.2:
+     resolution: {integrity: sha512-0KpjqXRVvrYyCsX1swR/XTK0va6VQkQM6MNo7PqW77ByjAhoARA8EfrP1N4+KlKj8YS0ZUCtRT/YUuhyYDujIQ==}
+ 
++  lodash.once@4.1.1:
++    resolution: {integrity: sha512-Sb487aTOCr9drQVL8pIxOzVhafOjZN9UU54hiN8PU3uAiSV7lx1yYNpbNmex2PK6dSJoNTSJUUswT651yww3Mg==}
++
+   loupe@3.2.1:
+     resolution: {integrity: sha512-CdzqowRJCeLU72bHvWqwRBBlLcMEtIvGrlvef74kMnV2AolS9Y8xUv1I0U/MNAWMhBlKIoyuEgoJ0t/bbwHbLQ==}
+ 
+@@ -2560,6 +2621,9 @@ packages:
+     engines: {node: '>=18.0.0', npm: '>=8.0.0'}
+     hasBin: true
+ 
++  safe-buffer@5.2.1:
++    resolution: {integrity: sha512-rp3So07KcdmmKbGvgaNxQSJr7bGVSVk5S9Eq1F+ppbRo70+YeaDxkw5Dd8NPN+GD6bjnYm2VuPuCXmpuYvmCXQ==}
++
+   safer-buffer@2.1.2:
+     resolution: {integrity: sha512-YZo3K82SD7Riyi0E1EQPojLz7kpepnSQI9IyPbHHg1XXXevb5dJI7tpyN2ADxGcQbHG7vcyRHk0cbwqcQriUtg==}
+ 
+@@ -3795,10 +3859,19 @@ snapshots:
+       '@tanstack/query-core': 5.90.20
+       react: 19.2.4
+ 
++  '@types/bcryptjs@2.4.6': {}
++
+   '@types/estree@1.0.8': {}
+ 
+   '@types/json-schema@7.0.15': {}
+ 
++  '@types/jsonwebtoken@9.0.10':
++    dependencies:
++      '@types/ms': 2.1.0
++      '@types/node': 22.19.11
++
++  '@types/ms@2.1.0': {}
++
+   '@types/node@22.19.11':
+     dependencies:
+       undici-types: 6.21.0
+@@ -3977,6 +4050,8 @@ snapshots:
+ 
+   balanced-match@4.0.4: {}
+ 
++  bcryptjs@2.4.3: {}
++
+   boolbase@1.0.0: {}
+ 
+   brace-expansion@1.1.12:
+@@ -3988,6 +4063,8 @@ snapshots:
+     dependencies:
+       balanced-match: 4.0.4
+ 
++  buffer-equal-constant-time@1.0.1: {}
++
+   buffer-from@1.1.2: {}
+ 
+   bullmq@5.70.1:
+@@ -4134,6 +4211,10 @@ snapshots:
+       '@types/pg': 8.11.6
+       postgres: 3.4.8
+ 
++  ecdsa-sig-formatter@1.0.11:
++    dependencies:
++      safe-buffer: 5.2.1
++
+   encoding-sniffer@0.2.1:
+     dependencies:
+       iconv-lite: 0.6.3
+@@ -4448,6 +4529,30 @@ snapshots:
+ 
+   json-stable-stringify-without-jsonify@1.0.1: {}
+ 
++  jsonwebtoken@9.0.3:
++    dependencies:
++      jws: 4.0.1
++      lodash.includes: 4.3.0
++      lodash.isboolean: 3.0.3
++      lodash.isinteger: 4.0.4
++      lodash.isnumber: 3.0.3
++      lodash.isplainobject: 4.0.6
++      lodash.isstring: 4.0.1
++      lodash.once: 4.1.1
++      ms: 2.1.3
++      semver: 7.7.4
++
++  jwa@2.0.1:
++    dependencies:
++      buffer-equal-constant-time: 1.0.1
++      ecdsa-sig-formatter: 1.0.11
++      safe-buffer: 5.2.1
++
++  jws@4.0.1:
++    dependencies:
++      jwa: 2.0.1
++      safe-buffer: 5.2.1
++
+   keyv@4.5.4:
+     dependencies:
+       json-buffer: 3.0.1
+@@ -4512,10 +4617,24 @@ snapshots:
+ 
+   lodash.defaults@4.2.0: {}
+ 
++  lodash.includes@4.3.0: {}
++
+   lodash.isarguments@3.1.0: {}
+ 
++  lodash.isboolean@3.0.3: {}
++
++  lodash.isinteger@4.0.4: {}
++
++  lodash.isnumber@3.0.3: {}
++
++  lodash.isplainobject@4.0.6: {}
++
++  lodash.isstring@4.0.1: {}
++
+   lodash.merge@4.6.2: {}
+ 
++  lodash.once@4.1.1: {}
++
+   loupe@3.2.1: {}
+ 
+   lucide-react@0.460.0(react@19.2.4):
+@@ -4785,6 +4904,8 @@ snapshots:
+       '@rollup/rollup-win32-x64-msvc': 4.59.0
+       fsevents: 2.3.3
+ 
++  safe-buffer@5.2.1: {}
++
+   safer-buffer@2.1.2: {}
+ 
+   scheduler@0.27.0: {}

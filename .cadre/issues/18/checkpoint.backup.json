@@ -1,0 +1,61 @@
+{
+  "issueNumber": 18,
+  "version": 1,
+  "currentPhase": 4,
+  "currentTask": null,
+  "completedPhases": [
+    1,
+    2,
+    3,
+    4
+  ],
+  "completedTasks": [
+    "session-001"
+  ],
+  "failedTasks": [],
+  "blockedTasks": [],
+  "phaseOutputs": {
+    "1": "/Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-18/.cadre/issues/18/scout-report.md",
+    "2": "/Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-18/.cadre/issues/18/implementation-plan.md",
+    "3": "/Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-18/.cadre/issues/18/implementation-plan.md",
+    "4": "/Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-18/.cadre/issues/18/integration-report.md"
+  },
+  "gateResults": {
+    "1": {
+      "status": "warn",
+      "errors": [],
+      "warnings": [
+        "39 ambiguities found in analysis.md (threshold: 5)"
+      ]
+    },
+    "2": {
+      "status": "warn",
+      "warnings": [
+        "Session session-001, Step session-001-step-003: file does not exist: packages/api/src/routes/wishlist.ts"
+      ],
+      "errors": []
+    },
+    "3": {
+      "status": "pass",
+      "warnings": [],
+      "errors": []
+    },
+    "4": {
+      "status": "pass",
+      "warnings": [],
+      "errors": []
+    }
+  },
+  "subTasks": {},
+  "tokenUsage": {
+    "total": 0,
+    "byPhase": {},
+    "byAgent": {}
+  },
+  "worktreePath": "/Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-18",
+  "branchName": "cadre/issue-18-feature-18-wishlist-management-api",
+  "baseCommit": "ccc1788edf82c230b889178567a1a345b3817236",
+  "startedAt": "2026-03-03T21:42:23.225Z",
+  "lastCheckpoint": "2026-03-03T23:24:31.873Z",
+  "resumeCount": 1
+}

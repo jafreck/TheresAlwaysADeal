@@ -1,0 +1,881 @@
+diff --git a/packages/api/src/index.ts b/packages/api/src/index.ts
+index 689c793..c924fcd 100644
+--- a/packages/api/src/index.ts
++++ b/packages/api/src/index.ts
+@@ -10,6 +10,8 @@ import { createGamesApp } from "./routes/games.js";
+ import { createDealsApp } from "./routes/deals.js";
+ import { storesApp } from "./routes/stores.js";
+ import { createAuthApp } from "./routes/auth.js";
++import { createWishlistApp } from "./routes/wishlist.js";
++import { authMiddleware } from "./middleware/auth.js";
+ import { openApiApp } from "./openapi.js";
+ 
+ const app = new Hono();
+@@ -62,6 +64,12 @@ v1.route("/stores", storesApp);
+ // Mount auth routes
+ v1.route("/auth", createAuthApp(getRedis));
+ 
++// Mount wishlist routes (authenticated)
++const wishlistRouter = new Hono();
++wishlistRouter.use("*", authMiddleware);
++wishlistRouter.route("/", createWishlistApp());
++v1.route("/user/me/wishlist", wishlistRouter);
++
+ // Mount versioned router
+ app.route("/api/v1", v1);
+ 
+diff --git a/packages/api/src/lib/validation.ts b/packages/api/src/lib/validation.ts
+index a71069e..c81f5b3 100644
+--- a/packages/api/src/lib/validation.ts
++++ b/packages/api/src/lib/validation.ts
+@@ -69,3 +69,14 @@ export const resetPasswordSchema = z.object({
+   token: z.string().min(1),
+   password: z.string().min(8),
+ });
++
++// ─── Wishlist Schemas ─────────────────────────────────────────────────────────
++
++export const addToWishlistSchema = z.object({
++  gameId: z.string().uuid(),
++});
++
++export const wishlistPaginationSchema = z.object({
++  page: z.coerce.number().int().positive().default(1),
++  limit: z.coerce.number().int().positive().max(100).default(24),
++});
+diff --git a/packages/api/src/routes/wishlist.ts b/packages/api/src/routes/wishlist.ts
+new file mode 100644
+index 0000000..58c24a7
+--- /dev/null
++++ b/packages/api/src/routes/wishlist.ts
+@@ -0,0 +1,212 @@
++import { Hono } from "hono";
++import { eq, sql, and, count, desc } from "drizzle-orm";
++import {
++  db,
++  wishlists,
++  games,
++  storeListings,
++  stores,
++  priceHistory,
++  priceAlerts,
++} from "@taad/db";
++import { addToWishlistSchema, wishlistPaginationSchema } from "../lib/validation.js";
++import { buildEnvelopeResponse } from "../lib/response.js";
++
++type Env = {
++  Variables: {
++    user: Record<string, unknown>;
++  };
++};
++
++export function createWishlistApp() {
++  const app = new Hono<Env>();
++
++  // GET / — paginated wishlist with best prices per game
++  app.get("/", async (c) => {
++    const user = c.get("user") as { sub: string };
++    const parsed = wishlistPaginationSchema.safeParse(c.req.query());
++    if (!parsed.success) {
++      return c.json({ error: "Invalid query parameters", details: parsed.error.flatten() }, 400);
++    }
++    const { page, limit } = parsed.data;
++    const offset = (page - 1) * limit;
++
++    const userCondition = eq(wishlists.userId, user.sub);
++
++    const [totalResult] = await db
++      .select({ total: count() })
++      .from(wishlists)
++      .where(userCondition);
++    const total = totalResult?.total ?? 0;
++
++    const rows = await db
++      .select({
++        wishlistId: wishlists.id,
++        gameId: games.id,
++        gameTitle: games.title,
++        gameSlug: games.slug,
++        headerImageUrl: games.headerImageUrl,
++        source: wishlists.source,
++        addedAt: wishlists.createdAt,
++        storeName: stores.name,
++        storeLogoUrl: stores.logoUrl,
++        currentPriceCents: priceHistory.price,
++        originalPriceCents: priceHistory.originalPrice,
++        discountPercent: priceHistory.discount,
++        buyUrl: storeListings.storeUrl,
++      })
++      .from(wishlists)
++      .innerJoin(games, eq(games.id, wishlists.gameId))
++      .leftJoin(
++        storeListings,
++        sql`${storeListings.gameId} = ${games.id}
++            AND ${storeListings.isActive} = true
++            AND ${storeListings.id} = (
++              SELECT sl2.id FROM store_listings sl2
++              INNER JOIN price_history ph2 ON ph2.store_listing_id = sl2.id
++              WHERE sl2.game_id = ${games.id} AND sl2.is_active = true
++              ORDER BY ph2.price ASC, ph2.recorded_at DESC
++              LIMIT 1
++            )`,
++      )
++      .leftJoin(stores, eq(stores.id, storeListings.storeId))
++      .leftJoin(
++        priceHistory,
++        sql`${priceHistory.storeListingId} = ${storeListings.id}
++            AND ${priceHistory.recordedAt} = (
++              SELECT MAX(ph3.recorded_at) FROM price_history ph3
++              WHERE ph3.store_listing_id = ${storeListings.id}
++            )`,
++      )
++      .where(userCondition)
++      .orderBy(desc(wishlists.createdAt))
++      .limit(limit)
++      .offset(offset);
++
++    return c.json(buildEnvelopeResponse(rows, total, page, limit));
++  });
++
++  // POST / — add a game to the wishlist
++  app.post("/", async (c) => {
++    const user = c.get("user") as { sub: string };
++    const body = await c.req.json();
++    const parsed = addToWishlistSchema.safeParse(body);
++    if (!parsed.success) {
++      return c.json({ error: "Invalid request body", details: parsed.error.flatten() }, 400);
++    }
++    const { gameId } = parsed.data;
++
++    const [entry] = await db
++      .insert(wishlists)
++      .values({ userId: user.sub, gameId, source: "manual" })
++      .returning();
++
++    // Check whether an active price alert exists for this user+game
++    const [alert] = await db
++      .select({ id: priceAlerts.id })
++      .from(priceAlerts)
++      .where(
++        and(
++          eq(priceAlerts.userId, user.sub),
++          eq(priceAlerts.gameId, gameId),
++          eq(priceAlerts.isActive, true),
++        ),
++      )
++      .limit(1);
++
++    return c.json({ entry, hasPriceAlert: !!alert }, 201);
++  });
++
++  // DELETE /:gameId — remove a game from the wishlist
++  app.delete("/:gameId", async (c) => {
++    const user = c.get("user") as { sub: string };
++    const { gameId } = c.req.param();
++
++    const deleted = await db
++      .delete(wishlists)
++      .where(and(eq(wishlists.userId, user.sub), eq(wishlists.gameId, gameId)))
++      .returning();
++
++    if (deleted.length === 0) {
++      return c.json({ error: "Wishlist entry not found" }, 404);
++    }
++
++    return c.body(null, 204);
++  });
++
++  // GET /deals — wishlist items currently on sale
++  app.get("/deals", async (c) => {
++    const user = c.get("user") as { sub: string };
++    const parsed = wishlistPaginationSchema.safeParse(c.req.query());
++    if (!parsed.success) {
++      return c.json({ error: "Invalid query parameters", details: parsed.error.flatten() }, 400);
++    }
++    const { page, limit } = parsed.data;
++    const offset = (page - 1) * limit;
++
++    const onSaleCondition = and(
++      eq(wishlists.userId, user.sub),
++      sql`${priceHistory.discount} IS NOT NULL AND ${priceHistory.discount} > 0`,
++    );
++
++    const [totalResult] = await db
++      .select({ total: count() })
++      .from(wishlists)
++      .innerJoin(games, eq(games.id, wishlists.gameId))
++      .innerJoin(
++        storeListings,
++        sql`${storeListings.gameId} = ${games.id} AND ${storeListings.isActive} = true`,
++      )
++      .innerJoin(
++        priceHistory,
++        sql`${priceHistory.storeListingId} = ${storeListings.id}
++            AND ${priceHistory.recordedAt} = (
++              SELECT MAX(ph2.recorded_at) FROM price_history ph2
++              WHERE ph2.store_listing_id = ${storeListings.id}
++            )`,
++      )
++      .innerJoin(stores, eq(stores.id, storeListings.storeId))
++      .where(onSaleCondition);
++    const total = totalResult?.total ?? 0;
++
++    const rows = await db
++      .select({
++        wishlistId: wishlists.id,
++        gameId: games.id,
++        gameTitle: games.title,
++        gameSlug: games.slug,
++        headerImageUrl: games.headerImageUrl,
++        source: wishlists.source,
++        addedAt: wishlists.createdAt,
++        storeName: stores.name,
++        storeLogoUrl: stores.logoUrl,
++        currentPriceCents: priceHistory.price,
++        originalPriceCents: priceHistory.originalPrice,
++        discountPercent: priceHistory.discount,
++        buyUrl: storeListings.storeUrl,
++      })
++      .from(wishlists)
++      .innerJoin(games, eq(games.id, wishlists.gameId))
++      .innerJoin(
++        storeListings,
++        sql`${storeListings.gameId} = ${games.id} AND ${storeListings.isActive} = true`,
++      )
++      .innerJoin(
++        priceHistory,
++        sql`${priceHistory.storeListingId} = ${storeListings.id}
++            AND ${priceHistory.recordedAt} = (
++              SELECT MAX(ph2.recorded_at) FROM price_history ph2
++              WHERE ph2.store_listing_id = ${storeListings.id}
++            )`,
++      )
++      .innerJoin(stores, eq(stores.id, storeListings.storeId))
++      .where(onSaleCondition)
++      .orderBy(desc(priceHistory.discount))
++      .limit(limit)
++      .offset(offset);
++
++    return c.json(buildEnvelopeResponse(rows, total, page, limit));
++  });
++
++  return app;
++}
+diff --git a/packages/api/tests/lib/validation.test.ts b/packages/api/tests/lib/validation.test.ts
+index fe4a9c5..ec75e6f 100644
+--- a/packages/api/tests/lib/validation.test.ts
++++ b/packages/api/tests/lib/validation.test.ts
+@@ -326,6 +326,8 @@ import {
+   loginSchema,
+   forgotPasswordSchema,
+   resetPasswordSchema,
++  addToWishlistSchema,
++  wishlistPaginationSchema,
+ } from "../../src/lib/validation.js";
+ 
+ describe("registerSchema", () => {
+@@ -413,3 +415,53 @@ describe("resetPasswordSchema", () => {
+     expect(() => resetPasswordSchema.parse({ token: "abc-123" })).toThrow();
+   });
+ });
++
++// ─── Wishlist Schemas ─────────────────────────────────────────────────────────
++
++describe("addToWishlistSchema", () => {
++  it("should parse a valid UUID gameId", () => {
++    const result = addToWishlistSchema.parse({ gameId: "550e8400-e29b-41d4-a716-446655440000" });
++    expect(result.gameId).toBe("550e8400-e29b-41d4-a716-446655440000");
++  });
++
++  it("should reject a non-UUID gameId", () => {
++    expect(() => addToWishlistSchema.parse({ gameId: "not-a-uuid" })).toThrow();
++  });
++
++  it("should reject missing gameId", () => {
++    expect(() => addToWishlistSchema.parse({})).toThrow();
++  });
++
++  it("should reject empty string gameId", () => {
++    expect(() => addToWishlistSchema.parse({ gameId: "" })).toThrow();
++  });
++});
++
++describe("wishlistPaginationSchema", () => {
++  it("should use defaults when no values provided", () => {
++    const result = wishlistPaginationSchema.parse({});
++    expect(result).toEqual({ page: 1, limit: 24 });
++  });
++
++  it("should coerce string values to numbers", () => {
++    const result = wishlistPaginationSchema.parse({ page: "2", limit: "50" });
++    expect(result).toEqual({ page: 2, limit: 50 });
++  });
++
++  it("should reject limit greater than 100", () => {
++    expect(() => wishlistPaginationSchema.parse({ limit: 101 })).toThrow();
++  });
++
++  it("should accept limit of exactly 100", () => {
++    const result = wishlistPaginationSchema.parse({ limit: 100 });
++    expect(result.limit).toBe(100);
++  });
++
++  it("should reject page of 0", () => {
++    expect(() => wishlistPaginationSchema.parse({ page: 0 })).toThrow();
++  });
++
++  it("should reject negative page", () => {
++    expect(() => wishlistPaginationSchema.parse({ page: -1 })).toThrow();
++  });
++});
+diff --git a/packages/api/tests/routes/wishlist.test.ts b/packages/api/tests/routes/wishlist.test.ts
+new file mode 100644
+index 0000000..245f038
+--- /dev/null
++++ b/packages/api/tests/routes/wishlist.test.ts
+@@ -0,0 +1,516 @@
++import { describe, it, expect, vi, beforeEach } from "vitest";
++import { Hono } from "hono";
++
++// ─── Mocks (hoisted before imports) ──────────────────────────────────────────
++
++let mockSelectResult: any[] = [];
++let mockInsertResult: any[] = [];
++let mockDeleteResult: any[] = [];
++
++function createSelectBuilder(getResult?: () => any[]) {
++  const builder: any = {
++    from: () => builder,
++    where: () => builder,
++    orderBy: () => builder,
++    limit: () => builder,
++    offset: () => Promise.resolve(getResult ? getResult() : mockSelectResult),
++    innerJoin: () => builder,
++    leftJoin: () => builder,
++    then: (resolve: (v: any) => any, reject: (e: any) => any) =>
++      Promise.resolve(getResult ? getResult() : mockSelectResult).then(resolve, reject),
++  };
++  return builder;
++}
++
++function createInsertBuilder() {
++  const builder: any = {
++    values: () => builder,
++    returning: () => Promise.resolve(mockInsertResult),
++    then: (resolve: (v: any) => any, reject: (e: any) => any) =>
++      Promise.resolve(mockInsertResult).then(resolve, reject),
++  };
++  return builder;
++}
++
++function createDeleteBuilder() {
++  const builder: any = {
++    where: () => builder,
++    returning: () => Promise.resolve(mockDeleteResult),
++    then: (resolve: (v: any) => any, reject: (e: any) => any) =>
++      Promise.resolve(mockDeleteResult).then(resolve, reject),
++  };
++  return builder;
++}
++
++const mockDb = {
++  select: vi.fn(() => createSelectBuilder()),
++  insert: vi.fn(() => createInsertBuilder()),
++  delete: vi.fn(() => createDeleteBuilder()),
++};
++const stubTable = (cols: Record<string, string>) => cols;
++
++vi.mock("@taad/db", () => ({
++  db: mockDb,
++  wishlists: stubTable({ id: "id", userId: "userId", gameId: "gameId", source: "source", createdAt: "createdAt" }),
++  games: stubTable({ id: "id", title: "title", slug: "slug", headerImageUrl: "headerImageUrl" }),
++  stores: stubTable({ id: "id", name: "name", logoUrl: "logoUrl" }),
++  storeListings: stubTable({ id: "id", gameId: "gameId", storeId: "storeId", storeUrl: "storeUrl", isActive: "isActive" }),
++  priceHistory: stubTable({ id: "id", storeListingId: "storeListingId", price: "price", originalPrice: "originalPrice", discount: "discount", recordedAt: "recordedAt" }),
++  priceAlerts: stubTable({ id: "id", userId: "userId", gameId: "gameId", isActive: "isActive" }),
++}));
++
++// ─── App under test ───────────────────────────────────────────────────────────
++
++const { createWishlistApp } = await import("../../src/routes/wishlist.js");
++
++const TEST_USER_ID = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee";
++const TEST_GAME_ID = "550e8400-e29b-41d4-a716-446655440000";
++
++function buildTestApp() {
++  const outer = new Hono();
++  outer.use("*", async (c, next) => {
++    c.set("user", { sub: TEST_USER_ID });
++    await next();
++  });
++  outer.route("/", createWishlistApp());
++  return outer;
++}
++
++const app = buildTestApp();
++
++// ─── Tests ────────────────────────────────────────────────────────────────────
++
++describe("createWishlistApp", () => {
++  it("should return a Hono app", () => {
++    const wishlistApp = createWishlistApp();
++    expect(wishlistApp).toBeDefined();
++    expect(typeof wishlistApp.request).toBe("function");
++  });
++});
++
++describe("GET / (paginated wishlist)", () => {
++  beforeEach(() => {
++    vi.clearAllMocks();
++    mockSelectResult = [];
++    mockInsertResult = [];
++    mockDeleteResult = [];
++  });
++
++  it("should return 200 with envelope response for empty wishlist", async () => {
++    let callCount = 0;
++    mockDb.select.mockImplementation(() => {
++      callCount++;
++      const isCountQuery = callCount === 1;
++      const result = isCountQuery ? [{ total: 0 }] : [];
++      return createSelectBuilder(() => result);
++    });
++
++    const res = await app.request("/");
++    expect(res.status).toBe(200);
++
++    const body = await res.json();
++    expect(body).toHaveProperty("data");
++    expect(body).toHaveProperty("meta");
++    expect(body.data).toEqual([]);
++    expect(body.meta.total).toBe(0);
++    expect(body.meta.page).toBe(1);
++    expect(body.meta.limit).toBe(24);
++    expect(body.meta.hasNext).toBe(false);
++  });
++
++  it("should return 200 with wishlist data", async () => {
++    const wishlistItem = {
++      wishlistId: "w1",
++      gameId: TEST_GAME_ID,
++      gameTitle: "Cool Game",
++      gameSlug: "cool-game",
++      headerImageUrl: "https://example.com/img.jpg",
++      source: "manual",
++      addedAt: "2025-01-01T00:00:00Z",
++      storeName: "Steam",
++      storeLogoUrl: "https://steam.com/logo.png",
++      currentPriceCents: "999",
++      originalPriceCents: "1999",
++      discountPercent: "50",
++      buyUrl: "https://steam.com/game",
++    };
++    let callCount = 0;
++    mockDb.select.mockImplementation(() => {
++      callCount++;
++      const isCountQuery = callCount === 1;
++      const result = isCountQuery ? [{ total: 1 }] : [wishlistItem];
++      return createSelectBuilder(() => result);
++    });
++
++    const res = await app.request("/");
++    expect(res.status).toBe(200);
++
++    const body = await res.json();
++    expect(body.data).toEqual([wishlistItem]);
++    expect(body.meta.total).toBe(1);
++    expect(body.meta.page).toBe(1);
++  });
++
++  it("should accept pagination params", async () => {
++    let callCount = 0;
++    mockDb.select.mockImplementation(() => {
++      callCount++;
++      const isCountQuery = callCount === 1;
++      const result = isCountQuery ? [{ total: 0 }] : [];
++      return createSelectBuilder(() => result);
++    });
++
++    const res = await app.request("/?page=2&limit=10");
++    expect(res.status).toBe(200);
++
++    const body = await res.json();
++    expect(body.meta.page).toBe(2);
++    expect(body.meta.limit).toBe(10);
++  });
++
++  it("should use default limit of 24", async () => {
++    let callCount = 0;
++    mockDb.select.mockImplementation(() => {
++      callCount++;
++      const isCountQuery = callCount === 1;
++      const result = isCountQuery ? [{ total: 0 }] : [];
++      return createSelectBuilder(() => result);
++    });
++
++    const res = await app.request("/");
++    expect(res.status).toBe(200);
++
++    const body = await res.json();
++    expect(body.meta.limit).toBe(24);
++  });
++
++  it("should return 400 for invalid pagination (negative page)", async () => {
++    const res = await app.request("/?page=-1");
++    expect(res.status).toBe(400);
++
++    const body = await res.json();
++    expect(body).toHaveProperty("error", "Invalid query parameters");
++    expect(body).toHaveProperty("details");
++  });
++
++  it("should return 400 for limit exceeding max (101)", async () => {
++    const res = await app.request("/?limit=101");
++    expect(res.status).toBe(400);
++
++    const body = await res.json();
++    expect(body).toHaveProperty("error", "Invalid query parameters");
++  });
++
++  it("should return 400 for page of 0", async () => {
++    const res = await app.request("/?page=0");
++    expect(res.status).toBe(400);
++  });
++
++  it("should compute hasNext correctly when more pages exist", async () => {
++    let callCount = 0;
++    mockDb.select.mockImplementation(() => {
++      callCount++;
++      const isCountQuery = callCount === 1;
++      const items = Array.from({ length: 10 }, (_, i) => ({ wishlistId: `w${i}` }));
++      const result = isCountQuery ? [{ total: 25 }] : items;
++      return createSelectBuilder(() => result);
++    });
++
++    const res = await app.request("/?page=1&limit=10");
++    expect(res.status).toBe(200);
++
++    const body = await res.json();
++    expect(body.meta.hasNext).toBe(true);
++  });
++
++  it("should compute hasNext as false on last page", async () => {
++    let callCount = 0;
++    mockDb.select.mockImplementation(() => {
++      callCount++;
++      const isCountQuery = callCount === 1;
++      const items = [{ wishlistId: "w1" }];
++      const result = isCountQuery ? [{ total: 5 }] : items;
++      return createSelectBuilder(() => result);
++    });
++
++    const res = await app.request("/?page=1&limit=10");
++    expect(res.status).toBe(200);
++
++    const body = await res.json();
++    expect(body.meta.hasNext).toBe(false);
++  });
++});
++
++describe("POST / (add to wishlist)", () => {
++  beforeEach(() => {
++    vi.clearAllMocks();
++    mockSelectResult = [];
++    mockInsertResult = [];
++    mockDeleteResult = [];
++  });
++
++  it("should return 201 with entry and hasPriceAlert false when no alert exists", async () => {
++    const entry = { id: "w1", userId: TEST_USER_ID, gameId: TEST_GAME_ID, source: "manual" };
++    mockInsertResult = [entry];
++    mockSelectResult = [];
++    mockDb.insert.mockReturnValue(createInsertBuilder());
++    mockDb.select.mockReturnValue(createSelectBuilder());
++
++    const res = await app.request("/", {
++      method: "POST",
++      headers: { "Content-Type": "application/json" },
++      body: JSON.stringify({ gameId: TEST_GAME_ID }),
++    });
++    expect(res.status).toBe(201);
++
++    const body = await res.json();
++    expect(body.entry).toEqual(entry);
++    expect(body.hasPriceAlert).toBe(false);
++  });
++
++  it("should return 201 with hasPriceAlert true when an active alert exists", async () => {
++    const entry = { id: "w1", userId: TEST_USER_ID, gameId: TEST_GAME_ID, source: "manual" };
++    mockInsertResult = [entry];
++    mockSelectResult = [{ id: "alert-1" }];
++    mockDb.insert.mockReturnValue(createInsertBuilder());
++    mockDb.select.mockReturnValue(createSelectBuilder());
++
++    const res = await app.request("/", {
++      method: "POST",
++      headers: { "Content-Type": "application/json" },
++      body: JSON.stringify({ gameId: TEST_GAME_ID }),
++    });
++    expect(res.status).toBe(201);
++
++    const body = await res.json();
++    expect(body.entry).toEqual(entry);
++    expect(body.hasPriceAlert).toBe(true);
++  });
++
++  it("should return 400 for missing gameId", async () => {
++    const res = await app.request("/", {
++      method: "POST",
++      headers: { "Content-Type": "application/json" },
++      body: JSON.stringify({}),
++    });
++    expect(res.status).toBe(400);
++
++    const body = await res.json();
++    expect(body).toHaveProperty("error", "Invalid request body");
++    expect(body).toHaveProperty("details");
++  });
++
++  it("should return 400 for non-UUID gameId", async () => {
++    const res = await app.request("/", {
++      method: "POST",
++      headers: { "Content-Type": "application/json" },
++      body: JSON.stringify({ gameId: "not-a-uuid" }),
++    });
++    expect(res.status).toBe(400);
++
++    const body = await res.json();
++    expect(body).toHaveProperty("error", "Invalid request body");
++  });
++
++  it("should return 400 for empty string gameId", async () => {
++    const res = await app.request("/", {
++      method: "POST",
++      headers: { "Content-Type": "application/json" },
++      body: JSON.stringify({ gameId: "" }),
++    });
++    expect(res.status).toBe(400);
++  });
++
++  it("should call db.insert with correct table", async () => {
++    const entry = { id: "w1", userId: TEST_USER_ID, gameId: TEST_GAME_ID, source: "manual" };
++    mockInsertResult = [entry];
++    mockSelectResult = [];
++    mockDb.insert.mockReturnValue(createInsertBuilder());
++    mockDb.select.mockReturnValue(createSelectBuilder());
++
++    await app.request("/", {
++      method: "POST",
++      headers: { "Content-Type": "application/json" },
++      body: JSON.stringify({ gameId: TEST_GAME_ID }),
++    });
++
++    expect(mockDb.insert).toHaveBeenCalled();
++  });
++});
++
++describe("DELETE /:gameId (remove from wishlist)", () => {
++  beforeEach(() => {
++    vi.clearAllMocks();
++    mockSelectResult = [];
++    mockInsertResult = [];
++    mockDeleteResult = [];
++  });
++
++  it("should return 204 when entry is successfully deleted", async () => {
++    const deleted = { id: "w1", userId: TEST_USER_ID, gameId: TEST_GAME_ID };
++    mockDeleteResult = [deleted];
++    mockDb.delete.mockReturnValue(createDeleteBuilder());
++
++    const res = await app.request(`/${TEST_GAME_ID}`, { method: "DELETE" });
++    expect(res.status).toBe(204);
++  });
++
++  it("should return 404 when entry does not exist", async () => {
++    mockDeleteResult = [];
++    mockDb.delete.mockReturnValue(createDeleteBuilder());
++
++    const res = await app.request(`/${TEST_GAME_ID}`, { method: "DELETE" });
++    expect(res.status).toBe(404);
++
++    const body = await res.json();
++    expect(body).toEqual({ error: "Wishlist entry not found" });
++  });
++
++  it("should call db.delete", async () => {
++    mockDeleteResult = [{ id: "w1" }];
++    mockDb.delete.mockReturnValue(createDeleteBuilder());
++
++    await app.request(`/${TEST_GAME_ID}`, { method: "DELETE" });
++    expect(mockDb.delete).toHaveBeenCalled();
++  });
++
++  it("should return empty body on 204", async () => {
++    mockDeleteResult = [{ id: "w1" }];
++    mockDb.delete.mockReturnValue(createDeleteBuilder());
++
++    const res = await app.request(`/${TEST_GAME_ID}`, { method: "DELETE" });
++    expect(res.status).toBe(204);
++
++    const text = await res.text();
++    expect(text).toBe("");
++  });
++});
++
++describe("GET /deals (wishlist items on sale)", () => {
++  beforeEach(() => {
++    vi.clearAllMocks();
++    mockSelectResult = [];
++    mockInsertResult = [];
++    mockDeleteResult = [];
++  });
++
++  it("should return 200 with envelope response for empty deals", async () => {
++    let callCount = 0;
++    mockDb.select.mockImplementation(() => {
++      callCount++;
++      const isCountQuery = callCount === 1;
++      const result = isCountQuery ? [{ total: 0 }] : [];
++      return createSelectBuilder(() => result);
++    });
++
++    const res = await app.request("/deals");
++    expect(res.status).toBe(200);
++
++    const body = await res.json();
++    expect(body).toHaveProperty("data");
++    expect(body).toHaveProperty("meta");
++    expect(body.data).toEqual([]);
++    expect(body.meta.total).toBe(0);
++  });
++
++  it("should return 200 with on-sale wishlist items", async () => {
++    const deal = {
++      wishlistId: "w1",
++      gameId: TEST_GAME_ID,
++      gameTitle: "On Sale Game",
++      gameSlug: "on-sale-game",
++      headerImageUrl: "https://example.com/img.jpg",
++      source: "manual",
++      addedAt: "2025-01-01T00:00:00Z",
++      storeName: "Steam",
++      storeLogoUrl: "https://steam.com/logo.png",
++      currentPriceCents: "999",
++      originalPriceCents: "1999",
++      discountPercent: "50",
++      buyUrl: "https://steam.com/game",
++    };
++    let callCount = 0;
++    mockDb.select.mockImplementation(() => {
++      callCount++;
++      const isCountQuery = callCount === 1;
++      const result = isCountQuery ? [{ total: 1 }] : [deal];
++      return createSelectBuilder(() => result);
++    });
++
++    const res = await app.request("/deals");
++    expect(res.status).toBe(200);
++
++    const body = await res.json();
++    expect(body.data).toEqual([deal]);
++    expect(body.meta.total).toBe(1);
++    expect(body.meta.page).toBe(1);
++  });
++
++  it("should accept pagination params", async () => {
++    let callCount = 0;
++    mockDb.select.mockImplementation(() => {
++      callCount++;
++      const isCountQuery = callCount === 1;
++      const result = isCountQuery ? [{ total: 0 }] : [];
++      return createSelectBuilder(() => result);
++    });
++
++    const res = await app.request("/deals?page=3&limit=5");
++    expect(res.status).toBe(200);
++
++    const body = await res.json();
++    expect(body.meta.page).toBe(3);
++    expect(body.meta.limit).toBe(5);
++  });
++
++  it("should use default limit of 24 for deals", async () => {
++    let callCount = 0;
++    mockDb.select.mockImplementation(() => {
++      callCount++;
++      const isCountQuery = callCount === 1;
++      const result = isCountQuery ? [{ total: 0 }] : [];
++      return createSelectBuilder(() => result);
++    });
++
++    const res = await app.request("/deals");
++    expect(res.status).toBe(200);
++
++    const body = await res.json();
++    expect(body.meta.limit).toBe(24);
++  });
++
++  it("should return 400 for invalid pagination on deals", async () => {
++    const res = await app.request("/deals?page=-1");
++    expect(res.status).toBe(400);
++
++    const body = await res.json();
++    expect(body).toHaveProperty("error", "Invalid query parameters");
++    expect(body).toHaveProperty("details");
++  });
++
++  it("should return 400 for limit exceeding max on deals", async () => {
++    const res = await app.request("/deals?limit=101");
++    expect(res.status).toBe(400);
++
++    const body = await res.json();
++    expect(body).toHaveProperty("error", "Invalid query parameters");
++  });
++
++  it("should compute hasNext correctly for deals", async () => {
++    let callCount = 0;
++    mockDb.select.mockImplementation(() => {
++      callCount++;
++      const isCountQuery = callCount === 1;
++      const items = Array.from({ length: 5 }, (_, i) => ({ wishlistId: `w${i}` }));
++      const result = isCountQuery ? [{ total: 20 }] : items;
++      return createSelectBuilder(() => result);
++    });
++
++    const res = await app.request("/deals?page=1&limit=5");
++    expect(res.status).toBe(200);
++
++    const body = await res.json();
++    expect(body.meta.hasNext).toBe(true);
++    expect(body.meta.total).toBe(20);
++  });
++});
+diff --git a/packages/db/src/schema.ts b/packages/db/src/schema.ts
+index 198e675..7d91de8 100644
+--- a/packages/db/src/schema.ts
++++ b/packages/db/src/schema.ts
+@@ -99,8 +99,11 @@ export const wishlists = pgTable("wishlists", {
+   id: uuid("id").defaultRandom().primaryKey(),
+   userId: uuid("user_id").references(() => users.id).notNull(),
+   gameId: uuid("game_id").references(() => games.id).notNull(),
++  source: varchar("source", { length: 50 }).default("manual").notNull(),
+   createdAt: timestamp("created_at").defaultNow().notNull(),
+-});
++}, (t) => [
++  unique().on(t.userId, t.gameId),
++]);
+ 
+ // ─── Price Alerts ─────────────────────────────────────────────────────────────
+ export const priceAlerts = pgTable("price_alerts", {
+diff --git a/packages/db/tests/schema.test.ts b/packages/db/tests/schema.test.ts
+index 05eec7e..c8d4031 100644
+--- a/packages/db/tests/schema.test.ts
++++ b/packages/db/tests/schema.test.ts
+@@ -166,6 +166,7 @@ describe("schema", () => {
+       expect(columns).toContain("id");
+       expect(columns).toContain("userId");
+       expect(columns).toContain("gameId");
++      expect(columns).toContain("source");
+       expect(columns).toContain("createdAt");
+     });
+ 

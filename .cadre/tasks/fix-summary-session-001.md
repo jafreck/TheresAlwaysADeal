@@ -1,15 +1,16 @@
 # Fix Summary
 
 ## Issues Addressed
-- Build failure (`sh: turbo: command not found`): Dependencies were not installed in the worktree. Running `pnpm install` resolved the missing `turbo` binary and all other dependencies.
+- `packages/api/src/routes/wishlist.ts` (line 99): POST / handler now uses `.onConflictDoNothing()` on the insert and returns 409 Conflict when a duplicate (userId, gameId) entry is detected, instead of letting the DB throw an unhandled 500 error.
+- `packages/api/src/routes/wishlist.ts` (line 172): GET /deals now uses the same best-price subquery as GET / to select only the single cheapest active store listing per game, preventing duplicate rows when a game has multiple discounted store listings. The `total` count and data query both use the same filtered join.
 
 ## Files Modified
-- (none — no source file changes were needed)
+- packages/api/src/routes/wishlist.ts
+- packages/api/tests/routes/wishlist.test.ts
 
 ## Files Created
 - (none)
 
 ## Notes
-- The build failure was caused by missing `node_modules` in the worktree, not by any code defect in the implemented changes.
-- After `pnpm install`, `npm run build` completes successfully with all 5 packages building without errors.
-- All source files (schema.ts, validation.ts, encryption.ts, .env.example) are correct as-is.
+- The test mock's `createInsertBuilder` was updated to include `onConflictDoNothing()` in the chain, matching the new production code.
+- The best-price subquery in GET /deals mirrors the existing pattern in GET / (lines 62–70) for consistency.

@@ -1,21 +1,19 @@
 # Fix Summary
 
 ## Issues Addressed
-- `packages/worker/src/index.ts` (line 378): Decrypted `notifySlackWebhook` before enqueuing to notification queue in price-drop alert worker. Moved `encryption.ts` to `@taad/db` shared package so both API and worker can access encrypt/decrypt.
-- `packages/worker/src/index.ts` (line 428): Same encrypted-webhook fix applied to all-time-low alert worker — now decrypts before enqueuing.
-- `packages/worker/src/index.ts` (line 358): Hoisted the `priceHistory` query above the `for (const alert of activeAlerts)` loop to eliminate N+1 query pattern. The query is constant across iterations.
-- `packages/api/src/routes/alerts.ts` (line 67): Added `.for("update")` row-level lock to the count query inside the transaction, preventing concurrent requests from both reading the same count and exceeding the 100-alert cap.
+- `packages/api/src/routes/auth.ts` (line 88): Race condition in POST /register — replaced SELECT-then-INSERT pattern with a single INSERT using `.onConflictDoNothing()`. If the insert returns no rows (email conflict), returns 400 "Email already registered". This eliminates the window where concurrent duplicate registrations could cause an unhandled unique-constraint violation.
+- `packages/api/src/routes/wishlist.ts` (line 99): Missing game existence check in POST / — added a SELECT query to verify the gameId references an existing game before inserting into wishlists. Returns 404 "Game not found" if the game doesn't exist, preventing an unhandled foreign-key violation from surfacing as a 500.
 
 ## Files Modified
-- packages/db/src/index.ts (added encryption re-export)
-- packages/worker/src/index.ts (decrypt import, hoisted query, decrypt before enqueue)
-- packages/api/src/routes/alerts.ts (added `.for("update")` to count query)
-- packages/api/tests/routes/alerts.test.ts (added `for` to mock builder chains)
-- packages/worker/tests/index.test.ts (added `decrypt` mock, updated webhook assertion, added priceHistory mock for hoisted query)
+- packages/api/src/routes/auth.ts
+- packages/api/src/routes/wishlist.ts
+- packages/api/tests/routes/auth.test.ts
+- packages/api/tests/routes/wishlist.test.ts
 
 ## Files Created
-- packages/db/src/encryption.ts (shared encryption module moved from API package)
+- (none)
 
 ## Notes
-- `packages/api/src/lib/encryption.ts` is kept as-is to avoid disrupting existing imports and test mocks in the API package. Both copies are identical; a future cleanup could have the API package re-export from `@taad/db`.
-- The pre-existing `@taad/web` lint failure (triple-slash reference in auto-generated `next-env.d.ts`) is unrelated and was not addressed.
+- Auth tests updated to reflect the new onConflictDoNothing insert chain and changed error message for insert failures.
+- Wishlist tests updated to mock the new game-existence SELECT call before the insert.
+- All 613 tests pass. Build succeeds. Pre-existing lint failures in @taad/web and @taad/db are unrelated.
