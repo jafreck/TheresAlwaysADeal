@@ -1,0 +1,340 @@
+diff --git a/packages/web/src/app/robots.ts b/packages/web/src/app/robots.ts
+new file mode 100644
+index 0000000..c7d9acf
+--- /dev/null
++++ b/packages/web/src/app/robots.ts
+@@ -0,0 +1,14 @@
++import type { MetadataRoute } from "next";
++
++export default function robots(): MetadataRoute.Robots {
++  return {
++    rules: [
++      {
++        userAgent: "*",
++        allow: "/",
++        disallow: ["/api/", "/admin/"],
++      },
++    ],
++    sitemap: "https://theresalwaysadeal.com/sitemap.xml",
++  };
++}
+diff --git a/packages/web/src/app/sitemap.ts b/packages/web/src/app/sitemap.ts
+new file mode 100644
+index 0000000..c7cee93
+--- /dev/null
++++ b/packages/web/src/app/sitemap.ts
+@@ -0,0 +1,13 @@
++import type { MetadataRoute } from "next";
++
++// TODO: Populate with game page URLs when the game data API is available
++export default function sitemap(): MetadataRoute.Sitemap {
++  return [
++    {
++      url: "https://theresalwaysadeal.com",
++      lastModified: new Date(),
++      changeFrequency: "daily",
++      priority: 1,
++    },
++  ];
++}
+diff --git a/packages/web/src/components/GameCard.tsx b/packages/web/src/components/GameCard.tsx
+new file mode 100644
+index 0000000..afead27
+--- /dev/null
++++ b/packages/web/src/components/GameCard.tsx
+@@ -0,0 +1,77 @@
++import Image from "next/image";
++import { cn } from "@/lib/utils";
++import PriceBadge from "./PriceBadge";
++import DiscountBadge from "./DiscountBadge";
++import BuyButton from "./BuyButton";
++import StoreIcon from "./StoreIcon";
++
++export interface GameCardProps {
++  gameTitle: string;
++  gameSlug: string;
++  headerImageUrl: string;
++  currentPrice: number;
++  originalPrice: number;
++  discount: number;
++  storeName: string;
++  storeLogoUrl?: string | null;
++  storeUrl: string;
++  className?: string;
++}
++
++export default function GameCard({
++  gameTitle,
++  gameSlug: _gameSlug,
++  headerImageUrl,
++  currentPrice,
++  originalPrice,
++  discount,
++  storeName,
++  storeLogoUrl,
++  storeUrl,
++  className,
++}: GameCardProps) {
++  return (
++    <article
++      className={cn(
++        "group flex flex-col overflow-hidden rounded-xl border border-border bg-surface shadow-sm transition-shadow hover:shadow-md focus-within:ring-2 focus-within:ring-primary",
++        className,
++      )}
++    >
++      <div className="relative aspect-video w-full overflow-hidden">
++        <Image
++          src={headerImageUrl}
++          alt={gameTitle}
++          fill
++          sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
++          className="object-cover transition-transform group-hover:scale-105"
++        />
++      </div>
++
++      <div className="flex flex-1 flex-col gap-3 p-4">
++        <h3 className="line-clamp-2 text-base font-semibold leading-tight">
++          {gameTitle}
++        </h3>
++
++        <div className="flex items-center gap-2">
++          <StoreIcon storeName={storeName} logoUrl={storeLogoUrl} size={20} />
++          <span className="text-sm text-muted">{storeName}</span>
++        </div>
++
++        <div className="mt-auto flex items-center gap-2">
++          <PriceBadge
++            currentPrice={currentPrice}
++            originalPrice={originalPrice}
++          />
++          {discount > 0 && <DiscountBadge discount={discount} />}
++        </div>
++
++        <BuyButton
++          href={storeUrl}
++          storeName={storeName}
++          gameName={gameTitle}
++          className="w-full"
++        />
++      </div>
++    </article>
++  );
++}
+diff --git a/packages/web/tests/app/robots.test.ts b/packages/web/tests/app/robots.test.ts
+new file mode 100644
+index 0000000..95278c0
+--- /dev/null
++++ b/packages/web/tests/app/robots.test.ts
+@@ -0,0 +1,35 @@
++import { describe, it, expect } from 'vitest';
++import robots from '../../src/app/robots';
++
++describe('robots', () => {
++  it('should be a function', () => {
++    expect(typeof robots).toBe('function');
++  });
++
++  it('should return an object with rules array', () => {
++    const result = robots();
++    expect(result.rules).toBeDefined();
++    expect(Array.isArray(result.rules)).toBe(true);
++  });
++
++  it('should allow all user agents to crawl /', () => {
++    const result = robots();
++    const rules = Array.isArray(result.rules) ? result.rules : [result.rules];
++    const mainRule = rules[0];
++    expect(mainRule.userAgent).toBe('*');
++    expect(mainRule.allow).toBe('/');
++  });
++
++  it('should disallow /api/ and /admin/', () => {
++    const result = robots();
++    const rules = Array.isArray(result.rules) ? result.rules : [result.rules];
++    const mainRule = rules[0];
++    expect(mainRule.disallow).toContain('/api/');
++    expect(mainRule.disallow).toContain('/admin/');
++  });
++
++  it('should reference the sitemap URL', () => {
++    const result = robots();
++    expect(result.sitemap).toBe('https://theresalwaysadeal.com/sitemap.xml');
++  });
++});
+diff --git a/packages/web/tests/app/sitemap.test.ts b/packages/web/tests/app/sitemap.test.ts
+new file mode 100644
+index 0000000..879bab2
+--- /dev/null
++++ b/packages/web/tests/app/sitemap.test.ts
+@@ -0,0 +1,42 @@
++import { describe, it, expect } from 'vitest';
++import sitemap from '../../src/app/sitemap';
++
++describe('sitemap', () => {
++  it('should be a function', () => {
++    expect(typeof sitemap).toBe('function');
++  });
++
++  it('should return an array', () => {
++    const result = sitemap();
++    expect(Array.isArray(result)).toBe(true);
++  });
++
++  it('should include the homepage entry', () => {
++    const result = sitemap();
++    const homepage = result.find((entry) => entry.url === 'https://theresalwaysadeal.com');
++    expect(homepage).toBeDefined();
++  });
++
++  it('should set homepage priority to 1', () => {
++    const result = sitemap();
++    const homepage = result[0];
++    expect(homepage.priority).toBe(1);
++  });
++
++  it('should set homepage changeFrequency to daily', () => {
++    const result = sitemap();
++    const homepage = result[0];
++    expect(homepage.changeFrequency).toBe('daily');
++  });
++
++  it('should include lastModified as a Date', () => {
++    const result = sitemap();
++    const homepage = result[0];
++    expect(homepage.lastModified).toBeInstanceOf(Date);
++  });
++
++  it('should have at least one entry', () => {
++    const result = sitemap();
++    expect(result.length).toBeGreaterThanOrEqual(1);
++  });
++});
+diff --git a/packages/web/tests/components/GameCard.test.tsx b/packages/web/tests/components/GameCard.test.tsx
+new file mode 100644
+index 0000000..1b81608
+--- /dev/null
++++ b/packages/web/tests/components/GameCard.test.tsx
+@@ -0,0 +1,123 @@
++import { describe, it, expect, vi } from 'vitest';
++
++vi.mock('next/image', () => ({
++  default: function MockImage(props: Record<string, unknown>) {
++    return { type: 'img', props, key: null };
++  },
++}));
++
++import GameCard from '../../src/components/GameCard';
++
++const baseProps = {
++  gameTitle: 'Portal 2',
++  gameSlug: 'portal-2',
++  headerImageUrl: 'https://cdn.example.com/portal2.jpg',
++  currentPrice: 4.99,
++  originalPrice: 19.99,
++  discount: 75,
++  storeName: 'Steam',
++  storeLogoUrl: 'https://cdn.example.com/steam.png',
++  storeUrl: 'https://store.steampowered.com/app/620',
++};
++
++describe('GameCard', () => {
++  it('should be a function (React component)', () => {
++    expect(typeof GameCard).toBe('function');
++  });
++
++  it('should return an article element', () => {
++    const element = GameCard(baseProps);
++    expect(element.type).toBe('article');
++  });
++
++  it('should apply custom className', () => {
++    const element = GameCard({ ...baseProps, className: 'custom-class' });
++    expect(element.props.className).toContain('custom-class');
++  });
++
++  it('should include hover shadow style', () => {
++    const element = GameCard(baseProps);
++    expect(element.props.className).toContain('hover:shadow-md');
++  });
++
++  it('should include focus-within ring style', () => {
++    const element = GameCard(baseProps);
++    expect(element.props.className).toContain('focus-within:ring-2');
++  });
++
++  it('should render a cover image with alt set to game title', () => {
++    const element = GameCard(baseProps);
++    const imageContainer = element.props.children[0];
++    const image = imageContainer.props.children;
++    expect(image.props.alt).toBe('Portal 2');
++    expect(image.props.src).toBe('https://cdn.example.com/portal2.jpg');
++  });
++
++  it('should set fill on the cover image', () => {
++    const element = GameCard(baseProps);
++    const imageContainer = element.props.children[0];
++    const image = imageContainer.props.children;
++    expect(image.props.fill).toBe(true);
++  });
++
++  it('should render the game title in an h3', () => {
++    const element = GameCard(baseProps);
++    const content = element.props.children[1];
++    const title = content.props.children[0];
++    expect(title.type).toBe('h3');
++    expect(title.props.children).toBe('Portal 2');
++  });
++
++  it('should render store name text', () => {
++    const element = GameCard(baseProps);
++    const content = element.props.children[1];
++    const storeRow = content.props.children[1];
++    const storeLabel = storeRow.props.children[1];
++    expect(storeLabel.props.children).toBe('Steam');
++  });
++
++  it('should render DiscountBadge when discount > 0', () => {
++    const element = GameCard({ ...baseProps, discount: 75 });
++    const content = element.props.children[1];
++    const priceRow = content.props.children[2];
++    const discountBadge = priceRow.props.children[1];
++    expect(discountBadge).toBeTruthy();
++  });
++
++  it('should not render DiscountBadge when discount is 0', () => {
++    const element = GameCard({ ...baseProps, discount: 0 });
++    const content = element.props.children[1];
++    const priceRow = content.props.children[2];
++    const discountBadge = priceRow.props.children[1];
++    expect(discountBadge).toBeFalsy();
++  });
++
++  it('should render BuyButton with correct href', () => {
++    const element = GameCard(baseProps);
++    const content = element.props.children[1];
++    const buyButton = content.props.children[3];
++    expect(buyButton).toBeDefined();
++    expect(buyButton.props.href).toBe('https://store.steampowered.com/app/620');
++  });
++
++  it('should pass storeName and gameName to BuyButton', () => {
++    const element = GameCard(baseProps);
++    const content = element.props.children[1];
++    const buyButton = content.props.children[3];
++    expect(buyButton.props.storeName).toBe('Steam');
++    expect(buyButton.props.gameName).toBe('Portal 2');
++  });
++
++  it('should handle null storeLogoUrl', () => {
++    const element = GameCard({ ...baseProps, storeLogoUrl: null });
++    expect(element).toBeDefined();
++    expect(element.type).toBe('article');
++  });
++
++  it('should handle undefined storeLogoUrl', () => {
++    const { storeLogoUrl: _, ...propsWithoutLogo } = baseProps;
++    const element = GameCard(propsWithoutLogo as typeof baseProps);
++    expect(element).toBeDefined();
++    expect(element.type).toBe('article');
++  });
++});
