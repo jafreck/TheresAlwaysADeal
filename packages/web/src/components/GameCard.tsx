@@ -52,10 +52,12 @@ export default function GameCard({
           {gameTitle}
         </h3>
 
-        <div className="flex items-center gap-2">
-          <StoreIcon storeName={storeName} logoUrl={storeLogoUrl} size={20} />
-          <span className="text-sm text-muted">{storeName}</span>
-        </div>
+        {storeName && (
+          <div className="flex items-center gap-2">
+            <StoreIcon storeName={storeName} logoUrl={storeLogoUrl} size={20} />
+            <span className="text-sm text-muted">{storeName}</span>
+          </div>
+        )}
 
         <div className="mt-auto flex items-center gap-2">
           <PriceBadge
@@ -65,12 +67,14 @@ export default function GameCard({
           {discount > 0 && <DiscountBadge discount={discount} />}
         </div>
 
-        <BuyButton
-          href={storeUrl}
-          storeName={storeName}
-          gameName={gameTitle}
-          className="w-full"
-        />
+        {storeName && (
+          <BuyButton
+            href={storeUrl}
+            storeName={storeName}
+            gameName={gameTitle}
+            className="w-full"
+          />
+        )}
       </div>
     </article>
   );
