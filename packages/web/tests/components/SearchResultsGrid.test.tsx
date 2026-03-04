@@ -118,4 +118,29 @@ describe('SearchResultsGrid', () => {
     expect(container.textContent).toContain('Failed');
     expect(container.textContent).not.toContain('No results');
   });
+
+  it('should call onRetry when retry button is clicked', () => {
+    const onRetry = vi.fn();
+    const { container } = render(<SearchResultsGrid {...baseProps} error="Error" onRetry={onRetry} />);
+    const retryBtn = container.querySelector('button');
+    fireEvent.click(retryBtn!);
+    expect(onRetry).toHaveBeenCalledOnce();
+  });
+
+  it('should not render retry button when onRetry is not provided', () => {
+    const { container } = render(<SearchResultsGrid {...baseProps} error="Error" />);
+    const retryBtn = container.querySelector('button');
+    expect(retryBtn).toBeNull();
+  });
+
+  it('should format large total with locale string', () => {
+    const { container } = render(<SearchResultsGrid {...baseProps} total={1234} />);
+    expect(container.textContent).toContain('1,234');
+  });
+
+  it('should not show query text in header when query is empty', () => {
+    const { container } = render(<SearchResultsGrid {...baseProps} query="" total={5} />);
+    expect(container.textContent).toContain('5 results');
+    expect(container.textContent).not.toContain('for');
+  });
 });
