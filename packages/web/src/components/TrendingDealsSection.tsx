@@ -45,7 +45,7 @@ export default function TrendingDealsSection({
     enabled: activeTab !== "trending" || initialDeals.length === 0,
   });
 
-  const deals = data ?? initialDeals;
+  const deals = data ?? (activeTab === "trending" ? initialDeals : []);
 
   return (
     <section>
