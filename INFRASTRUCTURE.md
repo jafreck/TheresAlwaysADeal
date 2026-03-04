@@ -99,6 +99,9 @@ The scraper (`packages/scraper`) is imported directly by `packages/worker` as a 
 | `NEXT_PUBLIC_API_URL` | Yes | Used in CORS `origin` allowlist |
 | `SENTRY_DSN` | Yes (prod) | Sentry DSN for error tracking |
 | `LOGTAIL_SOURCE_TOKEN` | Yes (prod) | Logtail (Better Stack) structured log ingestion token |
+| `EMAIL_FROM` | Yes | Sender address for transactional emails (e.g. `noreply@theres-always-a-deal.com`) |
+| `EMAIL_PROVIDER` | No | Email provider identifier (default `resend`) |
+| `RESEND_API_KEY` | Yes (prod) | Resend API key for sending transactional emails |
 
 ### Worker (`packages/worker`) — Railway
 
@@ -110,6 +113,9 @@ The scraper (`packages/scraper`) is imported directly by `packages/worker` as a 
 | `SCRAPER_PROXIES` | No | Comma-separated proxy URLs for scraper rotation |
 | `SENTRY_DSN` | Yes (prod) | Sentry DSN for error tracking |
 | `LOGTAIL_SOURCE_TOKEN` | Yes (prod) | Logtail structured log ingestion token |
+| `EMAIL_FROM` | Yes | Sender address for transactional emails (e.g. `noreply@theres-always-a-deal.com`) |
+| `EMAIL_PROVIDER` | No | Email provider identifier (default `resend`) |
+| `RESEND_API_KEY` | Yes (prod) | Resend API key for sending transactional emails |
 
 ---
 
