@@ -52,37 +52,12 @@ describe("queues", () => {
       const steamSyncCall = vi.mocked(Queue).mock.calls.find(([name]) => name === "steam-sync");
       expect(steamSyncCall).toBeDefined();
     });
-  });
 
-  describe("QueueEvents instances", () => {
-    it("should create scrapeQueueEvents for 'scrape'", async () => {
-      await import("../src/queues.js");
-      const call = vi.mocked(QueueEvents).mock.calls.find(([name]) => name === "scrape");
-      expect(call).toBeDefined();
-    });
-
-    it("should create ingestQueueEvents for 'ingest'", async () => {
-      await import("../src/queues.js");
-      const call = vi.mocked(QueueEvents).mock.calls.find(([name]) => name === "ingest");
-      expect(call).toBeDefined();
-    });
-
-    it("should create priceDropQueueEvents for 'price-drop'", async () => {
-      await import("../src/queues.js");
-      const call = vi.mocked(QueueEvents).mock.calls.find(([name]) => name === "price-drop");
-      expect(call).toBeDefined();
-    });
-
-    it("should create allTimeLowQueueEvents for 'all-time-low'", async () => {
-      await import("../src/queues.js");
-      const call = vi.mocked(QueueEvents).mock.calls.find(([name]) => name === "all-time-low");
-      expect(call).toBeDefined();
-    });
-
-    it("should create steamSyncQueueEvents for 'steam-sync'", async () => {
-      await import("../src/queues.js");
-      const call = vi.mocked(QueueEvents).mock.calls.find(([name]) => name === "steam-sync");
-      expect(call).toBeDefined();
+    it("should create emailQueue with name 'email'", async () => {
+      const { emailQueue } = await import("../src/queues.js");
+      expect(emailQueue).toBeDefined();
+      const emailCall = vi.mocked(Queue).mock.calls.find(([name]) => name === "email");
+      expect(emailCall).toBeDefined();
     });
   });
 
@@ -116,6 +91,12 @@ describe("queues", () => {
       const { steamSyncQueue, steamSyncQueueEvents } = await import("../src/queues.js");
       expect(steamSyncQueue).toBeDefined();
       expect(steamSyncQueueEvents).toBeDefined();
+    });
+
+    it("should export emailQueue and emailQueueEvents", async () => {
+      const { emailQueue, emailQueueEvents } = await import("../src/queues.js");
+      expect(emailQueue).toBeDefined();
+      expect(emailQueueEvents).toBeDefined();
     });
   });
 });

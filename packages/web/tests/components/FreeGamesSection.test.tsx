@@ -43,6 +43,7 @@ vi.mock('../../src/components/StoreIcon', () => ({
 import FreeGamesSection from '../../src/components/FreeGamesSection';
 import type { FreeGame } from '../../src/components/FreeGamesSection';
 
+
 const makeGame = (overrides: Partial<FreeGame> = {}): FreeGame => ({
   gameTitle: 'Subnautica',
   gameSlug: 'subnautica',

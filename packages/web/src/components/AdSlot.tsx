@@ -86,5 +86,6 @@ export default function AdSlot({ slotId, className }: AdSlotProps) {
         {...(consentStatus !== "granted" ? { "data-ad-npa": "1" } : {})}
       />
     </div>
+
   );
 }

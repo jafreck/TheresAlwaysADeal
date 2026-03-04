@@ -1,10 +1,11 @@
 import http from "node:http";
 import { Worker, Queue } from "bullmq";
 import { Redis } from "ioredis";
-import { eq, and, desc, isNotNull } from "drizzle-orm";
-import { db, games, stores, storeListings, priceHistory, storeListingStats, users, wishlists } from "@taad/db";
-import type { BaseScraper, ScrapedGame } from "@taad/scraper";
-import { scrapeQueue, ingestQueue, priceDropQueue, allTimeLowQueue, featuredScrapeQueue, steamSyncQueue } from "./queues.js";
+import { eq, and, desc, isNotNull, gte } from "drizzle-orm";
+import { db, games, stores, storeListings, priceHistory, storeListingStats, users, wishlists, priceAlerts } from "@taad/db";
+import { type BaseScraper, type ScrapedGame, buildReferralUrl } from "@taad/scraper";
+import { sendPriceAlert, type PriceAlertData } from "@taad/email";
+import { scrapeQueue, ingestQueue, priceDropQueue, allTimeLowQueue, featuredScrapeQueue, steamSyncQueue, emailQueue } from "./queues.js";
 
 const connection = { url: process.env.REDIS_URL! };
 const SCRAPE_CRON = process.env.SCRAPE_CRON ?? "0 */6 * * *";
@@ -395,6 +396,118 @@ const ingestWorker = new Worker(
   { connection },
 );
 
+// ─── Notification processor (shared logic) ────────────────────────────────────
+async function processNotification(job: { data: { storeListingId: string; newPrice: number; gameId: string; previousPrice?: number } }) {
+  const { storeListingId, newPrice, gameId } = job.data;
+
+  // Find active alerts for this game where targetPrice >= the triggered price
+  const matchingAlerts = await db
+    .select({
+      alertId: priceAlerts.id,
+      userId: priceAlerts.userId,
+      email: users.email,
+    })
+    .from(priceAlerts)
+    .innerJoin(users, eq(users.id, priceAlerts.userId))
+    .where(
+      and(
+        eq(priceAlerts.gameId, gameId),
+        eq(priceAlerts.isActive, true),
+        gte(priceAlerts.targetPrice, String(newPrice)),
+      ),
+    );
+
+  if (matchingAlerts.length === 0) return;
+
+  // Get game title for the email
+  const [game] = await db.select().from(games).where(eq(games.id, gameId)).limit(1);
+  if (!game) return;
+
+  // Get store listing details
+  const [listing] = await db
+    .select({ id: storeListings.id, storeUrl: storeListings.storeUrl, storeId: storeListings.storeId })
+    .from(storeListings)
+    .where(eq(storeListings.id, storeListingId))
+    .limit(1);
+  if (!listing) return;
+
+  const [store] = await db.select().from(stores).where(eq(stores.id, listing.storeId)).limit(1);
+
+  for (const alert of matchingAlerts) {
+    await emailQueue.add("send-price-alert", {
+      userId: alert.userId,
+      alertId: alert.alertId,
+      email: alert.email,
+      gameTitle: game.title,
+      gameId,
+      storeListingId,
+      storeUrl: listing.storeUrl,
+      storeSlug: store?.slug ?? "",
+      newPrice,
+      previousPrice: job.data.previousPrice,
+    });
+  }
+}
+
+// ─── Price-Drop Notification Worker ───────────────────────────────────────────
+const priceDropWorker = new Worker(
+  "price-drop",
+  async (job) => {
+    await processNotification(job);
+  },
+  { connection },
+);
+
+// ─── All-Time-Low Notification Worker ─────────────────────────────────────────
+const allTimeLowWorker = new Worker(
+  "all-time-low",
+  async (job) => {
+    await processNotification(job);
+  },
+  { connection },
+);
+
+// ─── Email Worker ─────────────────────────────────────────────────────────────
+const emailWorker = new Worker(
+  "email",
+  async (job) => {
+    const { userId, alertId, email, gameTitle, storeListingId, storeUrl, storeSlug, newPrice } = job.data as {
+      userId: string;
+      alertId: string;
+      email: string;
+      gameTitle: string;
+      gameId: string;
+      storeListingId: string;
+      storeUrl: string;
+      storeSlug: string;
+      newPrice: number;
+      previousPrice?: number;
+    };
+
+    const referralUrl = buildReferralUrl(storeUrl, storeSlug);
+
+    const priceData: PriceAlertData = {
+      gameTitle,
+      imageUrl: "",
+      prices: [
+        {
+          storeName: storeSlug,
+          price: `$${newPrice.toFixed(2)}`,
+          referralUrl,
+        },
+      ],
+      unsubscribeUrl: `${process.env.APP_URL ?? "http://localhost:3000"}/api/v1/alerts/${alertId}/unsubscribe`,
+    };
+
+    try {
+      await sendPriceAlert(userId, alertId, priceData, email, storeListingId, String(newPrice));
+    } catch (error) {
+      console.error(`[email-worker] Failed to send price alert for alert ${alertId}:`, error);
+    }
+  },
+  { connection },
+);
+
 // ─── CRON: schedule scrape jobs per store ─────────────────────────────────────
 export async function scheduleScrapers() {
   const allStores = await db.select().from(stores);
@@ -481,5 +594,8 @@ process.on("SIGTERM", async () => {
   await ingestWorker.close();
   await featuredScrapeWorker.close();
   await steamSyncWorker.close();
+  await priceDropWorker.close();
+  await allTimeLowWorker.close();
+  await emailWorker.close();
   process.exit(0);
 });

@@ -13,7 +13,7 @@ import {
 import {
   sendVerificationEmail,
   sendPasswordResetEmail,
-} from "../lib/email.js";
+} from "@taad/email";
 import {
   registerSchema,
   loginSchema,

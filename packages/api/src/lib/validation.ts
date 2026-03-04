@@ -84,3 +84,10 @@ export const steamCallbackSchema = z.object({
 export const steamUnlinkSchema = z.object({
   confirm: z.literal(true),
 });
+
+
+// ─── Unsubscribe Schema ───────────────────────────────────────────────────────
+
+export const unsubscribeSchema = z.object({
+  token: z.string().min(1, "Token is required"),
+});
