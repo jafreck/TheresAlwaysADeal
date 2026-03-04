@@ -1,42 +1,82 @@
-import EmptyState from "@/components/EmptyState";
+import { Suspense } from "react";
+import type { Metadata } from "next";
+import { serverApi } from "@/lib/server-api";
+import SearchHero from "@/components/SearchHero";
+import AdSlot from "@/components/AdSlot";
+import FeaturedDealsSection, {
+  type FeaturedDeal,
+} from "@/components/FeaturedDealsSection";
+import FreeGamesSection, {
+  type FreeGame,
+} from "@/components/FreeGamesSection";
+import TrendingDealsSection from "@/components/TrendingDealsSection";
+import GenreBrowseSection from "@/components/GenreBrowseSection";
+import RecentlyViewedSection from "@/components/RecentlyViewedSection";
+import type { EnvelopeResponse } from "@/lib/api-client";
 
-export default function HomePage() {
+export const revalidate = 900;
+
+export const metadata: Metadata = {
+  title:
+    "There\u2019s Always a Deal \u2014 Best Game Deals Across Steam, GOG, Epic & More",
+  description:
+    "Compare game deals and prices across Steam, GOG, Epic Games Store, and more. Find the best price comparison for PC game deals, free games, and all-time low prices.",
+  openGraph: {
+    title:
+      "There\u2019s Always a Deal \u2014 Best Game Deals Across Steam, GOG, Epic & More",
+    description:
+      "Compare game deals and prices across Steam, GOG, Epic Games Store, and more. Find the best price comparison for PC game deals, free games, and all-time low prices.",
+    images: [{ url: "/og-home.png", width: 1200, height: 630 }],
+  },
+};
+
+async function fetchDeals<T>(path: string): Promise<T[]> {
+  try {
+    const res = await serverApi.get<EnvelopeResponse<T>>(path, revalidate);
+    return res.data;
+  } catch {
+    return [];
+  }
+}
+
+export default async function HomePage() {
+  const [featuredDeals, freeGames, trendingDeals] = await Promise.all([
+    fetchDeals<FeaturedDeal>("/deals?limit=10"),
+    fetchDeals<FreeGame>("/deals/free?limit=10"),
+    fetchDeals<FeaturedDeal>("/deals?limit=12"),
+  ]);
+
   return (
-    <div className="flex flex-col">
-      {/* Hero section */}
-      <section className="flex flex-col items-center justify-center gap-6 px-4 py-20 text-center md:py-32">
-        <h1 className="text-4xl font-bold tracking-tight text-zinc-50 md:text-5xl lg:text-6xl">
-          There&apos;s Always a Deal
-        </h1>
-        <p className="max-w-xl text-lg text-zinc-400 md:text-xl">
-          The best deals across the web, automatically aggregated and curated.
-        </p>
-        <div className="flex gap-3">
-          <a
-            href="/deals"
-            className="rounded-lg bg-primary px-6 py-3 text-sm font-medium text-zinc-50 transition-colors hover:bg-primary/90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
-          >
-            Browse Deals
-          </a>
-          <a
-            href="/free-games"
-            className="rounded-lg border border-zinc-700 px-6 py-3 text-sm font-medium text-zinc-300 transition-colors hover:bg-zinc-800 hover:text-zinc-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
-          >
-            Free Games
-          </a>
-        </div>
-      </section>
+    <div className="flex flex-col gap-12">
+      <SearchHero />
 
-      {/* Featured Deals section */}
-      <section className="mx-auto w-full max-w-7xl px-4 pb-16">
-        <h2 className="mb-6 text-2xl font-bold tracking-tight text-zinc-50">
-          Featured Deals
-        </h2>
-        <EmptyState
-          message="No featured deals yet. Check back soon for the best game deals!"
-          icon={<span>🎮</span>}
-        />
-      </section>
+      <AdSlot slotId="above-fold" />
+
+      <div className="mx-auto w-full max-w-7xl px-4">
+        <FeaturedDealsSection deals={featuredDeals} />
+      </div>
+
+      <div className="mx-auto w-full max-w-7xl px-4">
+        <FreeGamesSection games={freeGames} />
+      </div>
+
+      <AdSlot slotId="mid-page" />
+
+      <Suspense>
+        <div className="mx-auto w-full max-w-7xl px-4">
+          <TrendingDealsSection deals={trendingDeals} />
+        </div>
+      </Suspense>
+
+      <div className="mx-auto w-full max-w-7xl px-4">
+        <GenreBrowseSection />
+      </div>
+
+      <Suspense>
+        <div className="mx-auto w-full max-w-7xl px-4 pb-12">
+          <RecentlyViewedSection />
+        </div>
+      </Suspense>
     </div>
   );
 }

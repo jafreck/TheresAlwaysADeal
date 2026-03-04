@@ -75,7 +75,7 @@ describe("sortSchema", () => {
   });
 
   it("should accept valid sort values", () => {
-    for (const val of ["release_date"]) {
+    for (const val of ["release_date", "newest"]) {
       const result = sortSchema.parse({ sort: val });
       expect(result.sort).toBe(val);
     }
@@ -119,6 +119,13 @@ describe("commonQuerySchema", () => {
       genre: "rpg",
       sort: "release_date",
     });
+  });
+
+  it("should accept newest as a sort value", () => {
+    const result = commonQuerySchema.parse({
+      sort: "newest",
+    });
+    expect(result.sort).toBe("newest");
   });
 });
 
