@@ -73,6 +73,7 @@ function SearchPageContent() {
         genre: filters.genre || undefined,
         min_discount: filters.min_discount ?? undefined,
         max_price: filters.max_price ?? undefined,
+        sort: filters.sort || undefined,
       });
     },
     initialPageParam: 1,

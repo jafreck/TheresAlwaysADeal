@@ -3,11 +3,14 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render } from '@testing-library/react';
 
 // Mock IntersectionObserver for jsdom
+let lastObserverInstance: MockIntersectionObserver | null = null;
 class MockIntersectionObserver {
   observe = vi.fn();
   unobserve = vi.fn();
   disconnect = vi.fn();
-  constructor(public callback: IntersectionObserverCallback, public options?: IntersectionObserverInit) {}
+  constructor(public callback: IntersectionObserverCallback, public options?: IntersectionObserverInit) {
+    lastObserverInstance = this;
+  }
 }
 vi.stubGlobal('IntersectionObserver', MockIntersectionObserver);
 
@@ -104,6 +107,7 @@ vi.mock('@/components/LoadingSpinner', () => ({
   },
 }));
 
+import { useInfiniteQuery } from '@tanstack/react-query';
 import SearchPage from '../../../src/app/search/page';
 
 describe('SearchPage', () => {
@@ -260,5 +264,93 @@ describe('mapResultToCard', () => {
     const { container } = render(<SearchPage />);
     const grid = container.querySelector('[data-testid="search-results-grid"]');
     expect(grid).toBeTruthy();
+  });
+});
+
+describe('SearchPage useInfiniteQuery configuration', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockFilters.q = 'witcher';
+    mockFilters.store = '';
+    mockFilters.genre = '';
+    mockFilters.min_discount = null;
+    mockFilters.max_price = null;
+    mockFilters.sort = 'best_match';
+    mockFilters.page = 1;
+    mockInfiniteQueryResult.data = { pages: mockPages };
+    mockInfiniteQueryResult.isLoading = false;
+    mockInfiniteQueryResult.error = null;
+    mockInfiniteQueryResult.hasNextPage = false;
+    mockInfiniteQueryResult.isFetchingNextPage = false;
+  });
+
+  it('should pass filter values in the query key', () => {
+    render(<SearchPage />);
+    const calls = (useInfiniteQuery as unknown as ReturnType<typeof vi.fn>).mock.calls;
+    expect(calls.length).toBeGreaterThan(0);
+    const config = calls[0][0] as Record<string, unknown>;
+    const queryKey = config.queryKey as unknown[];
+    expect(queryKey[0]).toBe('searchGames');
+    expect(queryKey[1]).toBe('witcher');
+  });
+
+  it('should be disabled when query is empty', () => {
+    mockFilters.q = '';
+    render(<SearchPage />);
+    const calls = (useInfiniteQuery as unknown as ReturnType<typeof vi.fn>).mock.calls;
+    const config = calls[0][0] as Record<string, unknown>;
+    expect(config.enabled).toBe(false);
+  });
+
+  it('should be enabled when query is non-empty', () => {
+    mockFilters.q = 'portal';
+    render(<SearchPage />);
+    const calls = (useInfiniteQuery as unknown as ReturnType<typeof vi.fn>).mock.calls;
+    const config = calls[0][0] as Record<string, unknown>;
+    expect(config.enabled).toBe(true);
+  });
+
+  it('should set initialPageParam to 1', () => {
+    render(<SearchPage />);
+    const calls = (useInfiniteQuery as unknown as ReturnType<typeof vi.fn>).mock.calls;
+    const config = calls[0][0] as Record<string, unknown>;
+    expect(config.initialPageParam).toBe(1);
+  });
+
+  it('should include store and sort in query key', () => {
+    mockFilters.store = 'Steam';
+    mockFilters.sort = 'lowest_price';
+    render(<SearchPage />);
+    const calls = (useInfiniteQuery as unknown as ReturnType<typeof vi.fn>).mock.calls;
+    const config = calls[0][0] as Record<string, unknown>;
+    const queryKey = config.queryKey as unknown[];
+    expect(queryKey).toContain('Steam');
+    expect(queryKey).toContain('lowest_price');
+  });
+});
+
+describe('SearchPage IntersectionObserver', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    lastObserverInstance = null;
+    mockFilters.q = 'witcher';
+    mockInfiniteQueryResult.data = { pages: mockPages };
+    mockInfiniteQueryResult.isLoading = false;
+    mockInfiniteQueryResult.error = null;
+    mockInfiniteQueryResult.hasNextPage = false;
+    mockInfiniteQueryResult.isFetchingNextPage = false;
+  });
+
+  it('should create IntersectionObserver on mount', () => {
+    render(<SearchPage />);
+    expect(lastObserverInstance).toBeTruthy();
+    expect(lastObserverInstance!.observe).toHaveBeenCalled();
+  });
+
+  it('should disconnect IntersectionObserver on unmount', () => {
+    const { unmount } = render(<SearchPage />);
+    const observer = lastObserverInstance!;
+    unmount();
+    expect(observer.disconnect).toHaveBeenCalled();
   });
 });

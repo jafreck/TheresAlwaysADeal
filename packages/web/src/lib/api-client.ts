@@ -65,6 +65,7 @@ export interface SearchGamesParams {
   genre?: string;
   min_discount?: number;
   max_price?: number;
+  sort?: string;
 }
 
 export interface AutocompleteParams {

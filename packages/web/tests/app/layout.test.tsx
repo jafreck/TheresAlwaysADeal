@@ -191,4 +191,12 @@ describe('RootLayout', () => {
     expect(bodies[0].props.className).toContain('flex');
     expect(bodies[0].props.className).toContain('flex-col');
   });
+
+  it('should wrap content with NuqsAdapter', () => {
+    const element = RootLayout({ children: 'content' });
+    const adapters = findElements(element, (el) =>
+      el.type === 'div' && el.props['data-testid'] === 'nuqs-adapter',
+    );
+    expect(adapters.length).toBeGreaterThanOrEqual(1);
+  });
 });
