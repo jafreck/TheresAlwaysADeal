@@ -76,6 +76,16 @@ export interface PriceStats {
   lastCheckedAt: string;
 }
 
+export interface GameListItem {
+  id: number;
+  title: string;
+  slug: string;
+  description: string | null;
+  headerImageUrl: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface GameDetail {
   id: number;
   title: string;
