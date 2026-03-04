@@ -1,0 +1,7 @@
+```cadre-json
+{
+  "verdict": "pass",
+  "summary": "The diff is a minimal, correct test fix that resets a mock to prevent stale state leaking between test cases. All 44 worker tests pass.",
+  "issues": []
+}
+```

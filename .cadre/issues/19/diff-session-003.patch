@@ -1,0 +1,17 @@
+diff --git a/packages/worker/tests/index.test.ts b/packages/worker/tests/index.test.ts
+index 7dcb426..548ca04 100644
+--- a/packages/worker/tests/index.test.ts
++++ b/packages/worker/tests/index.test.ts
+@@ -948,8 +948,11 @@ describe("allTimeLowAlertWorker", () => {
+   });
+ 
+   it("should handle no active alerts gracefully", async () => {
++    // Clear once-queue and re-establish default so no stale mocks leak in
++    (db.select as ReturnType<typeof vi.fn>).mockReset();
+     (db.select as ReturnType<typeof vi.fn>)
+-      .mockReturnValueOnce(buildSelectChain([])); // no alerts
++      .mockReturnValue(buildSelectChain([]))  // default fallback
++      .mockReturnValueOnce(buildSelectChain([])); // active alerts → empty
+ 
+     mockQueueAdd.mockClear();
+ 

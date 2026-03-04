@@ -1,0 +1,95 @@
+{
+  "agent": "code-reviewer",
+  "issueNumber": 19,
+  "projectName": "theresalwaysadeal",
+  "repository": "jafreck/TheresAlwaysADeal",
+  "worktreePath": "/Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-19",
+  "phase": 3,
+  "sessionId": "session-003",
+  "config": {
+    "commands": {
+      "install": "npm install",
+      "build": "npm run build",
+      "test": "npx vitest run",
+      "lint": "npm run lint"
+    }
+  },
+  "inputFiles": [
+    "/Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-19/.cadre/issues/19/diff-session-003.patch",
+    "/Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-19/.cadre/issues/19/session-session-003.md",
+    "/Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-19/.cadre/issues/19/analysis.md",
+    "/Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-19/.cadre/issues/19/scout-report.md"
+  ],
+  "outputPath": "/Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-19/.cadre/issues/19/review-session-003.md",
+  "payload": {
+    "sessionId": "session-003",
+    "acceptanceCriteria": [
+      "`notificationQueue` is exported as a new BullMQ Queue named 'notification'",
+      "`notificationQueueEvents` is exported as the corresponding QueueEvents",
+      "Existing queue definitions are not modified",
+      "A new Worker consumes jobs from the 'price-drop' queue and evaluates active alerts for the given gameId",
+      "A new Worker consumes jobs from the 'all-time-low' queue and evaluates active alerts for the given gameId",
+      "For price-drop events: alerts trigger when current price <= targetPrice or discount >= targetDiscountPercent",
+      "For all-time-low events: all active alerts for the game trigger unconditionally",
+      "When an alert triggers, a job is added to `notificationQueue` with alert and price details",
+      "When an alert triggers, a row is inserted into `alertNotifications` with alertId, storeListingId, and triggeredPrice",
+      "Triggered price-drop alerts remain active (isActive is not set to false)",
+      "Both new workers are included in the graceful shutdown handler",
+      "The notificationQueue is imported from './queues.js'"
+    ],
+    "issueBody": "## Overview\nBuild the API for users to create and manage price alert rules (\"watchlists\") — notify me when a game drops below a target price or discount threshold.\n\n## Endpoints\n\n| Method | Path | Auth | Description |\n|---|---|---|---|\n| `GET` | `/api/user/me/alerts` | Required | List all price alerts |\n| `POST` | `/api/user/me/alerts` | Required | Create a price alert |\n| `PATCH` | `/api/user/me/alerts/:alertId` | Required | Update an alert |\n| `DELETE` | `/api/user/me/alerts/:alertId` | Required | Delete an alert |\n| `PATCH` | `/api/user/me/alerts/:alertId/pause` | Required | Pause/resume an alert |\n\n## Alert Rule Model\n```json\n{\n  \"id\": \"uuid\",\n  \"gameId\": \"uuid\",\n  \"storeId\": \"uuid | null\",\n  \"targetPriceCents\": 999,\n  \"targetDiscountPercent\": 75,\n  \"notifyEmail\": true,\n  \"notifySlackWebhook\": \"https://hooks.slack.com/...\",\n  \"isActive\": true,\n  \"createdAt\": \"...\"\n}\n```\n\n### Alert Trigger Logic\nAn alert fires when **any** of the following conditions are true (user chooses which apply):\n- `current_price_cents <= target_price_cents` (for a specific store or any store)\n- `discount_percent >= target_discount_percent`\n- Price reaches an all-time low (`PRICE_ALL_TIME_LOW` event from #12)\n\n## Tasks\n- [ ] Implement all CRUD endpoints with JWT auth middleware\n- [ ] Validate that `gameId` exists in the DB before creating alert\n- [ ] Allow alerts to be scoped to a specific store or any store\n- [ ] Store `notify_slack_webhook` encrypted at rest\n- [ ] Implement alert evaluation in the worker (on each price update, check all active alerts for that game):\n  - Query `price_alerts` where `game_id = ?` and `is_active = true`\n  - Evaluate trigger conditions\n  - If triggered, enqueue a notification job (see #20 and #21)\n  - Insert a row into `alert_notifications` to record the notification was sent\n  - For \"price drop\" alerts (not all-time-low), keep `is_active = true` (re-notify on further drops)\n- [ ] Limit number of active alerts per user to a reasonable cap (e.g., 100)\n- [ ] Add tests for trigger condition evaluation logic\n\n## Acceptance Criteria\n- Users can create alerts with price targets, discount targets, or both\n- Alerts evaluate correctly against live price data after each scraper run\n- Notifications are enqueued when conditions are met\n- `alert_notifications` table records notification history\n\n## Dependencies\n- #15 User Authentication\n- #12 Price History Tracking & Deal Scoring\n- #5 Scraper Framework & Job Scheduler"
+  },
+  "outputSchema": {
+    "type": "object",
+    "properties": {
+      "verdict": {
+        "type": "string",
+        "enum": [
+          "pass",
+          "needs-fixes"
+        ]
+      },
+      "issues": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "file": {
+              "type": "string"
+            },
+            "line": {
+              "type": "number"
+            },
+            "severity": {
+              "type": "string",
+              "enum": [
+                "error",
+                "warning",
+                "suggestion"
+              ]
+            },
+            "description": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "file",
+            "severity",
+            "description"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "summary": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "verdict",
+      "issues",
+      "summary"
+    ],
+    "additionalProperties": false,
+    "$schema": "http://json-schema.org/draft-07/schema#"
+  }
+}

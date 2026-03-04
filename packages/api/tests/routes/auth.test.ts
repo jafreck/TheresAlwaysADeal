@@ -324,7 +324,7 @@ describe("POST /login", () => {
 
   it("should return 429 after too many login attempts (Redis)", async () => {
     const redis = createMockRedis();
-    redis.incr.mockResolvedValue(11);
+    redis.get.mockResolvedValue("11");
     const app = makeApp(redis);
 
     const res = await jsonRequest(app, "/login", {
@@ -338,13 +338,14 @@ describe("POST /login", () => {
   });
 
   it("should set expire on first brute-force key in Redis", async () => {
+    mockVerifyPassword.mockResolvedValue(false);
     const redis = createMockRedis();
     redis.incr.mockResolvedValue(1);
     const app = makeApp(redis);
 
     await jsonRequest(app, "/login", {
       email: "test@example.com",
-      password: "securepassword",
+      password: "wrongpassword",
     });
 
     expect(redis.expire).toHaveBeenCalled();
