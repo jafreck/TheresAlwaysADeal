@@ -25,7 +25,7 @@ export function createDealsApp(getRedis: () => RedisClient | null) {
     if (!parsed.success) {
       return c.json({ error: "Invalid query parameters", details: parsed.error.flatten() }, 400);
     }
-    const { page, limit, store, genre, platform, min_discount, max_price } = parsed.data;
+    const { page, limit, store, genre, platform, min_discount, max_price, sort } = parsed.data;
     const offset = (page - 1) * limit;
 
     const conditions = [];
@@ -122,8 +122,11 @@ export function createDealsApp(getRedis: () => RedisClient | null) {
     const [totalResult] = await countQuery;
     const total = totalResult?.total ?? 0;
 
+    const orderColumn =
+      sort === "newest" ? desc(storeListings.createdAt) : desc(storeListingStats.dealScore);
+
     const rows = await baseQuery
-      .orderBy(desc(storeListingStats.dealScore))
+      .orderBy(orderColumn)
       .limit(limit)
       .offset(offset);
 
