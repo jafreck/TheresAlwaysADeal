@@ -171,4 +171,42 @@ describe("PriceComparisonTable", () => {
     expect(badges[0].props.discount).toBe(50);
     expect(badges[1].props.discount).toBe(42);
   });
+
+  it("should not show ATL indicator for non-ATL rows", () => {
+    const nonAtlRows: StoreListingRow[] = [
+      { ...sampleRows[1], isAllTimeLow: false },
+    ];
+    const element = PriceComparisonTable({ rows: nonAtlRows });
+    const texts = findTextContent(element);
+    expect(texts).not.toContain("ATL");
+  });
+
+  it("should pass storeLogoUrl to StoreIcon", () => {
+    const rowsWithLogo: StoreListingRow[] = [
+      { ...sampleRows[0], storeLogoUrl: "https://example.com/steam.png" },
+    ];
+    const element = PriceComparisonTable({ rows: rowsWithLogo });
+    const icons = findByType(element, StoreIcon);
+    expect(icons[0].props.logoUrl).toBe("https://example.com/steam.png");
+  });
+
+  it("should pass null storeLogoUrl to StoreIcon when not provided", () => {
+    const element = PriceComparisonTable({ rows: sampleRows });
+    const icons = findByType(element, StoreIcon);
+    expect(icons[0].props.logoUrl).toBeNull();
+  });
+
+  it("should pass correct currentPrice to PriceBadge in Price column", () => {
+    const element = PriceComparisonTable({ rows: sampleRows });
+    const badges = findByType(element, PriceBadge);
+    expect(badges[0].props.currentPrice).toBe(29.99);
+    expect(badges[1].props.currentPrice).toBe(59.99);
+  });
+
+  it("should pass storeName to BuyButton", () => {
+    const element = PriceComparisonTable({ rows: sampleRows });
+    const buttons = findByType(element, BuyButton);
+    expect(buttons[0].props.storeName).toBe("Steam");
+    expect(buttons[1].props.storeName).toBe("GOG");
+  });
 });

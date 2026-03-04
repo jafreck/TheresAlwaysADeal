@@ -20,9 +20,9 @@ vi.mock("recharts", () => ({
 }));
 
 import PriceHistoryChart from "../../src/components/PriceHistoryChart";
-import type { PriceHistoryEntry } from "../../src/components/PriceHistoryChart";
+import type { ChartPriceEntry } from "../../src/components/PriceHistoryChart";
 
-const sampleEntries: PriceHistoryEntry[] = [
+const sampleEntries: ChartPriceEntry[] = [
   { storeListingId: "store-1", price: 59.99, recordedAt: "2025-01-01T00:00:00Z" },
   { storeListingId: "store-1", price: 49.99, recordedAt: "2025-03-01T00:00:00Z" },
   { storeListingId: "store-1", price: 29.99, recordedAt: "2025-06-01T00:00:00Z" },
@@ -128,5 +128,46 @@ describe("PriceHistoryChart", () => {
     fireEvent.click(checkboxes[0]);
 
     expect(screen.getAllByTestId("line").length).toBe(1);
+  });
+
+  it("should re-show a line when its checkbox is re-checked", () => {
+    render(<PriceHistoryChart entries={sampleEntries} storeNames={storeNames} />);
+    const checkboxes = screen.getAllByRole("checkbox") as HTMLInputElement[];
+
+    fireEvent.click(checkboxes[0]);
+    expect(screen.getAllByTestId("line").length).toBe(1);
+
+    fireEvent.click(checkboxes[0]);
+    expect(screen.getAllByTestId("line").length).toBe(2);
+  });
+
+  it("should switch active style when clicking a different range button", () => {
+    render(<PriceHistoryChart entries={sampleEntries} storeNames={storeNames} />);
+    const threeM = screen.getByText("3M");
+    const allBtn = screen.getByText("All");
+
+    expect(allBtn.className).toContain("bg-primary");
+    expect(threeM.className).not.toContain("bg-primary");
+
+    fireEvent.click(threeM);
+
+    expect(threeM.className).toContain("bg-primary");
+    expect(allBtn.className).not.toContain("bg-primary");
+  });
+
+  it("should use store ID as line dataKey", () => {
+    render(<PriceHistoryChart entries={sampleEntries} storeNames={storeNames} />);
+    const lines = screen.getAllByTestId("line");
+    const dataKeys = lines.map((l) => l.getAttribute("data-datakey"));
+    expect(dataKeys).toContain("store-1");
+    expect(dataKeys).toContain("store-2");
+  });
+
+  it("should fall back to store ID when storeNames has no mapping", () => {
+    render(<PriceHistoryChart entries={sampleEntries} storeNames={{}} />);
+    const lines = screen.getAllByTestId("line");
+    const names = lines.map((l) => l.getAttribute("data-name"));
+    expect(names).toContain("store-1");
+    expect(names).toContain("store-2");
   });
 });

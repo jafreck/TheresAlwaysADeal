@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import {
   LineChart,
   Line,
@@ -12,15 +12,26 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import { cn } from "@/lib/utils";
+import type { PriceHistoryEntry } from "@/lib/api-client";
 
-export interface PriceHistoryEntry {
+/** Display-oriented price entry (transformed from API's PriceHistoryEntry). */
+export interface ChartPriceEntry {
   storeListingId: string;
   price: number;
   recordedAt: string;
 }
 
+/** Convert API PriceHistoryEntry items to display-oriented ChartPriceEntry items. */
+export function toChartEntries(entries: PriceHistoryEntry[]): ChartPriceEntry[] {
+  return entries.map((e) => ({
+    storeListingId: String(e.storeListingId),
+    price: Number(e.price),
+    recordedAt: e.recordedAt,
+  }));
+}
+
 interface PriceHistoryChartProps {
-  entries: PriceHistoryEntry[];
+  entries: ChartPriceEntry[];
   storeNames: Record<string, string>;
   className?: string;
 }
@@ -59,6 +70,16 @@ export default function PriceHistoryChart({
   const [enabledStores, setEnabledStores] = useState<Set<string>>(
     () => new Set(storeIds),
   );
+
+  useEffect(() => {
+    setEnabledStores((prev) => {
+      const next = new Set(prev);
+      for (const id of storeIds) {
+        if (!prev.has(id)) next.add(id);
+      }
+      return next.size !== prev.size ? next : prev;
+    });
+  }, [storeIds]);
 
   const filteredEntries = useMemo(() => {
     const threshold = getDateThreshold(range);
