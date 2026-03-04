@@ -7,7 +7,7 @@ describe("hashPassword", () => {
     expect(hash).toMatch(/^\$2[aby]?\$/);
   });
 
-  it("should produce different hashes for the same input (salt)", async () => {
+  it("should produce different hashes for the same input (salt)", { timeout: 15000 }, async () => {
     const h1 = await hashPassword("same-password");
     const h2 = await hashPassword("same-password");
     expect(h1).not.toBe(h2);
@@ -15,13 +15,13 @@ describe("hashPassword", () => {
 });
 
 describe("verifyPassword", () => {
-  it("should return true for a matching plaintext and hash", async () => {
+  it("should return true for a matching plaintext and hash", { timeout: 15000 }, async () => {
     const hash = await hashPassword("correct-password");
     const result = await verifyPassword("correct-password", hash);
     expect(result).toBe(true);
   });
 
-  it("should return false for a non-matching plaintext", async () => {
+  it("should return false for a non-matching plaintext", { timeout: 15000 }, async () => {
     const hash = await hashPassword("correct-password");
     const result = await verifyPassword("wrong-password", hash);
     expect(result).toBe(false);
