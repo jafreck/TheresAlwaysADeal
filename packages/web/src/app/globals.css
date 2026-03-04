@@ -1,10 +1,30 @@
 @import "tailwindcss";
 
 @theme {
+  /* Brand palette */
   --color-brand-50: oklch(0.97 0.02 250);
   --color-brand-500: oklch(0.55 0.22 250);
   --color-brand-900: oklch(0.2 0.1 250);
+
+  /* Semantic colors */
+  --color-primary: oklch(0.55 0.22 250);
+  --color-background: oklch(0.13 0.01 260);
+  --color-surface: oklch(0.18 0.01 260);
+  --color-muted: oklch(0.55 0.02 260);
+  --color-success: oklch(0.62 0.19 145);
+  --color-warning: oklch(0.75 0.18 75);
+  --color-danger: oklch(0.55 0.22 25);
+
+  /* Typography */
   --font-sans: "Geist", "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-size-heading: 1.875rem;
+  --font-size-body: 1rem;
+  --font-size-caption: 0.75rem;
+  --font-size-label: 0.875rem;
+  --font-weight-heading: 700;
+  --font-weight-body: 400;
+  --font-weight-caption: 400;
+  --font-weight-label: 500;
 }
 
 html {

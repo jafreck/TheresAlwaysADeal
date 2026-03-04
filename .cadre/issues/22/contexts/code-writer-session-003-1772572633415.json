@@ -1,0 +1,64 @@
+{
+  "agent": "code-writer",
+  "issueNumber": 22,
+  "projectName": "theresalwaysadeal",
+  "repository": "jafreck/TheresAlwaysADeal",
+  "worktreePath": "/Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-22",
+  "phase": 3,
+  "sessionId": "session-003",
+  "config": {
+    "commands": {
+      "install": "npm install",
+      "build": "npm run build",
+      "test": "npx vitest run",
+      "lint": "npm run lint"
+    }
+  },
+  "inputFiles": [
+    "/Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-22/.cadre/issues/22/session-session-003.md",
+    "/Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-22/packages/web/src/components/GameCard.tsx",
+    "/Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-22/packages/web/src/app/robots.ts",
+    "/Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-22/packages/web/src/app/sitemap.ts",
+    "/Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-22/.cadre/issues/22/analysis.md",
+    "/Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-22/.cadre/issues/22/scout-report.md"
+  ],
+  "outputPath": "/Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-22/.cadre/tasks",
+  "payload": {
+    "sessionId": "session-003",
+    "steps": [
+      {
+        "id": "session-003-step-001",
+        "name": "Create GameCard composite component",
+        "description": "Create packages/web/src/components/GameCard.tsx composing cover image (Next.js Image), title, PriceBadge, DiscountBadge, BuyButton, and StoreIcon into a card layout. Define a GameCardProps interface with fields derived from the API/DB schema (gameTitle, gameSlug, headerImageUrl, currentPrice, originalPrice, discount, storeName, storeLogoUrl, storeUrl).",
+        "files": [
+          "packages/web/src/components/GameCard.tsx"
+        ],
+        "complexity": "complex",
+        "acceptanceCriteria": [
+          "`GameCard` component is exported from `packages/web/src/components/GameCard.tsx`",
+          "Renders a card with cover image (using Next.js `<Image>` with proper alt text), game title, PriceBadge, DiscountBadge (conditionally when discount > 0), StoreIcon, and BuyButton",
+          "Cover image has `alt` text set to the game title",
+          "Card has hover/focus styles for interactivity",
+          "Props interface includes: gameTitle, gameSlug, headerImageUrl, currentPrice, originalPrice, discount, storeName, storeLogoUrl, storeUrl",
+          "Component accepts a `className` prop for external layout control"
+        ]
+      },
+      {
+        "id": "session-003-step-002",
+        "name": "Create stubbed robots.ts and sitemap.ts route handlers",
+        "description": "Create packages/web/src/app/robots.ts and packages/web/src/app/sitemap.ts as Next.js route handlers that return basic robots.txt and sitemap.xml content. Both are stubbed with placeholder data until the game data API is available.",
+        "files": [
+          "packages/web/src/app/robots.ts",
+          "packages/web/src/app/sitemap.ts"
+        ],
+        "complexity": "simple",
+        "acceptanceCriteria": [
+          "packages/web/src/app/robots.ts exports a default function returning a MetadataRoute.Robots object with basic Allow/Disallow rules and a sitemap reference",
+          "packages/web/src/app/sitemap.ts exports a default function returning a MetadataRoute.Sitemap array with at least the homepage entry",
+          "Both use the Next.js App Router metadata file convention",
+          "Sitemap includes a TODO comment indicating it should be populated with game page URLs when the API is available"
+        ]
+      }
+    ]
+  }
+}
