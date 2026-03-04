@@ -166,6 +166,7 @@ describe("schema", () => {
       expect(columns).toContain("id");
       expect(columns).toContain("userId");
       expect(columns).toContain("gameId");
+      expect(columns).toContain("source");
       expect(columns).toContain("createdAt");
     });
 
