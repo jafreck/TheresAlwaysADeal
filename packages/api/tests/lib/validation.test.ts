@@ -120,6 +120,13 @@ describe("commonQuerySchema", () => {
       sort: "release_date",
     });
   });
+
+  it("should accept newest as a sort value", () => {
+    const result = commonQuerySchema.parse({
+      sort: "newest",
+    });
+    expect(result.sort).toBe("newest");
+  });
 });
 
 describe("dealsQuerySchema", () => {
