@@ -58,7 +58,7 @@ export function createUserApp() {
 
     // Fetch Steam wishlist
     const wishlistUrl = `https://store.steampowered.com/wishlist/profiles/${user.steamId}/wishlistdata/`;
-    let wishlistData: Record<string, { appid?: number }>;
+    let wishlistData: Record<string, unknown>;
 
     try {
       const res = await fetch(wishlistUrl);
@@ -72,7 +72,7 @@ export function createUserApp() {
           200,
         );
       }
-      wishlistData = await res.json() as Record<string, { appid?: number }>;
+      wishlistData = await res.json() as Record<string, unknown>;
     } catch {
       return c.json(
         {
@@ -100,9 +100,9 @@ export function createUserApp() {
       );
     }
 
-    // Extract appids from wishlist
-    const appIds = Object.values(wishlistData)
-      .map((item) => item.appid ?? Number(Object.keys(wishlistData).find((k) => wishlistData[k] === item)))
+    // Extract appids from wishlist (keys are the appIds in the Steam API)
+    const appIds = Object.keys(wishlistData)
+      .map(Number)
       .filter((id) => !isNaN(id) && id > 0);
 
     if (appIds.length === 0) {

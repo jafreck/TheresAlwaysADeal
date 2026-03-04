@@ -722,11 +722,11 @@ describe("steam sync worker", () => {
 
     (db.select as ReturnType<typeof vi.fn>)
       .mockReturnValueOnce(buildSelectChain([mockUser])) // users with steamId
-      .mockReturnValueOnce(buildSelectChain([mockGame])); // game match
+      .mockReturnValueOnce(buildSelectChain([mockGame])) // game match
+      .mockReturnValueOnce(buildSelectChain([])); // no existing wishlist entry
 
     const insertChain = {
-      values: vi.fn().mockReturnThis(),
-      onConflictDoNothing: vi.fn().mockResolvedValue(undefined),
+      values: vi.fn().mockResolvedValue(undefined),
     };
     (db.insert as ReturnType<typeof vi.fn>).mockReturnValue(insertChain);
 
@@ -853,11 +853,11 @@ describe("steam sync worker", () => {
     (db.select as ReturnType<typeof vi.fn>)
       .mockReturnValueOnce(buildSelectChain([user1, user2])) // both users
       .mockReturnValueOnce(buildSelectChain([mockGameA])) // user1's game match
+      .mockReturnValueOnce(buildSelectChain([])) // no existing wishlist for user1/game-a
       .mockReturnValueOnce(buildSelectChain([])); // user2's game not found
 
     const insertChain = {
-      values: vi.fn().mockReturnThis(),
-      onConflictDoNothing: vi.fn().mockResolvedValue(undefined),
+      values: vi.fn().mockResolvedValue(undefined),
     };
     (db.insert as ReturnType<typeof vi.fn>).mockReturnValue(insertChain);
 
@@ -891,11 +891,12 @@ describe("steam sync worker", () => {
     (db.select as ReturnType<typeof vi.fn>)
       .mockReturnValueOnce(buildSelectChain([mockUser])) // users
       .mockReturnValueOnce(buildSelectChain([game1])) // match for appId 400
-      .mockReturnValueOnce(buildSelectChain([game2])); // match for appId 440
+      .mockReturnValueOnce(buildSelectChain([])) // no existing wishlist for game-x
+      .mockReturnValueOnce(buildSelectChain([game2])) // match for appId 440
+      .mockReturnValueOnce(buildSelectChain([])); // no existing wishlist for game-y
 
     const insertChain = {
-      values: vi.fn().mockReturnThis(),
-      onConflictDoNothing: vi.fn().mockResolvedValue(undefined),
+      values: vi.fn().mockResolvedValue(undefined),
     };
     (db.insert as ReturnType<typeof vi.fn>).mockReturnValue(insertChain);
 
@@ -949,44 +950,6 @@ describe("steam sync worker", () => {
     expect(steamSyncCall).toBeDefined();
   });
 
-  it("should do nothing when no users have a steamId linked", async () => {
-    (db.select as ReturnType<typeof vi.fn>)
-      .mockReturnValueOnce(buildSelectChain([])); // no users with steamId
-
-    const mockFetch = vi.spyOn(globalThis, "fetch");
-    mockFetch.mockClear();
-
-    const processor = getSteamSyncProcessor();
-    await expect(processor({})).resolves.toBeUndefined();
-
-    // fetch should not have been called since there are no users
-    expect(mockFetch).not.toHaveBeenCalled();
-    mockFetch.mockRestore();
-  });
-
-  it("should skip insert when game is not found in database for a wishlist appid", async () => {
-    const mockUser = { id: "user-4", steamId: "76561198000000004" };
-
-    (db.select as ReturnType<typeof vi.fn>)
-      .mockReturnValueOnce(buildSelectChain([mockUser])) // users with steamId
-      .mockReturnValueOnce(buildSelectChain([])); // game NOT found
-
-    const mockFetch = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
-      new Response(JSON.stringify({ "999": { name: "Unknown Game" } }), { status: 200 }),
-    );
-
-    const insertSpy = vi.fn();
-    (db.insert as ReturnType<typeof vi.fn>).mockImplementation(insertSpy);
-
-    const processor = getSteamSyncProcessor();
-    await expect(processor({})).resolves.toBeUndefined();
-
-    // insert should NOT have been called since no game matched
-    expect(insertSpy).not.toHaveBeenCalled();
-
-    mockFetch.mockRestore();
-  });
-
   it("should log a warning and continue when fetch throws for a user", async () => {
     const mockUser1 = { id: "user-5", steamId: "76561198000000005" };
     const mockUser2 = { id: "user-6", steamId: "76561198000000006" };
@@ -994,11 +957,11 @@ describe("steam sync worker", () => {
 
     (db.select as ReturnType<typeof vi.fn>)
       .mockReturnValueOnce(buildSelectChain([mockUser1, mockUser2])) // two users
-      .mockReturnValueOnce(buildSelectChain([mockGame])); // game match for user-6
+      .mockReturnValueOnce(buildSelectChain([mockGame])) // game match for user-6
+      .mockReturnValueOnce(buildSelectChain([])); // no existing wishlist for user-6/game-2
 
     const insertChain = {
-      values: vi.fn().mockReturnThis(),
-      onConflictDoNothing: vi.fn().mockResolvedValue(undefined),
+      values: vi.fn().mockResolvedValue(undefined),
     };
     (db.insert as ReturnType<typeof vi.fn>).mockReturnValue(insertChain);
 

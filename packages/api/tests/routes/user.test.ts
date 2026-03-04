@@ -237,7 +237,7 @@ describe("POST /me/steam/sync", () => {
     const originalFetch = globalThis.fetch;
     globalThis.fetch = vi.fn().mockResolvedValue({
       ok: true,
-      json: () => Promise.resolve({ "0": { appid: 440 } }),
+      json: () => Promise.resolve({ "440": { name: "Team Fortress 2" } }),
     });
 
     const app = makeApp();
@@ -311,7 +311,7 @@ describe("POST /me/steam/sync", () => {
     const originalFetch = globalThis.fetch;
     globalThis.fetch = vi.fn().mockResolvedValue({
       ok: true,
-      json: () => Promise.resolve({ "0": { appid: 99999 } }),
+      json: () => Promise.resolve({ "99999": { name: "Unknown Game" } }),
     });
 
     const app = makeApp();

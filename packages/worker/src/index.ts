@@ -140,10 +140,24 @@ const steamSyncWorker = new Worker(
 
           if (!game) continue;
 
-          await db
-            .insert(wishlists)
-            .values({ userId: user.id, gameId: game.id, source: "steam_sync" })
-            .onConflictDoNothing();
+          // Check if wishlist entry already exists (no unique constraint on wishlists table)
+          const [existing] = await db
+            .select({ id: wishlists.id })
+            .from(wishlists)
+            .where(
+              and(
+                eq(wishlists.userId, user.id),
+                eq(wishlists.gameId, game.id),
+                eq(wishlists.source, "steam_sync"),
+              ),
+            )
+            .limit(1);
+
+          if (!existing) {
+            await db
+              .insert(wishlists)
+              .values({ userId: user.id, gameId: game.id, source: "steam_sync" });
+          }
         }
       } catch (err) {
         console.warn(
