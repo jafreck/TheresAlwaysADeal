@@ -166,6 +166,8 @@ describe("GET /openapi.json", () => {
     expect(spec.paths["/games"].get.tags).toContain("Games");
     expect(spec.paths["/deals"].get.tags).toContain("Deals");
     expect(spec.paths["/stores"].get.tags).toContain("Stores");
+    expect(spec.paths["/auth/steam"].get.tags).toContain("Steam");
+    expect(spec.paths["/user/me/steam"].delete.tags).toContain("User");
   });
 
   it("should document search endpoint with required q parameter", async () => {
@@ -249,5 +251,68 @@ describe("GET /openapi.json", () => {
     expect(idParam).toBeDefined();
     expect(idParam.required).toBe(true);
     expect(idParam.in).toBe("path");
+  });
+
+  it("should document Steam auth redirect endpoint", async () => {
+    const res = await openApiApp.request("/openapi.json");
+    const spec = await res.json();
+
+    expect(spec.paths["/auth/steam"]).toBeDefined();
+    expect(spec.paths["/auth/steam"].get).toBeDefined();
+    expect(spec.paths["/auth/steam"].get.tags).toContain("Steam");
+    expect(spec.paths["/auth/steam"].get.responses["302"]).toBeDefined();
+  });
+
+  it("should document Steam callback endpoint", async () => {
+    const res = await openApiApp.request("/openapi.json");
+    const spec = await res.json();
+
+    expect(spec.paths["/auth/steam/callback"]).toBeDefined();
+    expect(spec.paths["/auth/steam/callback"].get).toBeDefined();
+    expect(spec.paths["/auth/steam/callback"].get.tags).toContain("Steam");
+    expect(spec.paths["/auth/steam/callback"].get.responses["200"]).toBeDefined();
+    expect(spec.paths["/auth/steam/callback"].get.responses["400"]).toBeDefined();
+  });
+
+  it("should document user Steam unlink endpoint", async () => {
+    const res = await openApiApp.request("/openapi.json");
+    const spec = await res.json();
+
+    expect(spec.paths["/user/me/steam"]).toBeDefined();
+    expect(spec.paths["/user/me/steam"].delete).toBeDefined();
+    expect(spec.paths["/user/me/steam"].delete.tags).toContain("User");
+    expect(spec.paths["/user/me/steam"].delete.requestBody).toBeDefined();
+  });
+
+  it("should document user Steam sync endpoint", async () => {
+    const res = await openApiApp.request("/openapi.json");
+    const spec = await res.json();
+
+    expect(spec.paths["/user/me/steam/sync"]).toBeDefined();
+    expect(spec.paths["/user/me/steam/sync"].post).toBeDefined();
+    expect(spec.paths["/user/me/steam/sync"].post.tags).toContain("User");
+    expect(spec.paths["/user/me/steam/sync"].post.responses["200"]).toBeDefined();
+    expect(spec.paths["/user/me/steam/sync"].post.responses["400"]).toBeDefined();
+  });
+
+  it("should include SteamLinkResponse and SteamSyncResponse schemas", async () => {
+    const res = await openApiApp.request("/openapi.json");
+    const spec = await res.json();
+
+    expect(spec.components.schemas.SteamLinkResponse).toBeDefined();
+    expect(spec.components.schemas.SteamLinkResponse.properties.steamId).toBeDefined();
+    expect(spec.components.schemas.SteamSyncResponse).toBeDefined();
+    expect(spec.components.schemas.SteamSyncResponse.properties.synced).toBeDefined();
+    expect(spec.components.schemas.SteamSyncResponse.properties.private).toBeDefined();
+  });
+
+  it("should include BearerAuth security scheme", async () => {
+    const res = await openApiApp.request("/openapi.json");
+    const spec = await res.json();
+
+    expect(spec.components.securitySchemes).toBeDefined();
+    expect(spec.components.securitySchemes.BearerAuth).toBeDefined();
+    expect(spec.components.securitySchemes.BearerAuth.type).toBe("http");
+    expect(spec.components.securitySchemes.BearerAuth.scheme).toBe("bearer");
   });
 });
