@@ -83,7 +83,7 @@ export function createAuthApp(getRedis: () => RedisClient | null) {
         400,
       );
     }
-    const { email, password } = parsed.data;
+    const { email, password, name } = parsed.data;
 
     // Check for existing user
     const [existing] = await db
@@ -100,7 +100,7 @@ export function createAuthApp(getRedis: () => RedisClient | null) {
 
     const [user] = await db
       .insert(users)
-      .values({ email, passwordHash, emailVerificationToken })
+      .values({ email, passwordHash, emailVerificationToken, name })
       .returning({ id: users.id, email: users.email });
 
     if (!user) {
