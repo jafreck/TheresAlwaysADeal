@@ -170,6 +170,8 @@ export function createDealsApp(getRedis: () => RedisClient | null) {
         price: priceHistory.price,
         originalPrice: priceHistory.originalPrice,
         discount: priceHistory.discount,
+        saleEndsAt: priceHistory.saleEndsAt,
+        expiresAt: storeListings.expiresAt,
       })
       .from(storeListings)
       .innerJoin(games, eq(games.id, storeListings.gameId))

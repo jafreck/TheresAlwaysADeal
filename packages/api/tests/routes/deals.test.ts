@@ -328,6 +328,50 @@ describe("GET /free", () => {
     expect(body.meta.limit).toBe(5);
   });
 
+  it("should return saleEndsAt and expiresAt fields in free game data", async () => {
+    const freeGame = {
+      gameId: "2",
+      gameTitle: "Free Game 2",
+      gameSlug: "free-game-2",
+      headerImageUrl: "https://example.com/img.jpg",
+      storeListingId: "sl2",
+      storeName: "Epic",
+      storeSlug: "epic",
+      storeUrl: "https://epic.com/game",
+      price: "0",
+      originalPrice: "29.99",
+      discount: "100",
+      saleEndsAt: "2025-12-31T23:59:59Z",
+      expiresAt: "2025-12-31T23:59:59Z",
+    };
+    const countResult = { total: 1 };
+    let callCount = 0;
+    mockDb.select.mockImplementation(() => {
+      callCount++;
+      const result = callCount === 1 ? [countResult] : [freeGame];
+      const builder: any = {
+        from: () => builder,
+        where: () => builder,
+        orderBy: () => builder,
+        limit: () => builder,
+        offset: () => Promise.resolve(result),
+        innerJoin: () => builder,
+        then: (resolve: (v: any) => any, reject: (e: any) => any) =>
+          Promise.resolve(result).then(resolve, reject),
+      };
+      return builder;
+    });
+
+    const res = await app.request("/free");
+    expect(res.status).toBe(200);
+
+    const body = await res.json();
+    expect(body.data[0]).toHaveProperty("saleEndsAt");
+    expect(body.data[0]).toHaveProperty("expiresAt");
+    expect(body.data[0].saleEndsAt).toBe("2025-12-31T23:59:59Z");
+    expect(body.data[0].expiresAt).toBe("2025-12-31T23:59:59Z");
+  });
+
   it("should return 400 for invalid pagination", async () => {
     const res = await app.request("/free?page=-1");
     expect(res.status).toBe(400);
