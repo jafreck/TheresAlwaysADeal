@@ -76,6 +76,8 @@ export async function sendPriceAlert(
 ): Promise<void> {
   const resend = getResendClient();
 
+  let sendResult: { id?: string } | undefined;
+
   try {
     const { data } = await resend.emails.send({
       from: getFromAddress(),
@@ -88,17 +90,7 @@ export async function sendPriceAlert(
         priceData.unsubscribeUrl,
       ),
     });
-
-    await db.insert(alertNotifications).values({
-      alertId,
-      storeListingId,
-      triggeredPrice,
-      emailStatus: "sent",
-      emailMessageId: data?.id ?? null,
-      emailProvider: "resend",
-    });
-
-    console.log(`[email] Price alert sent to ${recipientEmail} for alert ${alertId}`);
+    sendResult = data ?? undefined;
   } catch (error) {
     console.error(`[email] Failed to send price alert for alert ${alertId}:`, error);
 
@@ -114,7 +106,23 @@ export async function sendPriceAlert(
     } catch (dbError) {
       console.error(`[email] Failed to log notification failure:`, dbError);
     }
+    return;
   }
+
+  try {
+    await db.insert(alertNotifications).values({
+      alertId,
+      storeListingId,
+      triggeredPrice,
+      emailStatus: "sent",
+      emailMessageId: sendResult?.id ?? null,
+      emailProvider: "resend",
+    });
+  } catch (dbError) {
+    console.error(`[email] Email sent but failed to log success for alert ${alertId}:`, dbError);
+  }
+
+  console.log(`[email] Price alert sent to ${recipientEmail} for alert ${alertId}`);
 }
 
 export type { PriceEntry } from "./templates.js";
