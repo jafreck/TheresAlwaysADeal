@@ -1,0 +1,99 @@
+{
+  "agent": "whole-pr-reviewer",
+  "issueNumber": 16,
+  "projectName": "theresalwaysadeal",
+  "repository": "jafreck/TheresAlwaysADeal",
+  "worktreePath": "/Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-16",
+  "phase": 3,
+  "config": {
+    "commands": {
+      "install": "npm install",
+      "build": "npm run build",
+      "test": "npx vitest run",
+      "lint": "npm run lint"
+    }
+  },
+  "inputFiles": [
+    "/Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-16/.cadre/issues/16/session-session-001.md",
+    "/Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-16/.cadre/issues/16/session-session-002.md",
+    "/Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-16/.cadre/issues/16/analysis.md",
+    "/Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-16/.cadre/issues/16/scout-report.md",
+    "/Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-16/.cadre/issues/16/implementation-plan.md"
+  ],
+  "outputPath": "/Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-16/.cadre/issues/16/whole-pr-review.md",
+  "payload": {
+    "scope": "whole-pr",
+    "baseBranch": "main",
+    "fullDiffPath": "/Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-16/.cadre/issues/16/whole-pr-diff.patch",
+    "sessionSummaries": [
+      {
+        "sessionId": "session-001",
+        "verdict": "pass",
+        "summary": "All changes are correct and well-tested. The five new user profile columns in the DB schema match acceptance criteria (nullable/default values are appropriate), the three Zod validation schemas correctly enforce constraints, and tests cover valid inputs, boundary cases, and rejection of invalid inputs. All existing tests continue to pass (7 pre-existing worker test failures are unrelated, caused by EADDRINUSE).",
+        "keyFindings": []
+      },
+      {
+        "sessionId": "session-002",
+        "verdict": "needs-fixes",
+        "summary": "The GDPR account deletion endpoint does not nullify `slackWebhookUrl` during anonymization, leaving a user-specific Slack webhook URL intact after account deletion. This is a data-retention gap that conflicts with the GDPR anonymization requirement.",
+        "keyFindings": [
+          "GDPR deletion does not clear `slackWebhookUrl`. A Slack webhook URL is user-configured data that can identify or link to the user's workspace. It should be set to `null` in the `.set(...)` call alongside the other PII fields being anonymized."
+        ]
+      }
+    ],
+    "issueBody": "## Overview\nBuild the user profile API so users can view and update their account details.\n\n## Endpoints\n\n| Method | Path | Auth | Description |\n|---|---|---|---|\n| `GET` | `/api/user/me` | Required | Get current user's profile |\n| `PATCH` | `/api/user/me` | Required | Update display name, notification preferences |\n| `POST` | `/api/user/me/change-password` | Required | Change password (requires current password) |\n| `DELETE` | `/api/user/me` | Required | Delete account (GDPR compliance) |\n\n## Profile Fields\n```json\n{\n  \"id\": \"uuid\",\n  \"email\": \"user@example.com\",\n  \"displayName\": \"GamerTag\",\n  \"emailVerified\": true,\n  \"steamId\": \"76561198...\",\n  \"steamLinked\": true,\n  \"notificationPreferences\": {\n    \"emailAlerts\": true,\n    \"slackAlertsEnabled\": false\n  },\n  \"createdAt\": \"2025-01-01T00:00:00Z\"\n}\n```\n\n## Notification Preferences\nUsers can configure global defaults for how they receive alerts:\n- [ ] Toggle email alerts on/off globally\n- [ ] Store Slack webhook URL\n- [ ] Set default alert currency (USD, EUR, GBP, CAD)\n\n## Tasks\n- [ ] Implement all CRUD endpoints above with JWT auth middleware\n- [ ] Validate all input (display name length, email format for changes)\n- [ ] On account deletion: anonymize data per GDPR (replace PII with hashed values, keep price history rows)\n- [ ] On email change: send verification to new address before updating\n- [ ] Add unit and integration tests for all endpoints\n\n## Acceptance Criteria\n- Users can update their display name and notification preferences\n- Account deletion removes all PII\n- Password change requires current password verification\n- Profile returns `steamLinked: true` when Steam account is connected (see #17)\n\n## Dependencies\n- #15 User Authentication"
+  },
+  "outputSchema": {
+    "type": "object",
+    "properties": {
+      "verdict": {
+        "type": "string",
+        "enum": [
+          "pass",
+          "needs-fixes"
+        ]
+      },
+      "issues": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "file": {
+              "type": "string"
+            },
+            "line": {
+              "type": "number"
+            },
+            "severity": {
+              "type": "string",
+              "enum": [
+                "error",
+                "warning",
+                "suggestion"
+              ]
+            },
+            "description": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "file",
+            "severity",
+            "description"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "summary": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "verdict",
+      "issues",
+      "summary"
+    ],
+    "additionalProperties": false,
+    "$schema": "http://json-schema.org/draft-07/schema#"
+  }
+}

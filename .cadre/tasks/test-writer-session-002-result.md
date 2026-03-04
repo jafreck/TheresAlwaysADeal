@@ -1,27 +1,20 @@
-# Test Writer Result: session-002 — Alert CRUD Tests
+# Test Writer Result: session-002
 
-## Files Created
-- `packages/api/tests/routes/alerts.test.ts` — 28 tests covering all 5 alert endpoints
+## Summary
+Enhanced test coverage for the user profile routes, OpenAPI spec additions, and route mounting added in session-002.
 
-## Files Modified
-- `packages/api/tests/openapi.test.ts` — Added 6 tests for alert OpenAPI path definitions, tags, 401 responses, Alert schema, and BearerAuth security scheme
+## Test Files Modified
+- `packages/api/tests/routes/user.test.ts`: Added 5 edge-case tests (PATCH 404 after update, PATCH skip update on empty body, PATCH notification preferences, change-password 404, change-password null passwordHash)
+- `packages/api/tests/openapi.test.ts`: Added 8 tests for user endpoint documentation (paths, tags, BearerAuth security, UserProfile schema, PATCH request body, change-password request body)
+- `packages/api/tests/index.test.ts`: Added 1 test confirming user routes are mounted at /api/v1/user
 
-## Test Coverage Summary
+## Test Results
+- **Total**: 633 tests passed, 0 failed across 34 test files
 
-### alerts.test.ts (28 tests)
-- **Auth** (3): 401 for missing header, invalid format, expired token
-- **GET /** (3): empty array, decrypted webhooks, null webhook passthrough
-- **POST /** (6): valid creation (201), invalid body (400), missing targetPrice+targetDiscountPercent (400), nonexistent gameId (400), cap exceeded (409), webhook encryption
-- **PATCH /:alertId** (5): valid update, nonexistent alert (404), wrong owner (404), invalid body (400), webhook encryption on update
-- **DELETE /:alertId** (3): successful delete (204), nonexistent (404), wrong owner (404)
-- **PATCH /:alertId/pause** (8): set false, set true, non-boolean (400), missing isActive (400), nonexistent (404), wrong owner (404), webhook decryption in response
+## Coverage
+- `user.ts` routes: 22 tests covering GET /me (profile, steamLinked, displayName fallback, 401, 404), PATCH /me (valid update, invalid input, empty body, 404, skip update, notification prefs), POST /me/change-password (success, wrong password, invalid input, missing fields, 404, null passwordHash), DELETE /me (anonymization, 404)
+- OpenAPI user entries: 8 tests covering path existence, tags, security requirements, UserProfile schema shape, request body schemas
+- Index mounting: 1 test confirming /api/v1/user routes return non-404
 
-### openapi.test.ts (6 new tests)
-- All 5 alert endpoints documented
-- Alerts tag applied to all endpoints
-- 401 responses documented
-- Alert component schema exists
-- BearerAuth security scheme defined
-
-## Test Run
-- **All 650 tests pass** (35 test files, 0 failures)
+## Notes
+- All pre-existing tests continue to pass unchanged

@@ -1,21 +1,22 @@
-# Task Result: session-001 - Foundation: Schema, Validation, and Encryption
+# Task Result: session-001 - Schema columns and validation schemas
 
 ## Changes Made
-- `packages/db/src/schema.ts`: Added `storeId` (nullable UUID FK to stores), `targetDiscountPercent` (decimal(5,2), nullable), `notifyEmail` (boolean, default true), `notifySlackWebhook` (text, nullable) columns to priceAlerts table. Made `targetPrice` nullable.
-- `packages/api/src/lib/validation.ts`: Added `createAlertSchema` (requires gameId, enforces at least one of targetPrice/targetDiscountPercent via refinement) and `updateAlertSchema` (all fields optional, no gameId).
-- `packages/api/src/lib/encryption.ts`: Created new encryption module with `encrypt` and `decrypt` functions using AES-256-GCM. Returns iv:authTag:ciphertext hex-encoded. Throws if ENCRYPTION_KEY env var is missing.
-- `.env.example`: Added ENCRYPTION_KEY entry under a new "Encryption" section with descriptive comment.
+- `packages/db/src/schema.ts`: Added 5 new columns to the `users` table: `displayName` (varchar, nullable), `emailAlerts` (boolean, default false), `slackAlertsEnabled` (boolean, default false), `slackWebhookUrl` (text, nullable), `defaultAlertCurrency` (varchar, default 'USD')
+- `packages/db/tests/schema.test.ts`: Added assertions for all 5 new user columns in the existing users describe block
+- `packages/api/src/lib/validation.ts`: Added `updateProfileSchema`, `changePasswordSchema`, and `deleteAccountSchema` Zod schemas
+- `packages/api/tests/lib/validation.test.ts`: Added 25 tests across 3 new describe blocks covering valid inputs, boundary cases, and rejection of invalid inputs
 
 ## Files Modified
 - packages/db/src/schema.ts
+- packages/db/tests/schema.test.ts
 - packages/api/src/lib/validation.ts
-- .env.example
+- packages/api/tests/lib/validation.test.ts
 
 ## Files Created
-- packages/api/src/lib/encryption.ts
+- (none)
 
 ## Notes
-- The existing `targetPrice` column was changed from `.notNull()` to nullable to support discount-only alerts (where only `targetDiscountPercent` is set).
-- All existing columns on priceAlerts (id, userId, gameId, isActive, createdAt, updatedAt) are preserved unchanged.
-- The encryption key is expected to be a 64-character hex string (32 bytes) for AES-256-GCM.
-- Pre-existing type-check errors (missing node_modules, implicit any in seed.ts) are unrelated to these changes.
+- All 143 tests pass (52 schema + 91 validation)
+- `updateProfileSchema` uses `.nullable()` on `slackWebhookUrl` to allow explicitly setting it to null
+- `defaultAlertCurrency` uses `.length(3)` for exact ISO 4217 currency code length
+- `deleteAccountSchema` includes an optional `confirmation` field for future use

@@ -1,0 +1,868 @@
+diff --git a/packages/api/src/index.ts b/packages/api/src/index.ts
+index 689c793..4c68d3e 100644
+--- a/packages/api/src/index.ts
++++ b/packages/api/src/index.ts
+@@ -10,6 +10,7 @@ import { createGamesApp } from "./routes/games.js";
+ import { createDealsApp } from "./routes/deals.js";
+ import { storesApp } from "./routes/stores.js";
+ import { createAuthApp } from "./routes/auth.js";
++import { createUserApp } from "./routes/user.js";
+ import { openApiApp } from "./openapi.js";
+ 
+ const app = new Hono();
+@@ -62,6 +63,9 @@ v1.route("/stores", storesApp);
+ // Mount auth routes
+ v1.route("/auth", createAuthApp(getRedis));
+ 
++// Mount user routes
++v1.route("/user", createUserApp());
++
+ // Mount versioned router
+ app.route("/api/v1", v1);
+ 
+diff --git a/packages/api/src/openapi.ts b/packages/api/src/openapi.ts
+index 2f223e3..28096e7 100644
+--- a/packages/api/src/openapi.ts
++++ b/packages/api/src/openapi.ts
+@@ -338,6 +338,84 @@ const spec = {
+         },
+       },
+     },
++    "/user/me": {
++      get: {
++        summary: "Get current user profile",
++        tags: ["User"],
++        security: [{ BearerAuth: [] }],
++        responses: {
++          "200": { description: "User profile", content: { "application/json": { schema: { $ref: "#/components/schemas/UserProfile" } } } },
++          "401": { description: "Not authenticated", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
++          "404": { description: "User not found", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
++        },
++      },
++      patch: {
++        summary: "Update current user profile",
++        tags: ["User"],
++        security: [{ BearerAuth: [] }],
++        requestBody: {
++          required: true,
++          content: {
++            "application/json": {
++              schema: {
++                type: "object",
++                properties: {
++                  displayName: { type: "string", minLength: 1, maxLength: 255 },
++                  emailAlerts: { type: "boolean" },
++                  slackAlertsEnabled: { type: "boolean" },
++                  slackWebhookUrl: { type: "string", format: "uri", nullable: true },
++                  defaultAlertCurrency: { type: "string", minLength: 3, maxLength: 3 },
++                },
++              },
++            },
++          },
++        },
++        responses: {
++          "200": { description: "Updated user profile", content: { "application/json": { schema: { $ref: "#/components/schemas/UserProfile" } } } },
++          "400": { description: "Invalid input", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
++          "401": { description: "Not authenticated", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
++          "404": { description: "User not found", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
++        },
++      },
++      delete: {
++        summary: "Delete current user account (GDPR anonymization)",
++        tags: ["User"],
++        security: [{ BearerAuth: [] }],
++        responses: {
++          "200": { description: "Account deleted", content: { "application/json": { schema: { $ref: "#/components/schemas/MessageResponse" } } } },
++          "401": { description: "Not authenticated", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
++          "404": { description: "User not found", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
++        },
++      },
++    },
++    "/user/me/change-password": {
++      post: {
++        summary: "Change current user password",
++        tags: ["User"],
++        security: [{ BearerAuth: [] }],
++        requestBody: {
++          required: true,
++          content: {
++            "application/json": {
++              schema: {
++                type: "object",
++                required: ["currentPassword", "newPassword"],
++                properties: {
++                  currentPassword: { type: "string", minLength: 1 },
++                  newPassword: { type: "string", minLength: 8 },
++                },
++              },
++            },
++          },
++        },
++        responses: {
++          "200": { description: "Password changed", content: { "application/json": { schema: { $ref: "#/components/schemas/MessageResponse" } } } },
++          "400": { description: "Invalid input or incorrect current password", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
++          "401": { description: "Not authenticated", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
++          "404": { description: "User not found", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
++        },
++      },
++    },
+   },
+   components: {
+     schemas: {
+@@ -374,6 +452,34 @@ const spec = {
+           message: { type: "string" },
+         },
+       },
++      UserProfile: {
++        type: "object",
++        properties: {
++          id: { type: "string", format: "uuid" },
++          email: { type: "string", format: "email" },
++          displayName: { type: "string", nullable: true },
++          emailVerified: { type: "boolean" },
++          steamId: { type: "string", nullable: true },
++          steamLinked: { type: "boolean" },
++          notificationPreferences: {
++            type: "object",
++            properties: {
++              emailAlerts: { type: "boolean" },
++              slackAlertsEnabled: { type: "boolean" },
++              slackWebhookUrl: { type: "string", nullable: true },
++              defaultAlertCurrency: { type: "string" },
++            },
++          },
++          createdAt: { type: "string", format: "date-time" },
++        },
++      },
++    },
++    securitySchemes: {
++      BearerAuth: {
++        type: "http",
++        scheme: "bearer",
++        bearerFormat: "JWT",
++      },
+     },
+   },
+ };
+diff --git a/packages/api/src/routes/user.ts b/packages/api/src/routes/user.ts
+new file mode 100644
+index 0000000..9208c21
+--- /dev/null
++++ b/packages/api/src/routes/user.ts
+@@ -0,0 +1,197 @@
++import { Hono } from "hono";
++import { eq } from "drizzle-orm";
++import { db, users } from "@taad/db";
++import { hashPassword, verifyPassword } from "../lib/password.js";
++import {
++  updateProfileSchema,
++  changePasswordSchema,
++} from "../lib/validation.js";
++import { authMiddleware } from "../middleware/auth.js";
++
++type Variables = {
++  user: { sub: string; email: string };
++};
++
++export function createUserApp() {
++  const app = new Hono<{ Variables: Variables }>();
++
++  // All user routes require authentication
++  app.use("*", authMiddleware);
++
++  // GET /me - Get current user profile
++  app.get("/me", async (c) => {
++    const { sub: userId } = c.get("user");
++
++    const [user] = await db
++      .select({
++        id: users.id,
++        email: users.email,
++        displayName: users.displayName,
++        name: users.name,
++        emailVerified: users.emailVerified,
++        steamId: users.steamId,
++        emailAlerts: users.emailAlerts,
++        slackAlertsEnabled: users.slackAlertsEnabled,
++        slackWebhookUrl: users.slackWebhookUrl,
++        defaultAlertCurrency: users.defaultAlertCurrency,
++        createdAt: users.createdAt,
++      })
++      .from(users)
++      .where(eq(users.id, userId))
++      .limit(1);
++
++    if (!user) {
++      return c.json({ error: "User not found" }, 404);
++    }
++
++    return c.json({
++      id: user.id,
++      email: user.email,
++      displayName: user.displayName ?? user.name,
++      emailVerified: user.emailVerified,
++      steamId: user.steamId,
++      steamLinked: user.steamId != null,
++      notificationPreferences: {
++        emailAlerts: user.emailAlerts,
++        slackAlertsEnabled: user.slackAlertsEnabled,
++        slackWebhookUrl: user.slackWebhookUrl,
++        defaultAlertCurrency: user.defaultAlertCurrency,
++      },
++      createdAt: user.createdAt,
++    }, 200);
++  });
++
++  // PATCH /me - Update profile
++  app.patch("/me", async (c) => {
++    const { sub: userId } = c.get("user");
++
++    const body = await c.req.json();
++    const parsed = updateProfileSchema.safeParse(body);
++    if (!parsed.success) {
++      return c.json(
++        { error: "Invalid input", details: parsed.error.flatten() },
++        400,
++      );
++    }
++
++    const updates: Record<string, unknown> = {};
++    if (parsed.data.displayName !== undefined) updates.displayName = parsed.data.displayName;
++    if (parsed.data.emailAlerts !== undefined) updates.emailAlerts = parsed.data.emailAlerts;
++    if (parsed.data.slackAlertsEnabled !== undefined) updates.slackAlertsEnabled = parsed.data.slackAlertsEnabled;
++    if (parsed.data.slackWebhookUrl !== undefined) updates.slackWebhookUrl = parsed.data.slackWebhookUrl;
++    if (parsed.data.defaultAlertCurrency !== undefined) updates.defaultAlertCurrency = parsed.data.defaultAlertCurrency;
++
++    if (Object.keys(updates).length > 0) {
++      await db.update(users).set(updates).where(eq(users.id, userId));
++    }
++
++    const [updated] = await db
++      .select({
++        id: users.id,
++        email: users.email,
++        displayName: users.displayName,
++        name: users.name,
++        emailVerified: users.emailVerified,
++        steamId: users.steamId,
++        emailAlerts: users.emailAlerts,
++        slackAlertsEnabled: users.slackAlertsEnabled,
++        slackWebhookUrl: users.slackWebhookUrl,
++        defaultAlertCurrency: users.defaultAlertCurrency,
++        createdAt: users.createdAt,
++      })
++      .from(users)
++      .where(eq(users.id, userId))
++      .limit(1);
++
++    if (!updated) {
++      return c.json({ error: "User not found" }, 404);
++    }
++
++    return c.json({
++      id: updated.id,
++      email: updated.email,
++      displayName: updated.displayName ?? updated.name,
++      emailVerified: updated.emailVerified,
++      steamId: updated.steamId,
++      steamLinked: updated.steamId != null,
++      notificationPreferences: {
++        emailAlerts: updated.emailAlerts,
++        slackAlertsEnabled: updated.slackAlertsEnabled,
++        slackWebhookUrl: updated.slackWebhookUrl,
++        defaultAlertCurrency: updated.defaultAlertCurrency,
++      },
++      createdAt: updated.createdAt,
++    }, 200);
++  });
++
++  // POST /me/change-password - Change password
++  app.post("/me/change-password", async (c) => {
++    const { sub: userId } = c.get("user");
++
++    const body = await c.req.json();
++    const parsed = changePasswordSchema.safeParse(body);
++    if (!parsed.success) {
++      return c.json(
++        { error: "Invalid input", details: parsed.error.flatten() },
++        400,
++      );
++    }
++
++    const [user] = await db
++      .select({ id: users.id, passwordHash: users.passwordHash })
++      .from(users)
++      .where(eq(users.id, userId))
++      .limit(1);
++
++    if (!user || !user.passwordHash) {
++      return c.json({ error: "User not found" }, 404);
++    }
++
++    const valid = await verifyPassword(parsed.data.currentPassword, user.passwordHash);
++    if (!valid) {
++      return c.json({ error: "Current password is incorrect" }, 400);
++    }
++
++    const newHash = await hashPassword(parsed.data.newPassword);
++    await db.update(users).set({ passwordHash: newHash }).where(eq(users.id, userId));
++
++    return c.json({ message: "Password changed successfully" }, 200);
++  });
++
++  // DELETE /me - Delete account (GDPR anonymization)
++  app.delete("/me", async (c) => {
++    const { sub: userId } = c.get("user");
++
++    const [user] = await db
++      .select({ id: users.id, email: users.email })
++      .from(users)
++      .where(eq(users.id, userId))
++      .limit(1);
++
++    if (!user) {
++      return c.json({ error: "User not found" }, 404);
++    }
++
++    const hashedEmail = await hashPassword(user.email);
++
++    await db
++      .update(users)
++      .set({
++        email: hashedEmail,
++        name: "deleted",
++        displayName: "deleted",
++        passwordHash: null,
++        steamId: null,
++        steamAccessToken: null,
++        emailVerificationToken: null,
++        passwordResetToken: null,
++        passwordResetExpires: null,
++        emailVerified: false,
++      })
++      .where(eq(users.id, userId));
++
++    return c.json({ message: "Account deleted successfully" }, 200);
++  });
++
++  return app;
++}
+diff --git a/packages/api/tests/index.test.ts b/packages/api/tests/index.test.ts
+index 04377fe..a753efb 100644
+--- a/packages/api/tests/index.test.ts
++++ b/packages/api/tests/index.test.ts
+@@ -352,6 +352,18 @@ describe("POST /api/v1/auth/register", () => {
+   });
+ });
+ 
++describe("GET /api/v1/user/me", () => {
++  beforeEach(() => {
++    mockDb.select.mockReturnValue(createBuilder());
++    mockExec.mockResolvedValue([[null, 1], [null, -1]]);
++  });
++
++  it("returns a non-404 response confirming user routes are mounted", async () => {
++    const res = await app.request("/api/v1/user/me");
++    expect(res.status).not.toBe(404);
++  });
++});
++
+ describe("GET /api/docs", () => {
+   beforeEach(() => {
+     mockExec.mockResolvedValue([[null, 1], [null, -1]]);
+diff --git a/packages/api/tests/openapi.test.ts b/packages/api/tests/openapi.test.ts
+index e9d2e06..859570f 100644
+--- a/packages/api/tests/openapi.test.ts
++++ b/packages/api/tests/openapi.test.ts
+@@ -250,4 +250,91 @@ describe("GET /openapi.json", () => {
+     expect(idParam.required).toBe(true);
+     expect(idParam.in).toBe("path");
+   });
++
++  it("should document all user endpoints", async () => {
++    const res = await openApiApp.request("/openapi.json");
++    const spec = await res.json();
++
++    expect(spec.paths["/user/me"]).toBeDefined();
++    expect(spec.paths["/user/me"].get).toBeDefined();
++    expect(spec.paths["/user/me"].patch).toBeDefined();
++    expect(spec.paths["/user/me"].delete).toBeDefined();
++    expect(spec.paths["/user/me/change-password"]).toBeDefined();
++    expect(spec.paths["/user/me/change-password"].post).toBeDefined();
++  });
++
++  it("should tag user endpoints with User", async () => {
++    const res = await openApiApp.request("/openapi.json");
++    const spec = await res.json();
++
++    expect(spec.paths["/user/me"].get.tags).toContain("User");
++    expect(spec.paths["/user/me"].patch.tags).toContain("User");
++    expect(spec.paths["/user/me"].delete.tags).toContain("User");
++    expect(spec.paths["/user/me/change-password"].post.tags).toContain("User");
++  });
++
++  it("should require BearerAuth security on all user endpoints", async () => {
++    const res = await openApiApp.request("/openapi.json");
++    const spec = await res.json();
++
++    expect(spec.paths["/user/me"].get.security).toEqual([{ BearerAuth: [] }]);
++    expect(spec.paths["/user/me"].patch.security).toEqual([{ BearerAuth: [] }]);
++    expect(spec.paths["/user/me"].delete.security).toEqual([{ BearerAuth: [] }]);
++    expect(spec.paths["/user/me/change-password"].post.security).toEqual([{ BearerAuth: [] }]);
++  });
++
++  it("should define UserProfile schema with expected properties", async () => {
++    const res = await openApiApp.request("/openapi.json");
++    const spec = await res.json();
++
++    const profile = spec.components.schemas.UserProfile;
++    expect(profile).toBeDefined();
++    expect(profile.type).toBe("object");
++    expect(profile.properties.id).toBeDefined();
++    expect(profile.properties.email).toBeDefined();
++    expect(profile.properties.displayName).toBeDefined();
++    expect(profile.properties.emailVerified).toBeDefined();
++    expect(profile.properties.steamId).toBeDefined();
++    expect(profile.properties.steamLinked).toBeDefined();
++    expect(profile.properties.notificationPreferences).toBeDefined();
++    expect(profile.properties.createdAt).toBeDefined();
++  });
++
++  it("should define BearerAuth security scheme", async () => {
++    const res = await openApiApp.request("/openapi.json");
++    const spec = await res.json();
++
++    const bearerAuth = spec.components.securitySchemes?.BearerAuth;
++    expect(bearerAuth).toBeDefined();
++    expect(bearerAuth.type).toBe("http");
++    expect(bearerAuth.scheme).toBe("bearer");
++    expect(bearerAuth.bearerFormat).toBe("JWT");
++  });
++
++  it("should document PATCH /user/me request body with profile fields", async () => {
++    const res = await openApiApp.request("/openapi.json");
++    const spec = await res.json();
++
++    const patchBody = spec.paths["/user/me"].patch.requestBody;
++    expect(patchBody.required).toBe(true);
++    const schema = patchBody.content["application/json"].schema;
++    expect(schema.properties.displayName).toBeDefined();
++    expect(schema.properties.emailAlerts).toBeDefined();
++    expect(schema.properties.slackAlertsEnabled).toBeDefined();
++    expect(schema.properties.slackWebhookUrl).toBeDefined();
++    expect(schema.properties.defaultAlertCurrency).toBeDefined();
++  });
++
++  it("should document POST /user/me/change-password request body with required fields", async () => {
++    const res = await openApiApp.request("/openapi.json");
++    const spec = await res.json();
++
++    const postBody = spec.paths["/user/me/change-password"].post.requestBody;
++    expect(postBody.required).toBe(true);
++    const schema = postBody.content["application/json"].schema;
++    expect(schema.required).toContain("currentPassword");
++    expect(schema.required).toContain("newPassword");
++    expect(schema.properties.currentPassword).toBeDefined();
++    expect(schema.properties.newPassword).toBeDefined();
++  });
+ });
+diff --git a/packages/api/tests/routes/user.test.ts b/packages/api/tests/routes/user.test.ts
+new file mode 100644
+index 0000000..67c7fb8
+--- /dev/null
++++ b/packages/api/tests/routes/user.test.ts
+@@ -0,0 +1,394 @@
++import { describe, it, expect, vi, beforeEach } from "vitest";
++
++// ─── Mocks (hoisted before imports) ──────────────────────────────────────────
++
++const mockHashPassword = vi.fn();
++const mockVerifyPassword = vi.fn();
++vi.mock("../../src/lib/password.js", () => ({
++  hashPassword: (...args: unknown[]) => mockHashPassword(...args),
++  verifyPassword: (...args: unknown[]) => mockVerifyPassword(...args),
++}));
++
++const mockVerifyAccessToken = vi.fn();
++vi.mock("../../src/lib/jwt.js", () => ({
++  verifyAccessToken: (...args: unknown[]) => mockVerifyAccessToken(...args),
++}));
++
++// DB mock
++let mockDbSelectResult: any[] = [];
++let mockDbUpdateResult: any[] = [];
++
++function createSelectBuilder() {
++  const builder: any = {
++    from: () => builder,
++    where: () => builder,
++    limit: () => Promise.resolve(mockDbSelectResult),
++    then: (resolve: (v: any) => any, reject: (e: any) => any) =>
++      Promise.resolve(mockDbSelectResult).then(resolve, reject),
++  };
++  return builder;
++}
++
++const mockUpdateSet = vi.fn();
++const mockUpdateWhere = vi.fn();
++
++const mockDb = {
++  select: vi.fn().mockReturnValue(createSelectBuilder()),
++  update: vi.fn().mockReturnValue({
++    set: vi.fn().mockImplementation((...args: unknown[]) => {
++      mockUpdateSet(...args);
++      return {
++        where: vi.fn().mockImplementation((...wArgs: unknown[]) => {
++          mockUpdateWhere(...wArgs);
++          return Promise.resolve(mockDbUpdateResult);
++        }),
++      };
++    }),
++  }),
++};
++
++const stubTable = (cols: Record<string, string>) => cols;
++
++vi.mock("@taad/db", () => ({
++  db: mockDb,
++  users: stubTable({
++    id: "id",
++    email: "email",
++    name: "name",
++    displayName: "displayName",
++    passwordHash: "passwordHash",
++    emailVerified: "emailVerified",
++    emailVerificationToken: "emailVerificationToken",
++    passwordResetToken: "passwordResetToken",
++    passwordResetExpires: "passwordResetExpires",
++    steamId: "steamId",
++    steamAccessToken: "steamAccessToken",
++    emailAlerts: "emailAlerts",
++    slackAlertsEnabled: "slackAlertsEnabled",
++    slackWebhookUrl: "slackWebhookUrl",
++    defaultAlertCurrency: "defaultAlertCurrency",
++    createdAt: "createdAt",
++  }),
++}));
++
++vi.mock("drizzle-orm", () => ({
++  eq: vi.fn((col: string, val: unknown) => ({ col, val })),
++}));
++
++// ─── App under test ───────────────────────────────────────────────────────────
++
++const { createUserApp } = await import("../../src/routes/user.js");
++
++// ─── Helpers ──────────────────────────────────────────────────────────────────
++
++const TEST_USER = {
++  id: "user-1",
++  email: "test@example.com",
++  displayName: "Test User",
++  name: "Test Name",
++  emailVerified: true,
++  steamId: "steam-123",
++  emailAlerts: true,
++  slackAlertsEnabled: false,
++  slackWebhookUrl: null,
++  defaultAlertCurrency: "USD",
++  createdAt: new Date("2024-01-01"),
++};
++
++function makeApp() {
++  return createUserApp();
++}
++
++function authedRequest(app: any, path: string, opts: RequestInit = {}) {
++  mockVerifyAccessToken.mockReturnValue({ sub: "user-1", email: "test@example.com" });
++  return app.request(path, {
++    headers: {
++      Authorization: "Bearer valid-token",
++      "Content-Type": "application/json",
++      ...(opts.headers || {}),
++    },
++    ...opts,
++  });
++}
++
++function jsonBody(body: any): RequestInit {
++  return {
++    method: "PATCH",
++    body: JSON.stringify(body),
++  };
++}
++
++// ─── Tests ────────────────────────────────────────────────────────────────────
++
++describe("GET /me", () => {
++  beforeEach(() => {
++    vi.clearAllMocks();
++    mockDbSelectResult = [{ ...TEST_USER }];
++    mockDb.select.mockReturnValue(createSelectBuilder());
++  });
++
++  it("returns 200 with complete profile including computed steamLinked", async () => {
++    const app = makeApp();
++    const res = await authedRequest(app, "/me");
++    expect(res.status).toBe(200);
++
++    const json = await res.json();
++    expect(json.id).toBe("user-1");
++    expect(json.email).toBe("test@example.com");
++    expect(json.displayName).toBe("Test User");
++    expect(json.emailVerified).toBe(true);
++    expect(json.steamId).toBe("steam-123");
++    expect(json.steamLinked).toBe(true);
++    expect(json.notificationPreferences).toEqual({
++      emailAlerts: true,
++      slackAlertsEnabled: false,
++      slackWebhookUrl: null,
++      defaultAlertCurrency: "USD",
++    });
++    expect(json.createdAt).toBeDefined();
++  });
++
++  it("returns steamLinked false when steamId is null", async () => {
++    mockDbSelectResult = [{ ...TEST_USER, steamId: null }];
++    mockDb.select.mockReturnValue(createSelectBuilder());
++
++    const app = makeApp();
++    const res = await authedRequest(app, "/me");
++    const json = await res.json();
++    expect(json.steamLinked).toBe(false);
++  });
++
++  it("falls back to name when displayName is null", async () => {
++    mockDbSelectResult = [{ ...TEST_USER, displayName: null }];
++    mockDb.select.mockReturnValue(createSelectBuilder());
++
++    const app = makeApp();
++    const res = await authedRequest(app, "/me");
++    const json = await res.json();
++    expect(json.displayName).toBe("Test Name");
++  });
++
++  it("returns 401 when no auth header provided", async () => {
++    const app = makeApp();
++    const res = await app.request("/me");
++    expect(res.status).toBe(401);
++  });
++
++  it("returns 404 when user not found", async () => {
++    mockDbSelectResult = [];
++    mockDb.select.mockReturnValue(createSelectBuilder());
++
++    const app = makeApp();
++    const res = await authedRequest(app, "/me");
++    expect(res.status).toBe(404);
++  });
++});
++
++describe("PATCH /me", () => {
++  beforeEach(() => {
++    vi.clearAllMocks();
++    mockDbSelectResult = [{ ...TEST_USER, displayName: "Updated Name" }];
++    mockDb.select.mockReturnValue(createSelectBuilder());
++  });
++
++  it("returns 200 with updated profile after valid update", async () => {
++    const app = makeApp();
++    const res = await authedRequest(app, "/me", {
++      method: "PATCH",
++      body: JSON.stringify({ displayName: "Updated Name" }),
++    });
++    expect(res.status).toBe(200);
++
++    const json = await res.json();
++    expect(json.displayName).toBe("Updated Name");
++    expect(mockDb.update).toHaveBeenCalled();
++  });
++
++  it("returns 400 for invalid input (displayName too long)", async () => {
++    const app = makeApp();
++    const res = await authedRequest(app, "/me", {
++      method: "PATCH",
++      body: JSON.stringify({ displayName: "x".repeat(256) }),
++    });
++    expect(res.status).toBe(400);
++  });
++
++  it("returns 400 for invalid input (bad slackWebhookUrl)", async () => {
++    const app = makeApp();
++    const res = await authedRequest(app, "/me", {
++      method: "PATCH",
++      body: JSON.stringify({ slackWebhookUrl: "not-a-url" }),
++    });
++    expect(res.status).toBe(400);
++  });
++
++  it("returns 200 even with empty update body", async () => {
++    const app = makeApp();
++    const res = await authedRequest(app, "/me", {
++      method: "PATCH",
++      body: JSON.stringify({}),
++    });
++    expect(res.status).toBe(200);
++  });
++
++  it("returns 404 when user not found after update", async () => {
++    mockDbSelectResult = [];
++    mockDb.select.mockReturnValue(createSelectBuilder());
++
++    const app = makeApp();
++    const res = await authedRequest(app, "/me", {
++      method: "PATCH",
++      body: JSON.stringify({ displayName: "New Name" }),
++    });
++    expect(res.status).toBe(404);
++  });
++
++  it("should skip db.update when no updatable fields are provided", async () => {
++    const app = makeApp();
++    await authedRequest(app, "/me", {
++      method: "PATCH",
++      body: JSON.stringify({}),
++    });
++    expect(mockDb.update).not.toHaveBeenCalled();
++  });
++
++  it("should update notification preferences", async () => {
++    mockDbSelectResult = [{ ...TEST_USER, emailAlerts: false, slackAlertsEnabled: true }];
++    mockDb.select.mockReturnValue(createSelectBuilder());
++
++    const app = makeApp();
++    const res = await authedRequest(app, "/me", {
++      method: "PATCH",
++      body: JSON.stringify({ emailAlerts: false, slackAlertsEnabled: true }),
++    });
++    expect(res.status).toBe(200);
++    const json = await res.json();
++    expect(json.notificationPreferences.emailAlerts).toBe(false);
++    expect(json.notificationPreferences.slackAlertsEnabled).toBe(true);
++  });
++});
++
++describe("POST /me/change-password", () => {
++  beforeEach(() => {
++    vi.clearAllMocks();
++    mockDbSelectResult = [{ id: "user-1", passwordHash: "hashed-pw" }];
++    mockDb.select.mockReturnValue(createSelectBuilder());
++  });
++
++  it("returns 200 on successful password change", async () => {
++    mockVerifyPassword.mockResolvedValue(true);
++    mockHashPassword.mockResolvedValue("new-hashed-pw");
++
++    const app = makeApp();
++    const res = await authedRequest(app, "/me/change-password", {
++      method: "POST",
++      body: JSON.stringify({ currentPassword: "old-pass", newPassword: "new-password-123" }),
++    });
++    expect(res.status).toBe(200);
++
++    const json = await res.json();
++    expect(json.message).toBe("Password changed successfully");
++    expect(mockVerifyPassword).toHaveBeenCalledWith("old-pass", "hashed-pw");
++    expect(mockHashPassword).toHaveBeenCalledWith("new-password-123");
++    expect(mockDb.update).toHaveBeenCalled();
++  });
++
++  it("returns 400 when current password is incorrect", async () => {
++    mockVerifyPassword.mockResolvedValue(false);
++
++    const app = makeApp();
++    const res = await authedRequest(app, "/me/change-password", {
++      method: "POST",
++      body: JSON.stringify({ currentPassword: "wrong-pass", newPassword: "new-password-123" }),
++    });
++    expect(res.status).toBe(400);
++
++    const json = await res.json();
++    expect(json.error).toBe("Current password is incorrect");
++  });
++
++  it("returns 400 for invalid input (newPassword too short)", async () => {
++    const app = makeApp();
++    const res = await authedRequest(app, "/me/change-password", {
++      method: "POST",
++      body: JSON.stringify({ currentPassword: "old-pass", newPassword: "short" }),
++    });
++    expect(res.status).toBe(400);
++  });
++
++  it("returns 400 for missing fields", async () => {
++    const app = makeApp();
++    const res = await authedRequest(app, "/me/change-password", {
++      method: "POST",
++      body: JSON.stringify({}),
++    });
++    expect(res.status).toBe(400);
++  });
++
++  it("returns 404 when user not found", async () => {
++    mockDbSelectResult = [];
++    mockDb.select.mockReturnValue(createSelectBuilder());
++
++    const app = makeApp();
++    const res = await authedRequest(app, "/me/change-password", {
++      method: "POST",
++      body: JSON.stringify({ currentPassword: "old-pass", newPassword: "new-password-123" }),
++    });
++    expect(res.status).toBe(404);
++  });
++
++  it("returns 404 when user has no passwordHash", async () => {
++    mockDbSelectResult = [{ id: "user-1", passwordHash: null }];
++    mockDb.select.mockReturnValue(createSelectBuilder());
++
++    const app = makeApp();
++    const res = await authedRequest(app, "/me/change-password", {
++      method: "POST",
++      body: JSON.stringify({ currentPassword: "old-pass", newPassword: "new-password-123" }),
++    });
++    expect(res.status).toBe(404);
++  });
++});
++
++describe("DELETE /me", () => {
++  beforeEach(() => {
++    vi.clearAllMocks();
++    mockDbSelectResult = [{ id: "user-1", email: "test@example.com" }];
++    mockDb.select.mockReturnValue(createSelectBuilder());
++    mockHashPassword.mockResolvedValue("hashed-email");
++  });
++
++  it("returns 200 and calls db.update with anonymized values", async () => {
++    const app = makeApp();
++    const res = await authedRequest(app, "/me", { method: "DELETE" });
++    expect(res.status).toBe(200);
++
++    const json = await res.json();
++    expect(json.message).toBe("Account deleted successfully");
++    expect(mockHashPassword).toHaveBeenCalledWith("test@example.com");
++    expect(mockDb.update).toHaveBeenCalled();
++    expect(mockUpdateSet).toHaveBeenCalledWith(
++      expect.objectContaining({
++        email: "hashed-email",
++        name: "deleted",
++        displayName: "deleted",
++        passwordHash: null,
++        steamId: null,
++        steamAccessToken: null,
++        emailVerificationToken: null,
++        passwordResetToken: null,
++        passwordResetExpires: null,
++        emailVerified: false,
++      }),
++    );
++  });
++
++  it("returns 404 when user not found", async () => {
++    mockDbSelectResult = [];
++    mockDb.select.mockReturnValue(createSelectBuilder());
++
++    const app = makeApp();
++    const res = await authedRequest(app, "/me", { method: "DELETE" });
++    expect(res.status).toBe(404);
++  });
++});

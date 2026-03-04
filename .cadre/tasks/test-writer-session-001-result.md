@@ -1,20 +1,24 @@
 # Test Writer Result: session-001
 
-## Test Files Created
-- `packages/web/tests/lib/utils.test.ts` — 8 tests for `cn` utility (merge, conditionals, Tailwind conflict resolution, edge cases)
-- `packages/web/tests/lib/auth-store.test.ts` — 8 tests for Zustand auth store (initial state, setAccessToken, setUserProfile, logout)
-- `packages/web/tests/lib/api-client.test.ts` — 14 tests for API client (headers, auth token injection, GET/POST/PUT/DELETE methods, error handling for non-2xx and non-JSON error bodies)
-- `packages/web/tests/lib/query-provider.test.tsx` — 3 tests for QueryProvider (component type, renders without throwing, accepts children)
+# Test Writer Result: session-001
 
-## Coverage Summary
-| Module | Tests | Happy Path | Error/Edge |
-|---|---|---|---|
-| utils.ts (`cn`) | 8 | 4 | 4 |
-| auth-store.ts | 8 | 4 | 4 |
-| api-client.ts | 14 | 8 | 6 |
-| query-provider.tsx | 3 | 3 | 0 |
+## Summary
+Verified and enhanced existing tests for the schema columns and validation schemas added by the code-writer.
 
-## Test Run
-- **41 tests passed** across 6 test files (including 8 pre-existing tests)
-- Duration: 913ms
-- All existing tests remain green
+## Test Files Modified
+- `packages/api/tests/lib/validation.test.ts`: Added 4 edge-case tests (empty string slackWebhookUrl, non-boolean slackAlertsEnabled, 7-char newPassword boundary, non-string confirmation rejection)
+- `packages/db/tests/schema.test.ts`: No changes needed — existing tests already cover all 5 new user columns
+
+## Test Results
+- **packages/api/tests/lib/validation.test.ts**: 95 tests passed
+- **packages/db/tests/schema.test.ts**: 52 tests passed
+- **Total**: 147 tests passed, 0 failed
+
+## Coverage
+- `updateProfileSchema`: 19 tests (empty object, valid/invalid displayName boundaries, boolean fields, url/null slackWebhookUrl, currency length)
+- `changePasswordSchema`: 8 tests (valid parse, boundary cases, missing fields)
+- `deleteAccountSchema`: 3 tests (empty object, optional confirmation, non-string rejection)
+- Schema users table: column presence assertions for all 5 new columns (displayName, emailAlerts, slackAlertsEnabled, slackWebhookUrl, defaultAlertCurrency)
+
+## Notes
+- 7 pre-existing failures in `packages/worker/tests/index.test.ts` (EADDRINUSE port conflict) are unrelated to this change

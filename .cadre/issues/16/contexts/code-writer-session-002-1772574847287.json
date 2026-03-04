@@ -1,0 +1,100 @@
+{
+  "agent": "code-writer",
+  "issueNumber": 16,
+  "projectName": "theresalwaysadeal",
+  "repository": "jafreck/TheresAlwaysADeal",
+  "worktreePath": "/Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-16",
+  "phase": 3,
+  "sessionId": "session-002",
+  "config": {
+    "commands": {
+      "install": "npm install",
+      "build": "npm run build",
+      "test": "npx vitest run",
+      "lint": "npm run lint"
+    }
+  },
+  "inputFiles": [
+    "/Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-16/.cadre/issues/16/session-session-002.md",
+    "/Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-16/packages/api/src/routes/user.ts",
+    "/Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-16/packages/api/src/index.ts",
+    "/Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-16/packages/api/src/openapi.ts",
+    "/Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-16/packages/api/tests/routes/user.test.ts",
+    "/Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-16/.cadre/issues/16/analysis.md",
+    "/Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-16/.cadre/issues/16/scout-report.md"
+  ],
+  "outputPath": "/Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-16/.cadre/tasks",
+  "payload": {
+    "sessionId": "session-002",
+    "steps": [
+      {
+        "id": "session-002-step-001",
+        "name": "Create user route file with all four endpoints",
+        "description": "Create packages/api/src/routes/user.ts exporting a createUserApp factory (following the auth route pattern) with GET /me, PATCH /me, POST /me/change-password, and DELETE /me endpoints. All endpoints use authMiddleware. GET returns the user profile with computed steamLinked. PATCH updates displayName and notification preferences. POST /change-password verifies current password before setting new one. DELETE anonymizes PII per GDPR.",
+        "files": [
+          "packages/api/src/routes/user.ts"
+        ],
+        "complexity": "complex",
+        "acceptanceCriteria": [
+          "`createUserApp` is exported as a named function",
+          "All four routes are protected by `authMiddleware`",
+          "GET /me returns id, email, displayName (from name column or new displayName column), emailVerified, steamId, steamLinked (computed boolean), notificationPreferences (emailAlerts, slackAlertsEnabled, slackWebhookUrl, defaultAlertCurrency), and createdAt",
+          "PATCH /me validates input with `updateProfileSchema`, updates only provided fields, returns updated profile",
+          "POST /me/change-password validates input with `changePasswordSchema`, verifies current password with `verifyPassword`, hashes new password with `hashPassword`, returns success message",
+          "DELETE /me hashes email with `hashPassword`, replaces name/displayName with 'deleted', nullifies passwordHash/steamId/steamAccessToken/emailVerificationToken/passwordResetToken, sets emailVerified to false, returns success message",
+          "All endpoints return appropriate HTTP status codes (200 for GET/PATCH/DELETE, 200 for change-password success, 400 for validation errors, 401 for auth failures, 404 for user not found)"
+        ]
+      },
+      {
+        "id": "session-002-step-002",
+        "name": "Mount user routes in API index",
+        "description": "Import createUserApp in packages/api/src/index.ts and mount it on the v1 router under /user, passing getRedis.",
+        "files": [
+          "packages/api/src/index.ts"
+        ],
+        "complexity": "simple",
+        "acceptanceCriteria": [
+          "`createUserApp` is imported from `./routes/user.js`",
+          "User routes are mounted at `/user` on the v1 router",
+          "Existing routes are not affected"
+        ]
+      },
+      {
+        "id": "session-002-step-003",
+        "name": "Add OpenAPI specs for user endpoints",
+        "description": "Add OpenAPI path entries for GET /user/me, PATCH /user/me, POST /user/me/change-password, and DELETE /user/me to the spec object in packages/api/src/openapi.ts, including request bodies and response schemas.",
+        "files": [
+          "packages/api/src/openapi.ts"
+        ],
+        "complexity": "moderate",
+        "acceptanceCriteria": [
+          "OpenAPI spec includes path `/user/me` with `get`, `patch`, and `delete` operations",
+          "OpenAPI spec includes path `/user/me/change-password` with `post` operation",
+          "All four operations include `security` requiring Bearer auth",
+          "Request body schemas match the Zod validation schemas",
+          "Response schemas include the profile object shape and error/message responses"
+        ]
+      },
+      {
+        "id": "session-002-step-004",
+        "name": "Add user route tests",
+        "description": "Create packages/api/tests/routes/user.test.ts following the auth test mock pattern (mock db, password, jwt, email, auth middleware). Test all four endpoints: GET /me returns profile, PATCH /me updates fields, POST /me/change-password rejects wrong password and accepts correct one, DELETE /me anonymizes user data.",
+        "files": [
+          "packages/api/tests/routes/user.test.ts"
+        ],
+        "complexity": "complex",
+        "acceptanceCriteria": [
+          "Test file mocks @taad/db, drizzle-orm, password, jwt, and auth middleware following the pattern in auth.test.ts",
+          "GET /me test: returns 200 with complete profile object including computed steamLinked field",
+          "GET /me test: returns 401 when no auth header provided",
+          "PATCH /me test: returns 200 with updated profile after valid update",
+          "PATCH /me test: returns 400 for invalid input (e.g., displayName too long)",
+          "POST /me/change-password test: returns 200 on successful password change",
+          "POST /me/change-password test: returns 400 when current password is incorrect",
+          "DELETE /me test: returns 200 and calls db.update with anonymized values",
+          "All tests pass with `npx vitest run`"
+        ]
+      }
+    ]
+  }
+}

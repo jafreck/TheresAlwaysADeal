@@ -1,0 +1,51 @@
+{
+  "agent": "pr-composer",
+  "issueNumber": 16,
+  "projectName": "theresalwaysadeal",
+  "repository": "jafreck/TheresAlwaysADeal",
+  "worktreePath": "/Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-16",
+  "phase": 5,
+  "config": {
+    "commands": {
+      "install": "npm install",
+      "build": "npm run build",
+      "test": "npx vitest run",
+      "lint": "npm run lint"
+    }
+  },
+  "inputFiles": [
+    "/Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-16/.cadre/issues/16/analysis.md",
+    "/Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-16/.cadre/issues/16/implementation-plan.md",
+    "/Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-16/.cadre/issues/16/integration-report.md",
+    "/Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-16/.cadre/issues/16/full-diff.patch"
+  ],
+  "outputPath": "/Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-16/.cadre/issues/16/pr-content.md",
+  "payload": {
+    "issueTitle": "[USER-16] User Profile Management API",
+    "issueBody": "## Overview\nBuild the user profile API so users can view and update their account details.\n\n## Endpoints\n\n| Method | Path | Auth | Description |\n|---|---|---|---|\n| `GET` | `/api/user/me` | Required | Get current user's profile |\n| `PATCH` | `/api/user/me` | Required | Update display name, notification preferences |\n| `POST` | `/api/user/me/change-password` | Required | Change password (requires current password) |\n| `DELETE` | `/api/user/me` | Required | Delete account (GDPR compliance) |\n\n## Profile Fields\n```json\n{\n  \"id\": \"uuid\",\n  \"email\": \"user@example.com\",\n  \"displayName\": \"GamerTag\",\n  \"emailVerified\": true,\n  \"steamId\": \"76561198...\",\n  \"steamLinked\": true,\n  \"notificationPreferences\": {\n    \"emailAlerts\": true,\n    \"slackAlertsEnabled\": false\n  },\n  \"createdAt\": \"2025-01-01T00:00:00Z\"\n}\n```\n\n## Notification Preferences\nUsers can configure global defaults for how they receive alerts:\n- [ ] Toggle email alerts on/off globally\n- [ ] Store Slack webhook URL\n- [ ] Set default alert currency (USD, EUR, GBP, CAD)\n\n## Tasks\n- [ ] Implement all CRUD endpoints above with JWT auth middleware\n- [ ] Validate all input (display name length, email format for changes)\n- [ ] On account deletion: anonymize data per GDPR (replace PII with hashed values, keep price history rows)\n- [ ] On email change: send verification to new address before updating\n- [ ] Add unit and integration tests for all endpoints\n\n## Acceptance Criteria\n- Users can update their display name and notification preferences\n- Account deletion removes all PII\n- Password change requires current password verification\n- Profile returns `steamLinked: true` when Steam account is connected (see #17)\n\n## Dependencies\n- #15 User Authentication"
+  },
+  "outputSchema": {
+    "type": "object",
+    "properties": {
+      "title": {
+        "type": "string"
+      },
+      "body": {
+        "type": "string"
+      },
+      "labels": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      }
+    },
+    "required": [
+      "title",
+      "body",
+      "labels"
+    ],
+    "additionalProperties": false,
+    "$schema": "http://json-schema.org/draft-07/schema#"
+  }
+}

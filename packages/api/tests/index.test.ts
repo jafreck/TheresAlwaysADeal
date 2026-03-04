@@ -53,19 +53,7 @@ vi.mock("jsonwebtoken", () => ({
   default: { sign: vi.fn(), verify: vi.fn() },
   sign: vi.fn(),
   verify: vi.fn(),
-}));
 
-// Mock auth utilities used by auth routes
-vi.mock("bcryptjs", () => ({
-  default: { hash: vi.fn(), compare: vi.fn() },
-  hash: vi.fn(),
-  compare: vi.fn(),
-}));
-
-vi.mock("jsonwebtoken", () => ({
-  default: { sign: vi.fn(), verify: vi.fn() },
-  sign: vi.fn(),
-  verify: vi.fn(),
 }));
 
 // Mock ioredis
