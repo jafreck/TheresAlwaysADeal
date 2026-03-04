@@ -63,13 +63,15 @@ const mockPexpire = vi.fn();
 const mockMulti = vi.fn();
 const mockExec = vi.fn();
 vi.mock("ioredis", () => ({
-  Redis: vi.fn().mockImplementation(() => ({
-    zrevrangebyscore: mockZrevrangebyscore,
-    incr: mockIncr,
-    pttl: mockPttl,
-    pexpire: mockPexpire,
-    multi: mockMulti.mockReturnValue({ incr: mockIncr.mockReturnThis(), pttl: mockPttl.mockReturnThis(), exec: mockExec }),
-  })),
+  Redis: vi.fn().mockImplementation(function () {
+    return {
+      zrevrangebyscore: mockZrevrangebyscore,
+      incr: mockIncr,
+      pttl: mockPttl,
+      pexpire: mockPexpire,
+      multi: mockMulti.mockReturnValue({ incr: mockIncr.mockReturnThis(), pttl: mockPttl.mockReturnThis(), exec: mockExec }),
+    };
+  }),
 }));
 
 // ─── App under test ───────────────────────────────────────────────────────────

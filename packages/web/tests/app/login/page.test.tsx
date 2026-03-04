@@ -62,8 +62,8 @@ describe('LoginPage', () => {
 
   it('should render email and password fields', () => {
     const { container } = render(<LoginPage />);
-    expect(container.querySelector('input#email')).toBeTruthy();
-    expect(container.querySelector('input#password')).toBeTruthy();
+    expect(container.querySelector('input[id="email"]')).toBeTruthy();
+    expect(container.querySelector('input[id="password"]')).toBeTruthy();
   });
 
   it('should render labels for form fields', () => {
@@ -80,7 +80,7 @@ describe('LoginPage', () => {
 
   it('should toggle password visibility when toggle is clicked', () => {
     const { container } = render(<LoginPage />);
-    const passwordInput = container.querySelector('input#password')!;
+    const passwordInput = container.querySelector('input[id="password"]')!;
     expect(passwordInput.getAttribute('type')).toBe('password');
 
     const toggleBtn = container.querySelector('button[aria-label="Show password"]')!;
@@ -129,8 +129,8 @@ describe('LoginPage', () => {
   it('should redirect to /dashboard on successful login', async () => {
     const { container } = render(<LoginPage />);
 
-    fireEvent.change(container.querySelector('input#email')!, { target: { value: 'test@example.com' } });
-    fireEvent.change(container.querySelector('input#password')!, { target: { value: 'password' } });
+    fireEvent.change(container.querySelector('input[id="email"]')!, { target: { value: 'test@example.com' } });
+    fireEvent.change(container.querySelector('input[id="password"]')!, { target: { value: 'password' } });
     fireEvent.submit(container.querySelector('form')!);
 
     await waitFor(() => {
@@ -143,8 +143,8 @@ describe('LoginPage', () => {
     mockSearchParams.set('redirect', '/profile');
     const { container } = render(<LoginPage />);
 
-    fireEvent.change(container.querySelector('input#email')!, { target: { value: 'test@example.com' } });
-    fireEvent.change(container.querySelector('input#password')!, { target: { value: 'password' } });
+    fireEvent.change(container.querySelector('input[id="email"]')!, { target: { value: 'test@example.com' } });
+    fireEvent.change(container.querySelector('input[id="password"]')!, { target: { value: 'password' } });
     fireEvent.submit(container.querySelector('form')!);
 
     await waitFor(() => {
@@ -156,8 +156,8 @@ describe('LoginPage', () => {
     mockSearchParams.set('redirect', 'https://evil.com');
     const { container } = render(<LoginPage />);
 
-    fireEvent.change(container.querySelector('input#email')!, { target: { value: 'test@example.com' } });
-    fireEvent.change(container.querySelector('input#password')!, { target: { value: 'password' } });
+    fireEvent.change(container.querySelector('input[id="email"]')!, { target: { value: 'test@example.com' } });
+    fireEvent.change(container.querySelector('input[id="password"]')!, { target: { value: 'password' } });
     fireEvent.submit(container.querySelector('form')!);
 
     await waitFor(() => {
@@ -169,8 +169,8 @@ describe('LoginPage', () => {
     mockSearchParams.set('redirect', '//evil.com');
     const { container } = render(<LoginPage />);
 
-    fireEvent.change(container.querySelector('input#email')!, { target: { value: 'test@example.com' } });
-    fireEvent.change(container.querySelector('input#password')!, { target: { value: 'password' } });
+    fireEvent.change(container.querySelector('input[id="email"]')!, { target: { value: 'test@example.com' } });
+    fireEvent.change(container.querySelector('input[id="password"]')!, { target: { value: 'password' } });
     fireEvent.submit(container.querySelector('form')!);
 
     await waitFor(() => {
@@ -182,8 +182,8 @@ describe('LoginPage', () => {
     mockLogin.mockRejectedValue(new ApiError(401, 'Unauthorized', { message: 'Invalid email or password' }));
     const { container } = render(<LoginPage />);
 
-    fireEvent.change(container.querySelector('input#email')!, { target: { value: 'test@example.com' } });
-    fireEvent.change(container.querySelector('input#password')!, { target: { value: 'wrongpass' } });
+    fireEvent.change(container.querySelector('input[id="email"]')!, { target: { value: 'test@example.com' } });
+    fireEvent.change(container.querySelector('input[id="password"]')!, { target: { value: 'wrongpass' } });
     fireEvent.submit(container.querySelector('form')!);
 
     await waitFor(() => {
@@ -195,8 +195,8 @@ describe('LoginPage', () => {
     mockLogin.mockRejectedValue(new Error('Network failure'));
     const { container } = render(<LoginPage />);
 
-    fireEvent.change(container.querySelector('input#email')!, { target: { value: 'test@example.com' } });
-    fireEvent.change(container.querySelector('input#password')!, { target: { value: 'password' } });
+    fireEvent.change(container.querySelector('input[id="email"]')!, { target: { value: 'test@example.com' } });
+    fireEvent.change(container.querySelector('input[id="password"]')!, { target: { value: 'password' } });
     fireEvent.submit(container.querySelector('form')!);
 
     await waitFor(() => {
@@ -216,7 +216,7 @@ describe('LoginPage', () => {
 
   it('should have proper autocomplete attributes', () => {
     const { container } = render(<LoginPage />);
-    expect(container.querySelector('input#email')?.getAttribute('autocomplete')).toBe('email');
-    expect(container.querySelector('input#password')?.getAttribute('autocomplete')).toBe('current-password');
+    expect(container.querySelector('input[id="email"]')?.getAttribute('autocomplete')).toBe('email');
+    expect(container.querySelector('input[id="password"]')?.getAttribute('autocomplete')).toBe('current-password');
   });
 });

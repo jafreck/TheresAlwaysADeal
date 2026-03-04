@@ -13,14 +13,14 @@
   },
   "dependencies": {
     "@taad/db": "workspace:*",
-    "cheerio": "^1.0.0",
-    "drizzle-orm": "^0.39.0",
-    "playwright": "^1.49.0",
-    "zod": "^3.24.0"
+    "cheerio": "^1.2.0",
+    "drizzle-orm": "^0.45.1",
+    "playwright": "^1.58.2",
+    "zod": "^4.3.6"
   },
   "devDependencies": {
-    "@types/node": "^22.0.0",
-    "typescript": "^5.7.0",
-    "vitest": "^2.0.0"
+    "@types/node": "^25.3.3",
+    "typescript": "^5.9.3",
+    "vitest": "^4.0.18"
   }
 }

@@ -56,10 +56,10 @@ describe('RegisterPage', () => {
 
   it('should render name, email, password, and confirmPassword fields', () => {
     const { container } = render(<RegisterPage />);
-    expect(container.querySelector('input#name')).toBeTruthy();
-    expect(container.querySelector('input#email')).toBeTruthy();
-    expect(container.querySelector('input#password')).toBeTruthy();
-    expect(container.querySelector('input#confirmPassword')).toBeTruthy();
+    expect(container.querySelector('input[id="name"]')).toBeTruthy();
+    expect(container.querySelector('input[id="email"]')).toBeTruthy();
+    expect(container.querySelector('input[id="password"]')).toBeTruthy();
+    expect(container.querySelector('input[id="confirmPassword"]')).toBeTruthy();
   });
 
   it('should render labels for all form fields', () => {
@@ -93,7 +93,7 @@ describe('RegisterPage', () => {
 
   it('should show password strength indicator when password is typed', () => {
     const { container } = render(<RegisterPage />);
-    const passwordInput = container.querySelector('input#password')!;
+    const passwordInput = container.querySelector('input[id="password"]')!;
     fireEvent.change(passwordInput, { target: { value: 'abc' } });
     const strengthEl = container.querySelector('[aria-label]');
     expect(strengthEl).toBeTruthy();
@@ -101,28 +101,28 @@ describe('RegisterPage', () => {
 
   it('should show "Weak" strength for short password', () => {
     const { container } = render(<RegisterPage />);
-    const passwordInput = container.querySelector('input#password')!;
+    const passwordInput = container.querySelector('input[id="password"]')!;
     fireEvent.change(passwordInput, { target: { value: 'abc' } });
     expect(container.textContent).toContain('Weak');
   });
 
   it('should show "Fair" strength for medium password', () => {
     const { container } = render(<RegisterPage />);
-    const passwordInput = container.querySelector('input#password')!;
+    const passwordInput = container.querySelector('input[id="password"]')!;
     fireEvent.change(passwordInput, { target: { value: 'Password' } });
     expect(container.textContent).toContain('Fair');
   });
 
   it('should show "Good" strength for good password', () => {
     const { container } = render(<RegisterPage />);
-    const passwordInput = container.querySelector('input#password')!;
+    const passwordInput = container.querySelector('input[id="password"]')!;
     fireEvent.change(passwordInput, { target: { value: 'Password1' } });
     expect(container.textContent).toContain('Good');
   });
 
   it('should show "Strong" strength for complex password', () => {
     const { container } = render(<RegisterPage />);
-    const passwordInput = container.querySelector('input#password')!;
+    const passwordInput = container.querySelector('input[id="password"]')!;
     fireEvent.change(passwordInput, { target: { value: 'MyStr0ng!Pass' } });
     expect(container.textContent).toContain('Strong');
   });
@@ -147,10 +147,10 @@ describe('RegisterPage', () => {
     mockRegister.mockResolvedValue(undefined);
     const { container } = render(<RegisterPage />);
 
-    fireEvent.change(container.querySelector('input#name')!, { target: { value: 'Test' } });
-    fireEvent.change(container.querySelector('input#email')!, { target: { value: 'test@example.com' } });
-    fireEvent.change(container.querySelector('input#password')!, { target: { value: 'securepass' } });
-    fireEvent.change(container.querySelector('input#confirmPassword')!, { target: { value: 'securepass' } });
+    fireEvent.change(container.querySelector('input[id="name"]')!, { target: { value: 'Test' } });
+    fireEvent.change(container.querySelector('input[id="email"]')!, { target: { value: 'test@example.com' } });
+    fireEvent.change(container.querySelector('input[id="password"]')!, { target: { value: 'securepass' } });
+    fireEvent.change(container.querySelector('input[id="confirmPassword"]')!, { target: { value: 'securepass' } });
 
     fireEvent.submit(container.querySelector('form')!);
 
@@ -163,9 +163,9 @@ describe('RegisterPage', () => {
     mockRegister.mockRejectedValue(new ApiError(409, 'Conflict', { message: 'Email already registered' }));
     const { container } = render(<RegisterPage />);
 
-    fireEvent.change(container.querySelector('input#email')!, { target: { value: 'test@example.com' } });
-    fireEvent.change(container.querySelector('input#password')!, { target: { value: 'securepass' } });
-    fireEvent.change(container.querySelector('input#confirmPassword')!, { target: { value: 'securepass' } });
+    fireEvent.change(container.querySelector('input[id="email"]')!, { target: { value: 'test@example.com' } });
+    fireEvent.change(container.querySelector('input[id="password"]')!, { target: { value: 'securepass' } });
+    fireEvent.change(container.querySelector('input[id="confirmPassword"]')!, { target: { value: 'securepass' } });
 
     fireEvent.submit(container.querySelector('form')!);
 
@@ -178,9 +178,9 @@ describe('RegisterPage', () => {
     mockRegister.mockRejectedValue(new Error('Network error'));
     const { container } = render(<RegisterPage />);
 
-    fireEvent.change(container.querySelector('input#email')!, { target: { value: 'test@example.com' } });
-    fireEvent.change(container.querySelector('input#password')!, { target: { value: 'securepass' } });
-    fireEvent.change(container.querySelector('input#confirmPassword')!, { target: { value: 'securepass' } });
+    fireEvent.change(container.querySelector('input[id="email"]')!, { target: { value: 'test@example.com' } });
+    fireEvent.change(container.querySelector('input[id="password"]')!, { target: { value: 'securepass' } });
+    fireEvent.change(container.querySelector('input[id="confirmPassword"]')!, { target: { value: 'securepass' } });
 
     fireEvent.submit(container.querySelector('form')!);
 
@@ -191,9 +191,9 @@ describe('RegisterPage', () => {
 
   it('should have proper autocomplete attributes on inputs', () => {
     const { container } = render(<RegisterPage />);
-    expect(container.querySelector('input#name')?.getAttribute('autocomplete')).toBe('name');
-    expect(container.querySelector('input#email')?.getAttribute('autocomplete')).toBe('email');
-    expect(container.querySelector('input#password')?.getAttribute('autocomplete')).toBe('new-password');
-    expect(container.querySelector('input#confirmPassword')?.getAttribute('autocomplete')).toBe('new-password');
+    expect(container.querySelector('input[id="name"]')?.getAttribute('autocomplete')).toBe('name');
+    expect(container.querySelector('input[id="email"]')?.getAttribute('autocomplete')).toBe('email');
+    expect(container.querySelector('input[id="password"]')?.getAttribute('autocomplete')).toBe('new-password');
+    expect(container.querySelector('input[id="confirmPassword"]')?.getAttribute('autocomplete')).toBe('new-password');
   });
 });

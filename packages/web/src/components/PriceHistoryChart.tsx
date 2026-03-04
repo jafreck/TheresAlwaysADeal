@@ -178,7 +178,7 @@ export default function PriceHistoryChart({
               position: "insideLeft",
             }}
           />
-          <Tooltip formatter={(v: number) => `$${v.toFixed(2)}`} />
+          <Tooltip formatter={(v: number | undefined) => v != null ? `$${v.toFixed(2)}` : ""} />
           {storeIds.map(
             (id, i) =>
               enabledStores.has(id) && (

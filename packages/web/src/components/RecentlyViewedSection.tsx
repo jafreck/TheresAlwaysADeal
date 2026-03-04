@@ -23,7 +23,7 @@ export default function RecentlyViewedSection() {
 
   useEffect(() => {
     try {
-      // eslint-disable-next-line no-undef
+       
       const stored = localStorage.getItem(STORAGE_KEY);
       if (stored) {
         const parsed = JSON.parse(stored) as RecentlyViewedGame[];

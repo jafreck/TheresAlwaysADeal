@@ -3,7 +3,7 @@ import { Worker, Queue } from "bullmq";
 import { Redis } from "ioredis";
 import { eq, and, desc, isNotNull } from "drizzle-orm";
 import { db, games, stores, storeListings, priceHistory, storeListingStats, users, wishlists } from "@taad/db";
-import { BaseScraper, type ScrapedGame } from "@taad/scraper";
+import type { BaseScraper, ScrapedGame } from "@taad/scraper";
 import { scrapeQueue, ingestQueue, priceDropQueue, allTimeLowQueue, featuredScrapeQueue, steamSyncQueue } from "./queues.js";
 
 const connection = { url: process.env.REDIS_URL! };

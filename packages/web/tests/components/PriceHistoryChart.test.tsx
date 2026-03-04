@@ -3,22 +3,26 @@ import { render, screen, cleanup, fireEvent } from "@testing-library/react";
 
 // Mock recharts to render testable HTML elements
 vi.mock("recharts", () => ({
-  LineChart: ({ children, ...props }: any) => (
+  LineChart: ({ children, ..._props }: any) => (
     <div data-testid="line-chart">{children}</div>
   ),
   Line: (props: any) => (
     <div data-testid="line" data-name={props.name} data-datakey={props.dataKey} />
   ),
-  XAxis: (props: any) => <div data-testid="x-axis" />,
-  YAxis: (props: any) => <div data-testid="y-axis" />,
+  XAxis: (_props: any) => <div data-testid="x-axis" />,
+  YAxis: (_props: any) => <div data-testid="y-axis" />,
   CartesianGrid: () => <div data-testid="grid" />,
-  Tooltip: () => <div data-testid="tooltip" />,
+  Tooltip: (props: any) => {
+    (Tooltip as any).__lastFormatter = props.formatter;
+    return <div data-testid="tooltip" data-has-formatter={!!props.formatter} />;
+  },
   ReferenceLine: (props: any) => (
     <div data-testid="reference-line" data-y={props.y} />
   ),
   ResponsiveContainer: ({ children }: any) => <div>{children}</div>,
 }));
 
+import { Tooltip } from "recharts";
 import PriceHistoryChart from "../../src/components/PriceHistoryChart";
 import type { ChartPriceEntry } from "../../src/components/PriceHistoryChart";
 
@@ -169,5 +173,32 @@ describe("PriceHistoryChart", () => {
     const names = lines.map((l) => l.getAttribute("data-name"));
     expect(names).toContain("store-1");
     expect(names).toContain("store-2");
+  });
+
+  describe("Tooltip formatter", () => {
+    it("should format a numeric value as a dollar amount", () => {
+      render(<PriceHistoryChart entries={sampleEntries} storeNames={storeNames} />);
+      const formatter = (Tooltip as any).__lastFormatter;
+      expect(formatter).toBeDefined();
+      expect(formatter(29.99)).toBe("$29.99");
+    });
+
+    it("should format zero as $0.00", () => {
+      render(<PriceHistoryChart entries={sampleEntries} storeNames={storeNames} />);
+      const formatter = (Tooltip as any).__lastFormatter;
+      expect(formatter(0)).toBe("$0.00");
+    });
+
+    it("should return empty string when value is undefined", () => {
+      render(<PriceHistoryChart entries={sampleEntries} storeNames={storeNames} />);
+      const formatter = (Tooltip as any).__lastFormatter;
+      expect(formatter(undefined)).toBe("");
+    });
+
+    it("should return empty string when value is null", () => {
+      render(<PriceHistoryChart entries={sampleEntries} storeNames={storeNames} />);
+      const formatter = (Tooltip as any).__lastFormatter;
+      expect(formatter(null)).toBe("");
+    });
   });
 });
