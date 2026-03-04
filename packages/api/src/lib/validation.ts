@@ -69,3 +69,15 @@ export const resetPasswordSchema = z.object({
   token: z.string().min(1),
   password: z.string().min(8),
 });
+
+// ─── Steam Schemas ────────────────────────────────────────────────────────────
+
+export const steamCallbackSchema = z.object({
+  "openid.claimed_id": z.string().min(1),
+  "openid.sig": z.string().min(1),
+  "openid.assoc_handle": z.string().min(1),
+});
+
+export const steamUnlinkSchema = z.object({
+  confirm: z.literal(true),
+});

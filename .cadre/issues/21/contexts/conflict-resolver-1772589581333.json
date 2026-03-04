@@ -1,0 +1,26 @@
+{
+  "agent": "conflict-resolver",
+  "issueNumber": 21,
+  "projectName": "theresalwaysadeal",
+  "repository": "jafreck/TheresAlwaysADeal",
+  "worktreePath": "/Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-21",
+  "phase": 0,
+  "config": {
+    "commands": {
+      "install": "npm install",
+      "build": "npm run build",
+      "test": "npx vitest run",
+      "lint": "npm run lint"
+    }
+  },
+  "inputFiles": [
+    "/Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-21/.env.example"
+  ],
+  "outputPath": "/Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-21/.cadre/issues/21/conflict-resolution-report.md",
+  "payload": {
+    "conflictedFiles": [
+      ".env.example"
+    ],
+    "baseBranch": "main"
+  }
+}

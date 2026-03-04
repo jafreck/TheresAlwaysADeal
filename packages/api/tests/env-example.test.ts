@@ -49,4 +49,18 @@ describe(".env.example", () => {
   it("should contain a JWT_REFRESH_SECRET entry", () => {
     expect(envExampleContent).toMatch(/^JWT_REFRESH_SECRET=/m);
   });
+
+  it("should contain a STEAM_OPENID_REALM entry", () => {
+    expect(envExampleContent).toMatch(/^STEAM_OPENID_REALM=/m);
+  });
+
+  it("should contain a STEAM_OPENID_RETURN_URL entry", () => {
+    expect(envExampleContent).toMatch(/^STEAM_OPENID_RETURN_URL=/m);
+  });
+
+  it("should include a Steam section header comment", () => {
+    const lines = envExampleContent.split("\n");
+    const steamHeaderLine = lines.find((l) => /─── Steam/.test(l) && l.startsWith("#"));
+    expect(steamHeaderLine).toBeTruthy();
+  });
 });

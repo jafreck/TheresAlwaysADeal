@@ -22,11 +22,11 @@ function createBuilder() {
   };
   return builder;
 }
-const mockDb = { select: vi.fn(), insert: vi.fn() };
+const mockDb = { select: vi.fn(), insert: vi.fn(), update: vi.fn(), delete: vi.fn() };
 const stubTable = (cols: Record<string, string>) => cols;
 vi.mock("@taad/db", () => ({
   db: mockDb,
-  games: stubTable({ id: "id", title: "title", slug: "slug", description: "description", headerImageUrl: "headerImageUrl", createdAt: "createdAt", updatedAt: "updatedAt" }),
+  games: stubTable({ id: "id", title: "title", slug: "slug", description: "description", headerImageUrl: "headerImageUrl", steamAppId: "steamAppId", createdAt: "createdAt", updatedAt: "updatedAt" }),
   stores: stubTable({ id: "id", name: "name", slug: "slug", logoUrl: "logoUrl", baseUrl: "baseUrl" }),
   storeListings: stubTable({ id: "id", gameId: "gameId", storeId: "storeId", storeUrl: "storeUrl", isActive: "isActive", isAllTimeLow: "isAllTimeLow" }),
   priceHistory: stubTable({ id: "id", storeListingId: "storeListingId", price: "price", originalPrice: "originalPrice", currency: "currency", discount: "discount", saleEndsAt: "saleEndsAt", recordedAt: "recordedAt" }),
@@ -35,11 +35,10 @@ vi.mock("@taad/db", () => ({
   gameGenres: stubTable({ gameId: "gameId", genreId: "genreId" }),
   platforms: stubTable({ id: "id", name: "name", slug: "slug" }),
   gamePlatforms: stubTable({ gameId: "gameId", platformId: "platformId" }),
-  users: stubTable({ id: "id", email: "email", name: "name", passwordHash: "passwordHash", emailVerified: "emailVerified" }),
+  users: stubTable({ id: "id", email: "email", name: "name", passwordHash: "passwordHash", emailVerified: "emailVerified", steamId: "steamId" }),
   refreshTokens: stubTable({ id: "id", userId: "userId", token: "token", expiresAt: "expiresAt", revokedAt: "revokedAt", createdAt: "createdAt" }),
   searchAnalytics: stubTable({ id: "id", query: "query", resultCount: "resultCount", searchedAt: "searchedAt" }),
-  users: stubTable({ id: "id", email: "email", name: "name", passwordHash: "passwordHash", emailVerified: "emailVerified" }),
-  refreshTokens: stubTable({ id: "id", userId: "userId", token: "token", expiresAt: "expiresAt", revokedAt: "revokedAt", createdAt: "createdAt" }),
+  wishlists: stubTable({ id: "id", userId: "userId", gameId: "gameId", source: "source" }),
 }));
 
 // Mock auth utilities used by auth routes
@@ -413,5 +412,53 @@ describe("GET /api/v1/stores", () => {
     const body = await res.json();
     expect(body.data).toEqual([]);
     expect(body.meta.total).toBe(0);
+  });
+});
+
+describe("GET /api/v1/auth/steam", () => {
+  beforeEach(() => {
+    mockDb.select.mockReturnValue(createBuilder());
+    mockExec.mockResolvedValue([[null, 1], [null, -1]]);
+  });
+
+  it("returns a non-404 response confirming steam auth routes are mounted", async () => {
+    const res = await app.request("/api/v1/auth/steam");
+    expect(res.status).not.toBe(404);
+  });
+});
+
+describe("GET /api/v1/auth/steam/callback", () => {
+  beforeEach(() => {
+    mockDb.select.mockReturnValue(createBuilder());
+    mockExec.mockResolvedValue([[null, 1], [null, -1]]);
+  });
+
+  it("returns a non-404 response confirming steam callback route is mounted", async () => {
+    const res = await app.request("/api/v1/auth/steam/callback");
+    expect(res.status).not.toBe(404);
+  });
+});
+
+describe("DELETE /api/v1/user/me/steam", () => {
+  beforeEach(() => {
+    mockDb.select.mockReturnValue(createBuilder());
+    mockExec.mockResolvedValue([[null, 1], [null, -1]]);
+  });
+
+  it("returns a non-404 response confirming user steam route is mounted", async () => {
+    const res = await app.request("/api/v1/user/me/steam", { method: "DELETE" });
+    expect(res.status).not.toBe(404);
+  });
+});
+
+describe("POST /api/v1/user/me/steam/sync", () => {
+  beforeEach(() => {
+    mockDb.select.mockReturnValue(createBuilder());
+    mockExec.mockResolvedValue([[null, 1], [null, -1]]);
+  });
+
+  it("returns a non-404 response confirming user steam sync route is mounted", async () => {
+    const res = await app.request("/api/v1/user/me/steam/sync", { method: "POST" });
+    expect(res.status).not.toBe(404);
   });
 });
