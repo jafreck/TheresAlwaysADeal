@@ -1,0 +1,228 @@
+diff --git a/packages/api/src/lib/validation.ts b/packages/api/src/lib/validation.ts
+index a71069e..f8a0362 100644
+--- a/packages/api/src/lib/validation.ts
++++ b/packages/api/src/lib/validation.ts
+@@ -69,3 +69,22 @@ export const resetPasswordSchema = z.object({
+   token: z.string().min(1),
+   password: z.string().min(8),
+ });
++
++// ─── User Profile Schemas ─────────────────────────────────────────────────────
++
++export const updateProfileSchema = z.object({
++  displayName: z.string().min(1).max(255).optional(),
++  emailAlerts: z.boolean().optional(),
++  slackAlertsEnabled: z.boolean().optional(),
++  slackWebhookUrl: z.string().url().nullable().optional(),
++  defaultAlertCurrency: z.string().length(3).optional(),
++});
++
++export const changePasswordSchema = z.object({
++  currentPassword: z.string().min(1),
++  newPassword: z.string().min(8),
++});
++
++export const deleteAccountSchema = z.object({
++  confirmation: z.string().optional(),
++});
+diff --git a/packages/api/tests/lib/validation.test.ts b/packages/api/tests/lib/validation.test.ts
+index fe4a9c5..041a27a 100644
+--- a/packages/api/tests/lib/validation.test.ts
++++ b/packages/api/tests/lib/validation.test.ts
+@@ -326,6 +326,9 @@ import {
+   loginSchema,
+   forgotPasswordSchema,
+   resetPasswordSchema,
++  updateProfileSchema,
++  changePasswordSchema,
++  deleteAccountSchema,
+ } from "../../src/lib/validation.js";
+ 
+ describe("registerSchema", () => {
+@@ -413,3 +416,154 @@ describe("resetPasswordSchema", () => {
+     expect(() => resetPasswordSchema.parse({ token: "abc-123" })).toThrow();
+   });
+ });
++
++// ─── User Profile Schemas ─────────────────────────────────────────────────────
++
++describe("updateProfileSchema", () => {
++  it("should accept empty object (all fields optional)", () => {
++    const result = updateProfileSchema.parse({});
++    expect(result).toEqual({});
++  });
++
++  it("should accept valid displayName", () => {
++    const result = updateProfileSchema.parse({ displayName: "Alice" });
++    expect(result.displayName).toBe("Alice");
++  });
++
++  it("should reject empty displayName", () => {
++    expect(() => updateProfileSchema.parse({ displayName: "" })).toThrow();
++  });
++
++  it("should reject displayName longer than 255 characters", () => {
++    expect(() => updateProfileSchema.parse({ displayName: "a".repeat(256) })).toThrow();
++  });
++
++  it("should accept displayName of exactly 255 characters", () => {
++    const result = updateProfileSchema.parse({ displayName: "a".repeat(255) });
++    expect(result.displayName).toHaveLength(255);
++  });
++
++  it("should accept displayName of exactly 1 character", () => {
++    const result = updateProfileSchema.parse({ displayName: "A" });
++    expect(result.displayName).toBe("A");
++  });
++
++  it("should accept emailAlerts boolean", () => {
++    const result = updateProfileSchema.parse({ emailAlerts: true });
++    expect(result.emailAlerts).toBe(true);
++  });
++
++  it("should reject non-boolean emailAlerts", () => {
++    expect(() => updateProfileSchema.parse({ emailAlerts: "yes" })).toThrow();
++  });
++
++  it("should accept slackAlertsEnabled boolean", () => {
++    const result = updateProfileSchema.parse({ slackAlertsEnabled: false });
++    expect(result.slackAlertsEnabled).toBe(false);
++  });
++
++  it("should accept valid slackWebhookUrl", () => {
++    const result = updateProfileSchema.parse({ slackWebhookUrl: "https://hooks.slack.com/services/T00/B00/xxx" });
++    expect(result.slackWebhookUrl).toBe("https://hooks.slack.com/services/T00/B00/xxx");
++  });
++
++  it("should accept null slackWebhookUrl", () => {
++    const result = updateProfileSchema.parse({ slackWebhookUrl: null });
++    expect(result.slackWebhookUrl).toBeNull();
++  });
++
++  it("should reject invalid slackWebhookUrl", () => {
++    expect(() => updateProfileSchema.parse({ slackWebhookUrl: "not-a-url" })).toThrow();
++  });
++
++  it("should reject empty string slackWebhookUrl", () => {
++    expect(() => updateProfileSchema.parse({ slackWebhookUrl: "" })).toThrow();
++  });
++
++  it("should reject non-boolean slackAlertsEnabled", () => {
++    expect(() => updateProfileSchema.parse({ slackAlertsEnabled: "true" })).toThrow();
++  });
++
++  it("should accept valid defaultAlertCurrency (3 chars)", () => {
++    const result = updateProfileSchema.parse({ defaultAlertCurrency: "EUR" });
++    expect(result.defaultAlertCurrency).toBe("EUR");
++  });
++
++  it("should reject defaultAlertCurrency shorter than 3 chars", () => {
++    expect(() => updateProfileSchema.parse({ defaultAlertCurrency: "US" })).toThrow();
++  });
++
++  it("should reject defaultAlertCurrency longer than 3 chars", () => {
++    expect(() => updateProfileSchema.parse({ defaultAlertCurrency: "USDX" })).toThrow();
++  });
++
++  it("should accept all fields together", () => {
++    const result = updateProfileSchema.parse({
++      displayName: "Bob",
++      emailAlerts: true,
++      slackAlertsEnabled: true,
++      slackWebhookUrl: "https://hooks.slack.com/x",
++      defaultAlertCurrency: "GBP",
++    });
++    expect(result).toEqual({
++      displayName: "Bob",
++      emailAlerts: true,
++      slackAlertsEnabled: true,
++      slackWebhookUrl: "https://hooks.slack.com/x",
++      defaultAlertCurrency: "GBP",
++    });
++  });
++});
++
++describe("changePasswordSchema", () => {
++  it("should parse valid currentPassword and newPassword", () => {
++    const result = changePasswordSchema.parse({ currentPassword: "old", newPassword: "newpasswd" });
++    expect(result).toEqual({ currentPassword: "old", newPassword: "newpasswd" });
++  });
++
++  it("should reject empty currentPassword", () => {
++    expect(() => changePasswordSchema.parse({ currentPassword: "", newPassword: "newpasswd" })).toThrow();
++  });
++
++  it("should reject newPassword shorter than 8 characters", () => {
++    expect(() => changePasswordSchema.parse({ currentPassword: "old", newPassword: "short" })).toThrow();
++  });
++
++  it("should reject newPassword of exactly 7 characters", () => {
++    expect(() => changePasswordSchema.parse({ currentPassword: "old", newPassword: "1234567" })).toThrow();
++  });
++
++  it("should accept newPassword of exactly 8 characters", () => {
++    const result = changePasswordSchema.parse({ currentPassword: "old", newPassword: "12345678" });
++    expect(result.newPassword).toBe("12345678");
++  });
++
++  it("should accept currentPassword of 1 character", () => {
++    const result = changePasswordSchema.parse({ currentPassword: "x", newPassword: "newpasswd" });
++    expect(result.currentPassword).toBe("x");
++  });
++
++  it("should reject missing currentPassword", () => {
++    expect(() => changePasswordSchema.parse({ newPassword: "newpasswd" })).toThrow();
++  });
++
++  it("should reject missing newPassword", () => {
++    expect(() => changePasswordSchema.parse({ currentPassword: "old" })).toThrow();
++  });
++});
++
++describe("deleteAccountSchema", () => {
++  it("should accept empty object", () => {
++    const result = deleteAccountSchema.parse({});
++    expect(result).toEqual({});
++  });
++
++  it("should accept optional confirmation field", () => {
++    const result = deleteAccountSchema.parse({ confirmation: "DELETE" });
++    expect(result.confirmation).toBe("DELETE");
++  });
++
++  it("should reject non-string confirmation", () => {
++    expect(() => deleteAccountSchema.parse({ confirmation: 123 })).toThrow();
++  });
++});
+diff --git a/packages/db/src/schema.ts b/packages/db/src/schema.ts
+index 198e675..aed035a 100644
+--- a/packages/db/src/schema.ts
++++ b/packages/db/src/schema.ts
+@@ -80,6 +80,11 @@ export const users = pgTable("users", {
+   passwordResetExpires: timestamp("password_reset_expires"),
+   steamId: varchar("steam_id", { length: 100 }),
+   steamAccessToken: text("steam_access_token"),
++  displayName: varchar("display_name", { length: 255 }),
++  emailAlerts: boolean("email_alerts").default(false).notNull(),
++  slackAlertsEnabled: boolean("slack_alerts_enabled").default(false).notNull(),
++  slackWebhookUrl: text("slack_webhook_url"),
++  defaultAlertCurrency: varchar("default_alert_currency", { length: 10 }).default("USD").notNull(),
+   createdAt: timestamp("created_at").defaultNow().notNull(),
+   updatedAt: timestamp("updated_at").defaultNow().notNull(),
+ });
+diff --git a/packages/db/tests/schema.test.ts b/packages/db/tests/schema.test.ts
+index 05eec7e..9b3b031 100644
+--- a/packages/db/tests/schema.test.ts
++++ b/packages/db/tests/schema.test.ts
+@@ -127,6 +127,11 @@ describe("schema", () => {
+       expect(columns).toContain("passwordResetExpires");
+       expect(columns).toContain("steamId");
+       expect(columns).toContain("steamAccessToken");
++      expect(columns).toContain("displayName");
++      expect(columns).toContain("emailAlerts");
++      expect(columns).toContain("slackAlertsEnabled");
++      expect(columns).toContain("slackWebhookUrl");
++      expect(columns).toContain("defaultAlertCurrency");
+       expect(columns).toContain("createdAt");
+       expect(columns).toContain("updatedAt");
+     });
