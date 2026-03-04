@@ -24,8 +24,9 @@ export default function BestPriceCard({
   referralParam,
   className,
 }: BestPriceCardProps) {
-  const separator = storeUrl.includes("?") ? "&" : "?";
-  const buyHref = `${storeUrl}${separator}${referralParam}`;
+  const buyHref = referralParam
+    ? `${storeUrl}${storeUrl.includes("?") ? "&" : "?"}${referralParam}`
+    : storeUrl;
 
   return (
     <div
