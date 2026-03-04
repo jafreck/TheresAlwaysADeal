@@ -49,8 +49,9 @@ export default function PriceComparisonTable({
         </thead>
         <tbody>
           {rows.map((row) => {
-            const separator = row.storeUrl.includes("?") ? "&" : "?";
-            const buyHref = `${row.storeUrl}${separator}${row.referralParam}`;
+            const buyHref = row.referralParam
+              ? `${row.storeUrl}${row.storeUrl.includes("?") ? "&" : "?"}${row.referralParam}`
+              : row.storeUrl;
 
             return (
               <tr
