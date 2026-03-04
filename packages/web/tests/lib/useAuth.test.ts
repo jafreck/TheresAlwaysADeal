@@ -5,6 +5,7 @@ import { useAuthStore } from '@/lib/auth-store';
 vi.mock('@/lib/api-client', () => ({
   apiClient: {
     post: vi.fn(),
+    get: vi.fn(),
   },
 }));
 
@@ -12,6 +13,7 @@ import { apiClient } from '@/lib/api-client';
 import { useAuth } from '@/lib/useAuth';
 
 const mockPost = apiClient.post as ReturnType<typeof vi.fn>;
+const mockGet = apiClient.get as ReturnType<typeof vi.fn>;
 
 describe('useAuth', () => {
   beforeEach(() => {
@@ -49,6 +51,7 @@ describe('useAuth', () => {
   describe('login', () => {
     it('should call apiClient.post with credentials and set access token', async () => {
       mockPost.mockResolvedValue({ accessToken: 'new-token' });
+      mockGet.mockResolvedValue({ id: '1', email: 'user@example.com', name: null });
       const { result } = renderHook(() => useAuth());
 
       await act(async () => {
@@ -60,11 +63,14 @@ describe('useAuth', () => {
         password: 'password',
       });
       expect(useAuthStore.getState().accessToken).toBe('new-token');
+      expect(mockGet).toHaveBeenCalledWith('/api/auth/me');
+      expect(useAuthStore.getState().userProfile).toEqual({ id: '1', email: 'user@example.com', name: null });
     });
 
     it('should set isLoading to true during login and false after', async () => {
       let resolvePost: (value: unknown) => void;
       mockPost.mockReturnValue(new Promise((res) => { resolvePost = res; }));
+      mockGet.mockResolvedValue({ id: '1', email: 'user@example.com', name: null });
       const { result } = renderHook(() => useAuth());
 
       expect(result.current.isLoading).toBe(false);
@@ -101,6 +107,7 @@ describe('useAuth', () => {
   describe('register', () => {
     it('should call apiClient.post with register data and set access token', async () => {
       mockPost.mockResolvedValue({ accessToken: 'reg-token' });
+      mockGet.mockResolvedValue({ id: '2', email: 'new@example.com', name: 'New User' });
       const { result } = renderHook(() => useAuth());
 
       await act(async () => {
@@ -113,10 +120,13 @@ describe('useAuth', () => {
         name: 'New User',
       });
       expect(useAuthStore.getState().accessToken).toBe('reg-token');
+      expect(mockGet).toHaveBeenCalledWith('/api/auth/me');
+      expect(useAuthStore.getState().userProfile).toEqual({ id: '2', email: 'new@example.com', name: 'New User' });
     });
 
     it('should allow registering without a name', async () => {
       mockPost.mockResolvedValue({ accessToken: 'reg-token-2' });
+      mockGet.mockResolvedValue({ id: '3', email: 'anon@example.com', name: null });
       const { result } = renderHook(() => useAuth());
 
       await act(async () => {
