@@ -1,0 +1,115 @@
+{
+  "agent": "whole-pr-reviewer",
+  "issueNumber": 22,
+  "projectName": "theresalwaysadeal",
+  "repository": "jafreck/TheresAlwaysADeal",
+  "worktreePath": "/Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-22",
+  "phase": 3,
+  "config": {
+    "commands": {
+      "install": "npm install",
+      "build": "npm run build",
+      "test": "npx vitest run",
+      "lint": "npm run lint"
+    }
+  },
+  "inputFiles": [
+    "/Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-22/.cadre/issues/22/session-session-001.md",
+    "/Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-22/.cadre/issues/22/session-session-002.md",
+    "/Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-22/.cadre/issues/22/session-session-003.md",
+    "/Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-22/.cadre/issues/22/session-session-004.md",
+    "/Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-22/.cadre/issues/22/analysis.md",
+    "/Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-22/.cadre/issues/22/scout-report.md",
+    "/Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-22/.cadre/issues/22/implementation-plan.md"
+  ],
+  "outputPath": "/Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-22/.cadre/issues/22/whole-pr-review.md",
+  "payload": {
+    "scope": "whole-pr",
+    "baseBranch": "main",
+    "fullDiffPath": "/Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-22/.cadre/issues/22/whole-pr-diff.patch",
+    "sessionSummaries": [
+      {
+        "sessionId": "session-001",
+        "verdict": "pass",
+        "summary": "All changes are correct and meet the acceptance criteria. Dependencies, design tokens, auth store, API client, query provider, cn utility, image remote patterns, and vitest config are all properly implemented with matching types and comprehensive tests.",
+        "keyFindings": [
+          "EnvelopeResponse<T> and EnvelopeMeta are duplicated verbatim from packages/api/src/lib/response.ts with no import relationship. If the API shape changes, these types will silently drift. Consider extracting shared API contract types into a shared package or re-exporting from @taad/db."
+        ]
+      },
+      {
+        "sessionId": "session-002",
+        "verdict": "pass",
+        "summary": "All seven components are correctly implemented with proper props, accessibility attributes (aria-label, focus-visible states, role), className merging via cn, and color-coded discount thresholds. All 101 web package tests pass. No bugs, security issues, or logic errors found.",
+        "keyFindings": []
+      },
+      {
+        "sessionId": "session-003",
+        "verdict": "pass",
+        "summary": "The GameCard component, robots.ts, and sitemap.ts are well-implemented. All prop types align with their child component interfaces, conditional rendering logic is correct, and the Next.js App Router metadata conventions are used properly. Tests adequately verify the behavior.",
+        "keyFindings": [
+          "PriceBadge accepts an optional `currency` parameter (default `\"USD\"`), but GameCard does not expose or forward a currency prop. This is fine for a USD-only site but will need revisiting if multi-currency deals are supported in the future."
+        ]
+      },
+      {
+        "sessionId": "session-004",
+        "verdict": "pass",
+        "summary": "Production code is correct and meets all acceptance criteria. Layout wraps children in QueryProvider, has a sticky header with responsive nav, footer with affiliate disclosure, ad slot placeholders, JSON-LD structured data, and preserved metadata. Homepage has hero section and Featured Deals with EmptyState. Test failures are caused by pre-existing vitest environment/config issues (JSX automatic transform and path alias resolution), not by bugs in the diff.",
+        "keyFindings": []
+      }
+    ],
+    "issueBody": "## Overview\nSet up the frontend project with a component library, design system, shared layouts, and global conventions. All other frontend issues build on top of this.\n\n## Tech Recommendations\n- **Framework**: Next.js (App Router) — SSR/SSG for SEO, good DX\n- **Styling**: Tailwind CSS + shadcn/ui (accessible, unstyled components)\n- **State management**: React Query (TanStack Query) for server state; Zustand for minimal client state\n- **Forms**: React Hook Form + Zod validation\n- **Charts**: Recharts (lightweight, for price history charts)\n- **Icons**: Lucide React\n\n## Tasks\n\n### Project Setup\n- [ ] Initialize Next.js project with TypeScript and Tailwind CSS\n- [ ] Install and configure shadcn/ui\n- [ ] Set up TanStack Query with global error/loading handling\n- [ ] Set up Zustand store for auth state (access token, user profile)\n- [ ] Configure API client (typed `fetch` wrapper that automatically sets `Authorization` header)\n\n### Design System\n- [ ] Define color palette: primary (brand), background, surface, muted, success, warning, danger\n- [ ] Define typography scale (heading, body, caption, label)\n- [ ] Create shared components:\n  - `<GameCard>` — cover image, title, best price badge, discount badge\n  - `<PriceBadge>` — shows current price + original price crossed out\n  - `<DiscountBadge>` — shows \"-75%\" badge with color coding by discount depth\n  - `<BuyButton>` — always uses referral URL from API\n  - `<StoreIcon>` — logo for each store\n  - `<LoadingSpinner>`, `<EmptyState>`, `<ErrorState>`\n\n### Layout\n- [ ] Root layout with: sticky header (logo, search bar, nav links, auth CTA), footer (links, affiliate disclosure), ad slots\n- [ ] Responsive layout: full sidebar on desktop, hamburger menu on mobile\n- [ ] SEO: default `<meta>` tags, Open Graph, JSON-LD for game pages\n- [ ] Set up `robots.txt` and `sitemap.xml` (dynamically generated from game slugs)\n\n### Accessibility\n- [ ] All interactive elements have keyboard focus states\n- [ ] Images have `alt` text\n- [ ] Color contrast meets WCAG AA\n\n## Acceptance Criteria\n- `npm run dev` starts the frontend against the local API\n- Reusable components render correctly in a component showcase (Storybook optional but nice)\n- Lighthouse score ≥ 90 on Performance, Accessibility, SEO for the homepage\n\n## Dependencies\n- #1 Tech Stack Selection & Project Scaffolding\n- #13 Core Game & Deals REST API"
+  },
+  "outputSchema": {
+    "type": "object",
+    "properties": {
+      "verdict": {
+        "type": "string",
+        "enum": [
+          "pass",
+          "needs-fixes"
+        ]
+      },
+      "issues": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "file": {
+              "type": "string"
+            },
+            "line": {
+              "type": "number"
+            },
+            "severity": {
+              "type": "string",
+              "enum": [
+                "error",
+                "warning",
+                "suggestion"
+              ]
+            },
+            "description": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "file",
+            "severity",
+            "description"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "summary": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "verdict",
+      "issues",
+      "summary"
+    ],
+    "additionalProperties": false,
+    "$schema": "http://json-schema.org/draft-07/schema#"
+  }
+}

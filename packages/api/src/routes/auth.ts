@@ -152,20 +152,20 @@ export function createAuthApp(getRedis: () => RedisClient | null) {
     if (redis) {
       try {
         const current = await redis.get(bruteKey);
-        if (current && Number(current) > BRUTE_FORCE_MAX_ATTEMPTS) {
+        if (current && Number(current) >= BRUTE_FORCE_MAX_ATTEMPTS) {
           return c.json({ error: "Too many login attempts" }, 429);
         }
       } catch {
         const now = Date.now();
         const entry = bruteForceMemory.get(ip);
-        if (entry && now < entry.resetAt && entry.count > BRUTE_FORCE_MAX_ATTEMPTS) {
+        if (entry && now < entry.resetAt && entry.count >= BRUTE_FORCE_MAX_ATTEMPTS) {
           return c.json({ error: "Too many login attempts" }, 429);
         }
       }
     } else {
       const now = Date.now();
       const entry = bruteForceMemory.get(ip);
-      if (entry && now < entry.resetAt && entry.count > BRUTE_FORCE_MAX_ATTEMPTS) {
+      if (entry && now < entry.resetAt && entry.count >= BRUTE_FORCE_MAX_ATTEMPTS) {
         return c.json({ error: "Too many login attempts" }, 429);
       }
     }

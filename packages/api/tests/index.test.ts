@@ -35,9 +35,24 @@ vi.mock("@taad/db", () => ({
   gameGenres: stubTable({ gameId: "gameId", genreId: "genreId" }),
   platforms: stubTable({ id: "id", name: "name", slug: "slug" }),
   gamePlatforms: stubTable({ gameId: "gameId", platformId: "platformId" }),
+  users: stubTable({ id: "id", email: "email", name: "name", passwordHash: "passwordHash", emailVerified: "emailVerified" }),
+  refreshTokens: stubTable({ id: "id", userId: "userId", token: "token", expiresAt: "expiresAt", revokedAt: "revokedAt", createdAt: "createdAt" }),
   searchAnalytics: stubTable({ id: "id", query: "query", resultCount: "resultCount", searchedAt: "searchedAt" }),
   users: stubTable({ id: "id", email: "email", name: "name", passwordHash: "passwordHash", emailVerified: "emailVerified" }),
   refreshTokens: stubTable({ id: "id", userId: "userId", token: "token", expiresAt: "expiresAt", revokedAt: "revokedAt", createdAt: "createdAt" }),
+}));
+
+// Mock auth utilities used by auth routes
+vi.mock("bcryptjs", () => ({
+  default: { hash: vi.fn(), compare: vi.fn() },
+  hash: vi.fn(),
+  compare: vi.fn(),
+}));
+
+vi.mock("jsonwebtoken", () => ({
+  default: { sign: vi.fn(), verify: vi.fn() },
+  sign: vi.fn(),
+  verify: vi.fn(),
 }));
 
 // Mock auth utilities used by auth routes

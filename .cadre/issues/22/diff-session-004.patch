@@ -1,0 +1,787 @@
+diff --git a/packages/web/src/app/layout.tsx b/packages/web/src/app/layout.tsx
+index 686f95a..046fdd4 100644
+--- a/packages/web/src/app/layout.tsx
++++ b/packages/web/src/app/layout.tsx
+@@ -1,5 +1,8 @@
+ import type { Metadata } from "next";
+ import type { ReactNode } from "react";
++import Link from "next/link";
++import { QueryProvider } from "@/lib/query-provider";
++import Header from "@/components/Header";
+ import "./globals.css";
+ 
+ export const metadata: Metadata = {
+@@ -15,10 +18,93 @@ export const metadata: Metadata = {
+   },
+ };
+ 
++const jsonLd = {
++  "@context": "https://schema.org",
++  "@type": "WebSite",
++  name: "There's Always a Deal",
++  description: "Find the best deals across the web, automatically aggregated and curated.",
++  url: "https://theresalwaysadeal.com",
++};
++
+ export default function RootLayout({ children }: { children: ReactNode }) {
+   return (
+     <html lang="en" suppressHydrationWarning>
+-      <body>{children}</body>
++      <head>
++        <script
++          type="application/ld+json"
++          dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
++        />
++      </head>
++      <body className="flex min-h-screen flex-col">
++        <QueryProvider>
++          <Header />
++
++          {/* Ad slot placeholder */}
++          <div data-slot="top-banner" className="hidden" aria-hidden="true">
++            {/* Ad banner placeholder */}
++          </div>
++
++          <main className="flex-1">{children}</main>
++
++          {/* Ad slot placeholder */}
++          <div data-slot="footer-banner" className="hidden" aria-hidden="true">
++            {/* Ad banner placeholder */}
++          </div>
++
++          <footer className="border-t border-zinc-800 bg-zinc-950">
++            <div className="mx-auto max-w-7xl px-4 py-8">
++              <div className="grid gap-8 sm:grid-cols-2 md:grid-cols-3">
++                <div>
++                  <h4 className="mb-3 text-sm font-semibold text-zinc-300">Browse</h4>
++                  <ul className="space-y-2">
++                    <li>
++                      <Link href="/deals" className="text-sm text-zinc-400 transition-colors hover:text-zinc-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">
++                        Deals
++                      </Link>
++                    </li>
++                    <li>
++                      <Link href="/free-games" className="text-sm text-zinc-400 transition-colors hover:text-zinc-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">
++                        Free Games
++                      </Link>
++                    </li>
++                    <li>
++                      <Link href="/stores" className="text-sm text-zinc-400 transition-colors hover:text-zinc-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">
++                        Stores
++                      </Link>
++                    </li>
++                  </ul>
++                </div>
++                <div>
++                  <h4 className="mb-3 text-sm font-semibold text-zinc-300">About</h4>
++                  <ul className="space-y-2">
++                    <li>
++                      <Link href="/about" className="text-sm text-zinc-400 transition-colors hover:text-zinc-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">
++                        About Us
++                      </Link>
++                    </li>
++                    <li>
++                      <Link href="/privacy" className="text-sm text-zinc-400 transition-colors hover:text-zinc-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">
++                        Privacy Policy
++                      </Link>
++                    </li>
++                  </ul>
++                </div>
++              </div>
++
++              <div className="mt-8 border-t border-zinc-800 pt-6">
++                <p className="text-xs text-zinc-500">
++                  <strong>Affiliate Disclosure:</strong> Some links on this site are affiliate links.
++                  We may earn a commission at no extra cost to you when you purchase through these links.
++                  This helps support the site and keeps it free to use.
++                </p>
++                <p className="mt-2 text-xs text-zinc-600">
++                  &copy; {new Date().getFullYear()} There&apos;s Always a Deal. All rights reserved.
++                </p>
++              </div>
++            </div>
++          </footer>
++        </QueryProvider>
++      </body>
+     </html>
+   );
+ }
+diff --git a/packages/web/src/app/page.tsx b/packages/web/src/app/page.tsx
+index d9d85d5..e2c9935 100644
+--- a/packages/web/src/app/page.tsx
++++ b/packages/web/src/app/page.tsx
+@@ -1,12 +1,42 @@
++import EmptyState from "@/components/EmptyState";
++
+ export default function HomePage() {
+   return (
+-    <main className="flex min-h-screen flex-col items-center justify-center gap-6 px-4">
+-      <h1 className="text-5xl font-bold tracking-tight text-zinc-50">
+-        There&apos;s Always a Deal
+-      </h1>
+-      <p className="max-w-xl text-center text-zinc-400">
+-        The best deals across the web, automatically aggregated and curated. Coming soon.
+-      </p>
+-    </main>
++    <div className="flex flex-col">
++      {/* Hero section */}
++      <section className="flex flex-col items-center justify-center gap-6 px-4 py-20 text-center md:py-32">
++        <h1 className="text-4xl font-bold tracking-tight text-zinc-50 md:text-5xl lg:text-6xl">
++          There&apos;s Always a Deal
++        </h1>
++        <p className="max-w-xl text-lg text-zinc-400 md:text-xl">
++          The best deals across the web, automatically aggregated and curated.
++        </p>
++        <div className="flex gap-3">
++          <a
++            href="/deals"
++            className="rounded-lg bg-primary px-6 py-3 text-sm font-medium text-zinc-50 transition-colors hover:bg-primary/90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
++          >
++            Browse Deals
++          </a>
++          <a
++            href="/free-games"
++            className="rounded-lg border border-zinc-700 px-6 py-3 text-sm font-medium text-zinc-300 transition-colors hover:bg-zinc-800 hover:text-zinc-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
++          >
++            Free Games
++          </a>
++        </div>
++      </section>
++
++      {/* Featured Deals section */}
++      <section className="mx-auto w-full max-w-7xl px-4 pb-16">
++        <h2 className="mb-6 text-2xl font-bold tracking-tight text-zinc-50">
++          Featured Deals
++        </h2>
++        <EmptyState
++          message="No featured deals yet. Check back soon for the best game deals!"
++          icon={<span>🎮</span>}
++        />
++      </section>
++    </div>
+   );
+ }
+diff --git a/packages/web/src/components/Header.tsx b/packages/web/src/components/Header.tsx
+new file mode 100644
+index 0000000..1309897
+--- /dev/null
++++ b/packages/web/src/components/Header.tsx
+@@ -0,0 +1,117 @@
++"use client";
++
++import { useState } from "react";
++import Link from "next/link";
++
++const navLinks = [
++  { href: "/deals", label: "Deals" },
++  { href: "/free-games", label: "Free Games" },
++  { href: "/stores", label: "Stores" },
++];
++
++export default function Header() {
++  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
++
++  return (
++    <header className="sticky top-0 z-50 border-b border-zinc-800 bg-zinc-950/95 backdrop-blur supports-[backdrop-filter]:bg-zinc-950/80">
++      <div className="mx-auto flex h-16 max-w-7xl items-center justify-between gap-4 px-4">
++        {/* Logo */}
++        <Link
++          href="/"
++          className="shrink-0 text-lg font-bold tracking-tight text-zinc-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
++        >
++          There&apos;s Always a Deal
++        </Link>
++
++        {/* Search bar placeholder */}
++        <div className="hidden flex-1 md:block md:max-w-md">
++          <div className="relative">
++            <input
++              type="search"
++              placeholder="Search games..."
++              aria-label="Search games"
++              className="w-full rounded-lg border border-zinc-700 bg-zinc-900 px-4 py-2 text-sm text-zinc-200 placeholder:text-zinc-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
++            />
++          </div>
++        </div>
++
++        {/* Desktop nav */}
++        <nav className="hidden items-center gap-1 md:flex" aria-label="Main navigation">
++          {navLinks.map((link) => (
++            <Link
++              key={link.href}
++              href={link.href}
++              className="rounded-md px-3 py-2 text-sm font-medium text-zinc-300 transition-colors hover:bg-zinc-800 hover:text-zinc-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
++            >
++              {link.label}
++            </Link>
++          ))}
++        </nav>
++
++        {/* Auth CTA placeholder */}
++        <div className="hidden md:block">
++          <button
++            type="button"
++            className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-zinc-50 transition-colors hover:bg-primary/90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
++          >
++            Sign In
++          </button>
++        </div>
++
++        {/* Hamburger menu button (mobile) */}
++        <button
++          type="button"
++          className="inline-flex items-center justify-center rounded-md p-2 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-50 md:hidden focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
++          aria-label="Toggle menu"
++          aria-expanded={mobileMenuOpen}
++          onClick={() => setMobileMenuOpen((prev) => !prev)}
++        >
++          {mobileMenuOpen ? (
++            <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor" aria-hidden="true">
++              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
++            </svg>
++          ) : (
++            <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor" aria-hidden="true">
++              <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
++            </svg>
++          )}
++        </button>
++      </div>
++
++      {/* Mobile menu */}
++      {mobileMenuOpen && (
++        <nav className="border-t border-zinc-800 md:hidden" aria-label="Mobile navigation">
++          <div className="space-y-1 px-4 pb-4 pt-2">
++            {/* Mobile search */}
++            <div className="pb-2">
++              <input
++                type="search"
++                placeholder="Search games..."
++                aria-label="Search games"
++                className="w-full rounded-lg border border-zinc-700 bg-zinc-900 px-4 py-2 text-sm text-zinc-200 placeholder:text-zinc-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
++              />
++            </div>
++
++            {navLinks.map((link) => (
++              <Link
++                key={link.href}
++                href={link.href}
++                className="block rounded-md px-3 py-2 text-base font-medium text-zinc-300 transition-colors hover:bg-zinc-800 hover:text-zinc-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
++                onClick={() => setMobileMenuOpen(false)}
++              >
++                {link.label}
++              </Link>
++            ))}
++
++            <button
++              type="button"
++              className="mt-2 w-full rounded-lg bg-primary px-4 py-2 text-sm font-medium text-zinc-50 transition-colors hover:bg-primary/90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
++            >
++              Sign In
++            </button>
++          </div>
++        </nav>
++      )}
++    </header>
++  );
++}
+diff --git a/packages/web/tests/app/layout.test.tsx b/packages/web/tests/app/layout.test.tsx
+new file mode 100644
+index 0000000..d7154e3
+--- /dev/null
++++ b/packages/web/tests/app/layout.test.tsx
+@@ -0,0 +1,188 @@
++import { describe, it, expect, vi } from 'vitest';
++
++vi.mock('next/link', () => ({
++  default: function MockLink({ children, href, ...props }: Record<string, unknown>) {
++    return { type: 'a', props: { href, ...props, children }, key: null };
++  },
++}));
++
++vi.mock('@/lib/query-provider', () => ({
++  QueryProvider: function MockQueryProvider({ children }: { children: unknown }) {
++    return { type: 'div', props: { 'data-testid': 'query-provider', children }, key: null };
++  },
++}));
++
++vi.mock('@/components/Header', () => ({
++  default: function MockHeader() {
++    return { type: 'header', props: { 'data-testid': 'header' }, key: null };
++  },
++}));
++
++import RootLayout from '../../src/app/layout';
++
++type El = { type: string | ((...args: unknown[]) => unknown); props: Record<string, unknown> };
++
++function findElements(
++  element: El,
++  predicate: (el: El) => boolean,
++): El[] {
++  let resolved = element;
++  // Resolve function components (mocks) to their rendered output
++  if (typeof element.type === 'function') {
++    resolved = (element.type as (props: Record<string, unknown>) => El)(element.props);
++  }
++  const results: El[] = [];
++  if (predicate(resolved)) results.push(resolved);
++  const children = resolved.props?.children;
++  if (Array.isArray(children)) {
++    for (const child of children) {
++      if (child && typeof child === 'object' && 'type' in child) {
++        results.push(...findElements(child as El, predicate));
++      }
++    }
++  } else if (children && typeof children === 'object' && 'type' in (children as object)) {
++    results.push(
++      ...findElements(children as El, predicate),
++    );
++  }
++  return results;
++}
++
++describe('RootLayout', () => {
++  it('should be a function (React component)', () => {
++    expect(typeof RootLayout).toBe('function');
++  });
++
++  it('should return an html element', () => {
++    const element = RootLayout({ children: 'content' });
++    expect(element.type).toBe('html');
++  });
++
++  it('should set lang="en" on html element', () => {
++    const element = RootLayout({ children: 'content' });
++    expect(element.props.lang).toBe('en');
++  });
++
++  it('should include a head element with JSON-LD script', () => {
++    const element = RootLayout({ children: 'content' });
++    const heads = findElements(element, (el) => el.type === 'head');
++    expect(heads.length).toBeGreaterThanOrEqual(1);
++    const scripts = findElements(heads[0], (el) => el.type === 'script');
++    const jsonLdScript = scripts.find((s) => s.props.type === 'application/ld+json');
++    expect(jsonLdScript).toBeTruthy();
++  });
++
++  it('should contain valid JSON-LD structured data', () => {
++    const element = RootLayout({ children: 'content' });
++    const heads = findElements(element, (el) => el.type === 'head');
++    const scripts = findElements(heads[0], (el) => el.type === 'script');
++    const jsonLdScript = scripts.find((s) => s.props.type === 'application/ld+json')!;
++    const html = (jsonLdScript.props.dangerouslySetInnerHTML as { __html: string }).__html;
++    const data = JSON.parse(html);
++    expect(data['@context']).toBe('https://schema.org');
++    expect(data['@type']).toBe('WebSite');
++    expect(data.name).toContain('Always a Deal');
++  });
++
++  it('should wrap children in QueryProvider', () => {
++    const element = RootLayout({ children: 'test-content' });
++    const providers = findElements(element, (el) =>
++      el.type === 'div' && el.props['data-testid'] === 'query-provider',
++    );
++    expect(providers.length).toBeGreaterThanOrEqual(1);
++  });
++
++  it('should include the Header component', () => {
++    const element = RootLayout({ children: 'content' });
++    const headers = findElements(element, (el) =>
++      el.type === 'header' && el.props['data-testid'] === 'header',
++    );
++    expect(headers.length).toBeGreaterThanOrEqual(1);
++  });
++
++  it('should render children inside a main element', () => {
++    const element = RootLayout({ children: 'my-page-content' });
++    const mains = findElements(element, (el) => el.type === 'main');
++    expect(mains.length).toBe(1);
++    expect(mains[0].props.className).toContain('flex-1');
++    expect(mains[0].props.children).toBe('my-page-content');
++  });
++
++  it('should include ad slot placeholders with data-slot attributes', () => {
++    const element = RootLayout({ children: 'content' });
++    const slots = findElements(element, (el) =>
++      el.type === 'div' && typeof el.props['data-slot'] === 'string',
++    );
++    expect(slots.length).toBeGreaterThanOrEqual(2);
++    const slotNames = slots.map((s) => s.props['data-slot']);
++    expect(slotNames).toContain('top-banner');
++    expect(slotNames).toContain('footer-banner');
++  });
++
++  it('should render a footer element', () => {
++    const element = RootLayout({ children: 'content' });
++    const footers = findElements(element, (el) => el.type === 'footer');
++    expect(footers.length).toBe(1);
++  });
++
++  it('should include affiliate disclosure text in footer', () => {
++    const element = RootLayout({ children: 'content' });
++    const footers = findElements(element, (el) => el.type === 'footer');
++    const strongs = findElements(footers[0], (el) => el.type === 'strong');
++    const disclosureStrong = strongs.find(
++      (s) => s.props.children === 'Affiliate Disclosure:',
++    );
++    expect(disclosureStrong).toBeTruthy();
++  });
++
++  it('should include footer links for Deals, Free Games, and Stores', () => {
++    const element = RootLayout({ children: 'content' });
++    const footers = findElements(element, (el) => el.type === 'footer');
++    const links = findElements(footers[0], (el) => el.type === 'a');
++    const hrefs = links.map((l) => l.props.href);
++    expect(hrefs).toContain('/deals');
++    expect(hrefs).toContain('/free-games');
++    expect(hrefs).toContain('/stores');
++  });
++
++  it('should include footer links for About Us and Privacy Policy', () => {
++    const element = RootLayout({ children: 'content' });
++    const footers = findElements(element, (el) => el.type === 'footer');
++    const links = findElements(footers[0], (el) => el.type === 'a');
++    const hrefs = links.map((l) => l.props.href);
++    expect(hrefs).toContain('/about');
++    expect(hrefs).toContain('/privacy');
++  });
++
++  it('should include focus-visible styles on footer links', () => {
++    const element = RootLayout({ children: 'content' });
++    const footers = findElements(element, (el) => el.type === 'footer');
++    const links = findElements(footers[0], (el) => el.type === 'a');
++    for (const link of links) {
++      expect(link.props.className).toContain('focus-visible:outline');
++    }
++  });
++
++  it('should include copyright text in footer', () => {
++    const element = RootLayout({ children: 'content' });
++    const footers = findElements(element, (el) => el.type === 'footer');
++    const paragraphs = findElements(footers[0], (el) => el.type === 'p');
++    const copyrightP = paragraphs.find((p) => {
++      const children = p.props.children;
++      if (Array.isArray(children)) {
++        return children.some((c: unknown) => typeof c === 'string' && c.includes('All rights reserved'));
++      }
++      return typeof children === 'string' && children.includes('All rights reserved');
++    });
++    expect(copyrightP).toBeTruthy();
++  });
++
++  it('should have body with min-h-screen flex layout', () => {
++    const element = RootLayout({ children: 'content' });
++    const bodies = findElements(element, (el) => el.type === 'body');
++    expect(bodies.length).toBe(1);
++    expect(bodies[0].props.className).toContain('min-h-screen');
++    expect(bodies[0].props.className).toContain('flex');
++    expect(bodies[0].props.className).toContain('flex-col');
++  });
++});
+diff --git a/packages/web/tests/app/page.test.tsx b/packages/web/tests/app/page.test.tsx
+new file mode 100644
+index 0000000..0d33f7f
+--- /dev/null
++++ b/packages/web/tests/app/page.test.tsx
+@@ -0,0 +1,123 @@
++import { describe, it, expect, vi } from 'vitest';
++
++vi.mock('next/link', () => ({
++  default: function MockLink({ children, href, ...props }: Record<string, unknown>) {
++    return { type: 'a', props: { href, ...props, children }, key: null };
++  },
++}));
++
++import HomePage from '../../src/app/page';
++
++describe('HomePage', () => {
++  it('should be a function (React component)', () => {
++    expect(typeof HomePage).toBe('function');
++  });
++
++  it('should return a div element', () => {
++    const element = HomePage();
++    expect(element.type).toBe('div');
++  });
++
++  it('should render a hero section', () => {
++    const element = HomePage();
++    const children = element.props.children;
++    const heroSection = children[0];
++    expect(heroSection.type).toBe('section');
++  });
++
++  it('should render the site title in an h1', () => {
++    const element = HomePage();
++    const heroSection = element.props.children[0];
++    const h1 = heroSection.props.children[0];
++    expect(h1.type).toBe('h1');
++    expect(h1.props.children).toContain('Always a Deal');
++  });
++
++  it('should render a tagline paragraph', () => {
++    const element = HomePage();
++    const heroSection = element.props.children[0];
++    const tagline = heroSection.props.children[1];
++    expect(tagline.type).toBe('p');
++    expect(tagline.props.children).toContain('best deals');
++  });
++
++  it('should render CTA buttons for Browse Deals and Free Games', () => {
++    const element = HomePage();
++    const heroSection = element.props.children[0];
++    const ctaContainer = heroSection.props.children[2];
++    const links = ctaContainer.props.children;
++    expect(links).toHaveLength(2);
++
++    const browseDeals = links[0];
++    expect(browseDeals.type).toBe('a');
++    expect(browseDeals.props.href).toBe('/deals');
++    expect(browseDeals.props.children).toBe('Browse Deals');
++
++    const freeGames = links[1];
++    expect(freeGames.type).toBe('a');
++    expect(freeGames.props.href).toBe('/free-games');
++    expect(freeGames.props.children).toBe('Free Games');
++  });
++
++  it('should render a Featured Deals section', () => {
++    const element = HomePage();
++    const featuredSection = element.props.children[1];
++    expect(featuredSection.type).toBe('section');
++  });
++
++  it('should render Featured Deals heading as h2', () => {
++    const element = HomePage();
++    const featuredSection = element.props.children[1];
++    const h2 = featuredSection.props.children[0];
++    expect(h2.type).toBe('h2');
++    expect(h2.props.children).toBe('Featured Deals');
++  });
++
++  it('should use EmptyState component in Featured Deals section', () => {
++    const element = HomePage();
++    const featuredSection = element.props.children[1];
++    const emptyState = featuredSection.props.children[1];
++    expect(emptyState).toBeTruthy();
++    expect(emptyState.props.message).toContain('No featured deals yet');
++  });
++
++  it('should pass an icon to EmptyState', () => {
++    const element = HomePage();
++    const featuredSection = element.props.children[1];
++    const emptyState = featuredSection.props.children[1];
++    expect(emptyState.props.icon).toBeTruthy();
++  });
++
++  it('should have responsive text classes on the title', () => {
++    const element = HomePage();
++    const heroSection = element.props.children[0];
++    const h1 = heroSection.props.children[0];
++    expect(h1.props.className).toContain('text-4xl');
++    expect(h1.props.className).toContain('md:text-5xl');
++  });
++
++  it('should have responsive padding on the hero section', () => {
++    const element = HomePage();
++    const heroSection = element.props.children[0];
++    expect(heroSection.props.className).toContain('py-20');
++    expect(heroSection.props.className).toContain('md:py-32');
++  });
++
++  it('should have focus-visible styles on CTA links', () => {
++    const element = HomePage();
++    const heroSection = element.props.children[0];
++    const ctaContainer = heroSection.props.children[2];
++    const links = ctaContainer.props.children;
++    for (const link of links) {
++      expect(link.props.className).toContain('focus-visible:outline');
++    }
++  });
++
++  it('should have primary background on Browse Deals button', () => {
++    const element = HomePage();
++    const heroSection = element.props.children[0];
++    const ctaContainer = heroSection.props.children[2];
++    const browseDeals = ctaContainer.props.children[0];
++    expect(browseDeals.props.className).toContain('bg-primary');
++  });
++});
+diff --git a/packages/web/tests/components/Header.test.tsx b/packages/web/tests/components/Header.test.tsx
+new file mode 100644
+index 0000000..e5644e2
+--- /dev/null
++++ b/packages/web/tests/components/Header.test.tsx
+@@ -0,0 +1,172 @@
++import React from 'react';
++import { describe, it, expect, vi, beforeEach } from 'vitest';
++import { render, fireEvent } from '@testing-library/react';
++
++vi.mock('next/link', () => ({
++  default: ({ children, href, ...props }: Record<string, unknown>) =>
++    React.createElement('a', { href, ...props }, children as React.ReactNode),
++}));
++
++import Header from '../../src/components/Header';
++
++describe('Header', () => {
++  it('should be a function (React component)', () => {
++    expect(typeof Header).toBe('function');
++  });
++
++  it('should render a header element', () => {
++    const { container } = render(<Header />);
++    const header = container.querySelector('header');
++    expect(header).toBeTruthy();
++  });
++
++  it('should have sticky positioning', () => {
++    const { container } = render(<Header />);
++    const header = container.querySelector('header');
++    expect(header?.className).toContain('sticky');
++    expect(header?.className).toContain('top-0');
++  });
++
++  it('should render the logo link with correct text', () => {
++    const { container } = render(<Header />);
++    const links = container.querySelectorAll('a');
++    const logoLink = Array.from(links).find((l) => l.getAttribute('href') === '/');
++    expect(logoLink).toBeTruthy();
++    expect(logoLink?.textContent).toContain('Always a Deal');
++  });
++
++  it('should render a search input with placeholder', () => {
++    const { container } = render(<Header />);
++    const searchInputs = container.querySelectorAll('input[type="search"]');
++    expect(searchInputs.length).toBeGreaterThanOrEqual(1);
++    expect(searchInputs[0].getAttribute('placeholder')).toBe('Search games...');
++  });
++
++  it('should render search input with aria-label', () => {
++    const { container } = render(<Header />);
++    const searchInput = container.querySelector('input[type="search"]');
++    expect(searchInput?.getAttribute('aria-label')).toBe('Search games');
++  });
++
++  it('should render desktop nav links for Deals, Free Games, and Stores', () => {
++    const { container } = render(<Header />);
++    const nav = container.querySelector('nav[aria-label="Main navigation"]');
++    expect(nav).toBeTruthy();
++    const links = nav!.querySelectorAll('a');
++    const hrefs = Array.from(links).map((l) => l.getAttribute('href'));
++    expect(hrefs).toContain('/deals');
++    expect(hrefs).toContain('/free-games');
++    expect(hrefs).toContain('/stores');
++  });
++
++  it('should render desktop nav with hidden md:flex classes', () => {
++    const { container } = render(<Header />);
++    const nav = container.querySelector('nav[aria-label="Main navigation"]');
++    expect(nav?.className).toContain('hidden');
++    expect(nav?.className).toContain('md:flex');
++  });
++
++  it('should render a Sign In button', () => {
++    const { container } = render(<Header />);
++    const buttons = container.querySelectorAll('button');
++    const signInBtn = Array.from(buttons).find((b) => b.textContent === 'Sign In');
++    expect(signInBtn).toBeTruthy();
++  });
++
++  it('should render a hamburger menu button with aria-label', () => {
++    const { container } = render(<Header />);
++    const menuBtn = container.querySelector('button[aria-label="Toggle menu"]');
++    expect(menuBtn).toBeTruthy();
++  });
++
++  it('should have aria-expanded="false" on hamburger button initially', () => {
++    const { container } = render(<Header />);
++    const menuBtn = container.querySelector('button[aria-label="Toggle menu"]');
++    expect(menuBtn?.getAttribute('aria-expanded')).toBe('false');
++  });
++
++  it('should have md:hidden class on hamburger button', () => {
++    const { container } = render(<Header />);
++    const menuBtn = container.querySelector('button[aria-label="Toggle menu"]');
++    expect(menuBtn?.className).toContain('md:hidden');
++  });
++
++  it('should not show mobile menu initially', () => {
++    const { container } = render(<Header />);
++    const mobileNav = container.querySelector('nav[aria-label="Mobile navigation"]');
++    expect(mobileNav).toBeNull();
++  });
++
++  it('should show mobile menu after clicking hamburger button', () => {
++    const { container } = render(<Header />);
++    const menuBtn = container.querySelector('button[aria-label="Toggle menu"]')!;
++    fireEvent.click(menuBtn);
++    const mobileNav = container.querySelector('nav[aria-label="Mobile navigation"]');
++    expect(mobileNav).toBeTruthy();
++  });
++
++  it('should set aria-expanded="true" when mobile menu is open', () => {
++    const { container } = render(<Header />);
++    const menuBtn = container.querySelector('button[aria-label="Toggle menu"]')!;
++    fireEvent.click(menuBtn);
++    expect(menuBtn.getAttribute('aria-expanded')).toBe('true');
++  });
++
++  it('should close mobile menu when hamburger is clicked again', () => {
++    const { container } = render(<Header />);
++    const menuBtn = container.querySelector('button[aria-label="Toggle menu"]')!;
++    fireEvent.click(menuBtn);
++    expect(container.querySelector('nav[aria-label="Mobile navigation"]')).toBeTruthy();
++    fireEvent.click(menuBtn);
++    expect(container.querySelector('nav[aria-label="Mobile navigation"]')).toBeNull();
++  });
++
++  it('should render nav links in mobile menu when open', () => {
++    const { container } = render(<Header />);
++    const menuBtn = container.querySelector('button[aria-label="Toggle menu"]')!;
++    fireEvent.click(menuBtn);
++    const mobileNav = container.querySelector('nav[aria-label="Mobile navigation"]')!;
++    const links = mobileNav.querySelectorAll('a');
++    const hrefs = Array.from(links).map((l) => l.getAttribute('href'));
++    expect(hrefs).toContain('/deals');
++    expect(hrefs).toContain('/free-games');
++    expect(hrefs).toContain('/stores');
++  });
++
++  it('should render a search input in the mobile menu', () => {
++    const { container } = render(<Header />);
++    const menuBtn = container.querySelector('button[aria-label="Toggle menu"]')!;
++    fireEvent.click(menuBtn);
++    const mobileNav = container.querySelector('nav[aria-label="Mobile navigation"]')!;
++    const searchInput = mobileNav.querySelector('input[type="search"]');
++    expect(searchInput).toBeTruthy();
++  });
++
++  it('should close mobile menu when a nav link is clicked', () => {
++    const { container } = render(<Header />);
++    const menuBtn = container.querySelector('button[aria-label="Toggle menu"]')!;
++    fireEvent.click(menuBtn);
++    const mobileNav = container.querySelector('nav[aria-label="Mobile navigation"]')!;
++    const firstLink = mobileNav.querySelector('a')!;
++    fireEvent.click(firstLink);
++    expect(container.querySelector('nav[aria-label="Mobile navigation"]')).toBeNull();
++  });
++
++  it('should render a Sign In button in the mobile menu', () => {
++    const { container } = render(<Header />);
++    const menuBtn = container.querySelector('button[aria-label="Toggle menu"]')!;
++    fireEvent.click(menuBtn);
++    const mobileNav = container.querySelector('nav[aria-label="Mobile navigation"]')!;
++    const signInBtn = mobileNav.querySelector('button');
++    expect(signInBtn).toBeTruthy();
++    expect(signInBtn?.textContent).toBe('Sign In');
++  });
++
++  it('should have focus-visible styles on interactive elements', () => {
++    const { container } = render(<Header />);
++    const links = container.querySelectorAll('a');
++    for (const link of Array.from(links)) {
++      expect(link.className).toContain('focus-visible:outline');
++    }
++  });
++});
