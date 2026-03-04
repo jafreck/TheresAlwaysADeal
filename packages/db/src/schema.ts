@@ -1,5 +1,6 @@
 import {
   boolean,
+  customType,
   decimal,
   integer,
   pgTable,
@@ -9,6 +10,12 @@ import {
   uuid,
   varchar,
 } from "drizzle-orm/pg-core";
+
+const tsvector = customType<{ data: string }>({
+  dataType() {
+    return "tsvector";
+  },
+});
 
 // ─── Games ────────────────────────────────────────────────────────────────────
 export const games = pgTable("games", {
@@ -20,6 +27,7 @@ export const games = pgTable("games", {
   steamAppId: integer("steam_app_id"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  searchVector: tsvector("search_vector"),
 });
 
 // ─── Stores ───────────────────────────────────────────────────────────────────
@@ -65,10 +73,25 @@ export const users = pgTable("users", {
   id: uuid("id").defaultRandom().primaryKey(),
   email: varchar("email", { length: 255 }).notNull().unique(),
   name: varchar("name", { length: 255 }),
+  passwordHash: text("password_hash"),
+  emailVerified: boolean("email_verified").default(false).notNull(),
+  emailVerificationToken: text("email_verification_token"),
+  passwordResetToken: text("password_reset_token"),
+  passwordResetExpires: timestamp("password_reset_expires"),
   steamId: varchar("steam_id", { length: 100 }),
   steamAccessToken: text("steam_access_token"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+// ─── Refresh Tokens ───────────────────────────────────────────────────────────
+export const refreshTokens = pgTable("refresh_tokens", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  userId: uuid("user_id").references(() => users.id).notNull(),
+  token: text("token").notNull().unique(),
+  expiresAt: timestamp("expires_at").notNull(),
+  revokedAt: timestamp("revoked_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
 // ─── Wishlists ────────────────────────────────────────────────────────────────
@@ -145,4 +168,12 @@ export const alertNotifications = pgTable("alert_notifications", {
   storeListingId: uuid("store_listing_id").references(() => storeListings.id).notNull(),
   triggeredPrice: decimal("triggered_price", { precision: 10, scale: 2 }).notNull(),
   sentAt: timestamp("sent_at").defaultNow().notNull(),
+});
+
+// ─── Search Analytics ─────────────────────────────────────────────────────────
+export const searchAnalytics = pgTable("search_analytics", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  query: varchar("query", { length: 500 }).notNull(),
+  resultCount: integer("result_count").notNull(),
+  searchedAt: timestamp("searched_at").defaultNow().notNull(),
 });

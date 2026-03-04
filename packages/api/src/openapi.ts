@@ -35,9 +35,49 @@ const spec = {
           { name: "q", in: "query", required: true, schema: { type: "string", minLength: 1 }, description: "Search query" },
           { name: "page", in: "query", schema: { type: "integer", default: 1 } },
           { name: "limit", in: "query", schema: { type: "integer", default: 20, maximum: 100 } },
+          { name: "store", in: "query", schema: { type: "string" }, description: "Comma-separated store slugs" },
+          { name: "genre", in: "query", schema: { type: "string" }, description: "Comma-separated genre slugs" },
+          { name: "min_discount", in: "query", schema: { type: "number" }, description: "Minimum discount percentage" },
+          { name: "max_price", in: "query", schema: { type: "number" }, description: "Maximum price" },
         ],
         responses: {
           "200": { description: "Search results", content: { "application/json": { schema: { $ref: "#/components/schemas/EnvelopeResponse" } } } },
+          "400": { description: "Invalid query parameters", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
+          "429": { description: "Rate limit exceeded", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
+        },
+      },
+    },
+    "/games/autocomplete": {
+      get: {
+        summary: "Autocomplete game titles",
+        tags: ["Games"],
+        parameters: [
+          { name: "q", in: "query", required: true, schema: { type: "string", minLength: 1 }, description: "Search query for autocomplete" },
+          { name: "limit", in: "query", schema: { type: "integer", default: 5, maximum: 10 }, description: "Number of suggestions (default 5, max 10)" },
+        ],
+        responses: {
+          "200": {
+            description: "Autocomplete suggestions",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    data: {
+                      type: "array",
+                      items: {
+                        type: "object",
+                        properties: {
+                          title: { type: "string" },
+                          slug: { type: "string" },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
           "400": { description: "Invalid query parameters", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
           "429": { description: "Rate limit exceeded", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
         },
@@ -160,6 +200,144 @@ const spec = {
         },
       },
     },
+    "/auth/register": {
+      post: {
+        summary: "Register a new user",
+        tags: ["Auth"],
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                required: ["email", "password"],
+                properties: {
+                  email: { type: "string", format: "email" },
+                  password: { type: "string", minLength: 8 },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          "201": { description: "User registered successfully", content: { "application/json": { schema: { $ref: "#/components/schemas/AccessTokenResponse" } } } },
+          "400": { description: "Invalid input or email already registered", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
+          "429": { description: "Rate limit exceeded", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
+        },
+      },
+    },
+    "/auth/login": {
+      post: {
+        summary: "Login with email and password",
+        tags: ["Auth"],
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                required: ["email", "password"],
+                properties: {
+                  email: { type: "string", format: "email" },
+                  password: { type: "string" },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          "200": { description: "Login successful", content: { "application/json": { schema: { $ref: "#/components/schemas/AccessTokenResponse" } } } },
+          "401": { description: "Invalid email or password", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
+          "429": { description: "Too many login attempts", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
+        },
+      },
+    },
+    "/auth/refresh": {
+      post: {
+        summary: "Refresh access token using refresh token cookie",
+        tags: ["Auth"],
+        responses: {
+          "200": { description: "New access token issued", content: { "application/json": { schema: { $ref: "#/components/schemas/AccessTokenResponse" } } } },
+          "401": { description: "Invalid or expired refresh token", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
+          "429": { description: "Rate limit exceeded", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
+        },
+      },
+    },
+    "/auth/logout": {
+      post: {
+        summary: "Logout and invalidate refresh token",
+        tags: ["Auth"],
+        responses: {
+          "200": { description: "Logged out successfully", content: { "application/json": { schema: { $ref: "#/components/schemas/MessageResponse" } } } },
+          "429": { description: "Rate limit exceeded", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
+        },
+      },
+    },
+    "/auth/forgot-password": {
+      post: {
+        summary: "Request a password reset email",
+        tags: ["Auth"],
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                required: ["email"],
+                properties: {
+                  email: { type: "string", format: "email" },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          "200": { description: "Reset email sent if account exists", content: { "application/json": { schema: { $ref: "#/components/schemas/MessageResponse" } } } },
+          "400": { description: "Invalid input", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
+          "429": { description: "Rate limit exceeded", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
+        },
+      },
+    },
+    "/auth/reset-password": {
+      post: {
+        summary: "Reset password using a reset token",
+        tags: ["Auth"],
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                required: ["token", "password"],
+                properties: {
+                  token: { type: "string", format: "uuid" },
+                  password: { type: "string", minLength: 8 },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          "200": { description: "Password reset successfully", content: { "application/json": { schema: { $ref: "#/components/schemas/MessageResponse" } } } },
+          "400": { description: "Invalid or expired reset token", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
+          "429": { description: "Rate limit exceeded", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
+        },
+      },
+    },
+    "/auth/verify-email": {
+      get: {
+        summary: "Verify email address using a verification token",
+        tags: ["Auth"],
+        parameters: [
+          { name: "token", in: "query", required: true, schema: { type: "string", format: "uuid" }, description: "Email verification token" },
+        ],
+        responses: {
+          "200": { description: "Email verified successfully", content: { "application/json": { schema: { $ref: "#/components/schemas/MessageResponse" } } } },
+          "400": { description: "Invalid verification token", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
+          "429": { description: "Rate limit exceeded", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
+        },
+      },
+    },
   },
   components: {
     schemas: {
@@ -182,6 +360,18 @@ const spec = {
         type: "object",
         properties: {
           error: { type: "string" },
+        },
+      },
+      AccessTokenResponse: {
+        type: "object",
+        properties: {
+          accessToken: { type: "string" },
+        },
+      },
+      MessageResponse: {
+        type: "object",
+        properties: {
+          message: { type: "string" },
         },
       },
     },

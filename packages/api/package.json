@@ -18,11 +18,15 @@
     "@hono/zod-openapi": "^0.18.0",
     "@taad/db": "workspace:*",
     "drizzle-orm": "^0.39.0",
+    "bcryptjs": "^2.4.3",
     "hono": "^4.6.0",
+    "jsonwebtoken": "^9.0.0",
     "ioredis": "^5.0.0",
     "zod": "^3.24.0"
   },
   "devDependencies": {
+    "@types/bcryptjs": "^2.4.0",
+    "@types/jsonwebtoken": "^9.0.0",
     "@types/node": "^22.0.0",
     "typescript": "^5.7.0",
     "vitest": "^2.0.0"

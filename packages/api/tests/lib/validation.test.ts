@@ -7,6 +7,7 @@ import {
   commonQuerySchema,
   dealsQuerySchema,
   searchQuerySchema,
+  autocompleteQuerySchema,
   priceHistoryQuerySchema,
 } from "../../src/lib/validation.js";
 
@@ -200,6 +201,110 @@ describe("searchQuerySchema", () => {
   it("should inherit pagination validation (reject negative page)", () => {
     expect(() => searchQuerySchema.parse({ q: "test", page: -1 })).toThrow();
   });
+
+  it("should parse optional store filter", () => {
+    const result = searchQuerySchema.parse({ q: "witcher", store: "steam" });
+    expect(result.store).toBe("steam");
+  });
+
+  it("should parse optional genre filter", () => {
+    const result = searchQuerySchema.parse({ q: "witcher", genre: "rpg" });
+    expect(result.genre).toBe("rpg");
+  });
+
+  it("should parse optional min_discount as a number", () => {
+    const result = searchQuerySchema.parse({ q: "witcher", min_discount: "25" });
+    expect(result.min_discount).toBe(25);
+  });
+
+  it("should parse optional max_price as a number", () => {
+    const result = searchQuerySchema.parse({ q: "witcher", max_price: "9.99" });
+    expect(result.max_price).toBe(9.99);
+  });
+
+  it("should leave filter fields undefined when omitted", () => {
+    const result = searchQuerySchema.parse({ q: "witcher" });
+    expect(result.store).toBeUndefined();
+    expect(result.genre).toBeUndefined();
+    expect(result.min_discount).toBeUndefined();
+    expect(result.max_price).toBeUndefined();
+  });
+
+  it("should parse all filter fields together", () => {
+    const result = searchQuerySchema.parse({
+      q: "witcher",
+      page: "2",
+      limit: "10",
+      store: "steam",
+      genre: "rpg",
+      min_discount: "25",
+      max_price: "15.99",
+    });
+    expect(result).toEqual({
+      q: "witcher",
+      page: 2,
+      limit: 10,
+      store: "steam",
+      genre: "rpg",
+      min_discount: 25,
+      max_price: 15.99,
+    });
+  });
+
+  it("should inherit pagination validation (reject limit > 100)", () => {
+    expect(() => searchQuerySchema.parse({ q: "test", limit: 101 })).toThrow();
+  });
+});
+
+describe("autocompleteQuerySchema", () => {
+  it("should parse q with default limit", () => {
+    const result = autocompleteQuerySchema.parse({ q: "witc" });
+    expect(result).toEqual({ q: "witc", limit: 5 });
+  });
+
+  it("should reject missing q parameter", () => {
+    expect(() => autocompleteQuerySchema.parse({})).toThrow();
+  });
+
+  it("should reject empty q parameter", () => {
+    expect(() => autocompleteQuerySchema.parse({ q: "" })).toThrow();
+  });
+
+  it("should accept custom limit", () => {
+    const result = autocompleteQuerySchema.parse({ q: "test", limit: "3" });
+    expect(result.limit).toBe(3);
+  });
+
+  it("should reject limit greater than 10", () => {
+    expect(() => autocompleteQuerySchema.parse({ q: "test", limit: 11 })).toThrow();
+  });
+
+  it("should reject non-positive limit", () => {
+    expect(() => autocompleteQuerySchema.parse({ q: "test", limit: 0 })).toThrow();
+  });
+
+  it("should reject non-integer limit", () => {
+    expect(() => autocompleteQuerySchema.parse({ q: "test", limit: 2.5 })).toThrow();
+  });
+
+  it("should accept limit of exactly 10", () => {
+    const result = autocompleteQuerySchema.parse({ q: "test", limit: 10 });
+    expect(result.limit).toBe(10);
+  });
+
+  it("should accept limit of exactly 1", () => {
+    const result = autocompleteQuerySchema.parse({ q: "test", limit: 1 });
+    expect(result.limit).toBe(1);
+  });
+
+  it("should coerce string limit to number", () => {
+    const result = autocompleteQuerySchema.parse({ q: "test", limit: "7" });
+    expect(result.limit).toBe(7);
+  });
+
+  it("should reject negative limit", () => {
+    expect(() => autocompleteQuerySchema.parse({ q: "test", limit: -1 })).toThrow();
+  });
 });
 
 describe("priceHistoryQuerySchema", () => {
@@ -211,5 +316,100 @@ describe("priceHistoryQuerySchema", () => {
   it("should accept optional store parameter", () => {
     const result = priceHistoryQuerySchema.parse({ store: "steam" });
     expect(result.store).toBe("steam");
+  });
+});
+
+// ─── Auth Schemas ─────────────────────────────────────────────────────────────
+
+import {
+  registerSchema,
+  loginSchema,
+  forgotPasswordSchema,
+  resetPasswordSchema,
+} from "../../src/lib/validation.js";
+
+describe("registerSchema", () => {
+  it("should parse valid email and password", () => {
+    const result = registerSchema.parse({ email: "user@example.com", password: "securepass" });
+    expect(result).toEqual({ email: "user@example.com", password: "securepass" });
+  });
+
+  it("should reject invalid email", () => {
+    expect(() => registerSchema.parse({ email: "not-an-email", password: "securepass" })).toThrow();
+  });
+
+  it("should reject password shorter than 8 characters", () => {
+    expect(() => registerSchema.parse({ email: "user@example.com", password: "short" })).toThrow();
+  });
+
+  it("should accept password of exactly 8 characters", () => {
+    const result = registerSchema.parse({ email: "user@example.com", password: "12345678" });
+    expect(result.password).toBe("12345678");
+  });
+
+  it("should reject missing email", () => {
+    expect(() => registerSchema.parse({ password: "securepass" })).toThrow();
+  });
+
+  it("should reject missing password", () => {
+    expect(() => registerSchema.parse({ email: "user@example.com" })).toThrow();
+  });
+});
+
+describe("loginSchema", () => {
+  it("should parse valid email and password", () => {
+    const result = loginSchema.parse({ email: "user@example.com", password: "x" });
+    expect(result).toEqual({ email: "user@example.com", password: "x" });
+  });
+
+  it("should reject invalid email", () => {
+    expect(() => loginSchema.parse({ email: "bad", password: "x" })).toThrow();
+  });
+
+  it("should reject empty password", () => {
+    expect(() => loginSchema.parse({ email: "user@example.com", password: "" })).toThrow();
+  });
+
+  it("should accept password of 1 character", () => {
+    const result = loginSchema.parse({ email: "user@example.com", password: "a" });
+    expect(result.password).toBe("a");
+  });
+});
+
+describe("forgotPasswordSchema", () => {
+  it("should parse valid email", () => {
+    const result = forgotPasswordSchema.parse({ email: "user@example.com" });
+    expect(result).toEqual({ email: "user@example.com" });
+  });
+
+  it("should reject invalid email", () => {
+    expect(() => forgotPasswordSchema.parse({ email: "not-email" })).toThrow();
+  });
+
+  it("should reject missing email", () => {
+    expect(() => forgotPasswordSchema.parse({})).toThrow();
+  });
+});
+
+describe("resetPasswordSchema", () => {
+  it("should parse valid token and password", () => {
+    const result = resetPasswordSchema.parse({ token: "abc-123", password: "newpasswd" });
+    expect(result).toEqual({ token: "abc-123", password: "newpasswd" });
+  });
+
+  it("should reject empty token", () => {
+    expect(() => resetPasswordSchema.parse({ token: "", password: "newpasswd" })).toThrow();
+  });
+
+  it("should reject password shorter than 8 characters", () => {
+    expect(() => resetPasswordSchema.parse({ token: "abc", password: "short" })).toThrow();
+  });
+
+  it("should reject missing token", () => {
+    expect(() => resetPasswordSchema.parse({ password: "newpasswd" })).toThrow();
+  });
+
+  it("should reject missing password", () => {
+    expect(() => resetPasswordSchema.parse({ token: "abc-123" })).toThrow();
   });
 });

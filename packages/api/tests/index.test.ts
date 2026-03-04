@@ -22,7 +22,7 @@ function createBuilder() {
   };
   return builder;
 }
-const mockDb = { select: vi.fn() };
+const mockDb = { select: vi.fn(), insert: vi.fn() };
 const stubTable = (cols: Record<string, string>) => cols;
 vi.mock("@taad/db", () => ({
   db: mockDb,
@@ -35,6 +35,22 @@ vi.mock("@taad/db", () => ({
   gameGenres: stubTable({ gameId: "gameId", genreId: "genreId" }),
   platforms: stubTable({ id: "id", name: "name", slug: "slug" }),
   gamePlatforms: stubTable({ gameId: "gameId", platformId: "platformId" }),
+  users: stubTable({ id: "id", email: "email", name: "name", passwordHash: "passwordHash", emailVerified: "emailVerified" }),
+  refreshTokens: stubTable({ id: "id", userId: "userId", token: "token", expiresAt: "expiresAt", revokedAt: "revokedAt", createdAt: "createdAt" }),
+  searchAnalytics: stubTable({ id: "id", query: "query", resultCount: "resultCount", searchedAt: "searchedAt" }),
+}));
+
+// Mock auth utilities used by auth routes
+vi.mock("bcryptjs", () => ({
+  default: { hash: vi.fn(), compare: vi.fn() },
+  hash: vi.fn(),
+  compare: vi.fn(),
+}));
+
+vi.mock("jsonwebtoken", () => ({
+  default: { sign: vi.fn(), verify: vi.fn() },
+  sign: vi.fn(),
+  verify: vi.fn(),
 }));
 
 // Mock ioredis
@@ -59,6 +75,8 @@ vi.mock("ioredis", () => ({
 // Set REDIS_URL so the lazy Redis client initialises using the mock constructor
 process.env.REDIS_URL = "redis://localhost:6379";
 process.env.DATABASE_URL = "postgres://test";
+process.env.JWT_SECRET = "test-jwt-secret";
+process.env.JWT_REFRESH_SECRET = "test-jwt-refresh-secret";
 
 const { app } = await import("../src/index.js");
 
@@ -193,6 +211,7 @@ describe("GET /api/v1/games/search", () => {
   beforeEach(() => {
     mockDbResult = [{ total: 0 }];
     mockDb.select.mockReturnValue(createBuilder());
+    mockDb.insert.mockReturnValue({ values: vi.fn().mockResolvedValue(undefined) });
     mockExec.mockResolvedValue([[null, 1], [null, -1]]);
   });
 
@@ -318,6 +337,18 @@ describe("GET /api/v1/deals/all-time-lows", () => {
 
     const body = await res.json();
     expect(body).toHaveProperty("error", "Invalid query parameters");
+  });
+});
+
+describe("POST /api/v1/auth/register", () => {
+  beforeEach(() => {
+    mockDb.select.mockReturnValue(createBuilder());
+    mockExec.mockResolvedValue([[null, 1], [null, -1]]);
+  });
+
+  it("returns a non-404 response confirming auth routes are mounted", async () => {
+    const res = await app.request("/api/v1/auth/register", { method: "POST" });
+    expect(res.status).not.toBe(404);
   });
 });
 

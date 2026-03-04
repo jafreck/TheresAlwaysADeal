@@ -41,4 +41,12 @@ describe(".env.example", () => {
   it("should preserve existing NEXT_PUBLIC_API_URL entry", () => {
     expect(envExampleContent).toMatch(/^NEXT_PUBLIC_API_URL=/m);
   });
+
+  it("should contain a JWT_SECRET entry", () => {
+    expect(envExampleContent).toMatch(/^JWT_SECRET=/m);
+  });
+
+  it("should contain a JWT_REFRESH_SECRET entry", () => {
+    expect(envExampleContent).toMatch(/^JWT_REFRESH_SECRET=/m);
+  });
 });
