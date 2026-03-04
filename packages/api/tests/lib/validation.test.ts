@@ -75,7 +75,7 @@ describe("sortSchema", () => {
   });
 
   it("should accept valid sort values", () => {
-    for (const val of ["release_date"]) {
+    for (const val of ["best_match", "highest_discount", "lowest_price", "a_z", "release_date"]) {
       const result = sortSchema.parse({ sort: val });
       expect(result.sort).toBe(val);
     }
@@ -182,7 +182,7 @@ describe("dealsQuerySchema", () => {
 describe("searchQuerySchema", () => {
   it("should parse q with pagination defaults", () => {
     const result = searchQuerySchema.parse({ q: "witcher" });
-    expect(result).toEqual({ q: "witcher", page: 1, limit: 20 });
+    expect(result).toEqual({ q: "witcher", page: 1, limit: 20, sort: undefined });
   });
 
   it("should reject missing q parameter", () => {
@@ -195,7 +195,7 @@ describe("searchQuerySchema", () => {
 
   it("should accept pagination with q", () => {
     const result = searchQuerySchema.parse({ q: "test", page: "3", limit: "10" });
-    expect(result).toEqual({ q: "test", page: 3, limit: 10 });
+    expect(result).toEqual({ q: "test", page: 3, limit: 10, sort: undefined });
   });
 
   it("should inherit pagination validation (reject negative page)", () => {
@@ -222,12 +222,22 @@ describe("searchQuerySchema", () => {
     expect(result.max_price).toBe(9.99);
   });
 
+  it("should parse optional sort parameter", () => {
+    const result = searchQuerySchema.parse({ q: "witcher", sort: "highest_discount" });
+    expect(result.sort).toBe("highest_discount");
+  });
+
+  it("should reject invalid sort values in search", () => {
+    expect(() => searchQuerySchema.parse({ q: "witcher", sort: "invalid" })).toThrow();
+  });
+
   it("should leave filter fields undefined when omitted", () => {
     const result = searchQuerySchema.parse({ q: "witcher" });
     expect(result.store).toBeUndefined();
     expect(result.genre).toBeUndefined();
     expect(result.min_discount).toBeUndefined();
     expect(result.max_price).toBeUndefined();
+    expect(result.sort).toBeUndefined();
   });
 
   it("should parse all filter fields together", () => {
@@ -239,6 +249,7 @@ describe("searchQuerySchema", () => {
       genre: "rpg",
       min_discount: "25",
       max_price: "15.99",
+      sort: "lowest_price",
     });
     expect(result).toEqual({
       q: "witcher",
@@ -248,6 +259,7 @@ describe("searchQuerySchema", () => {
       genre: "rpg",
       min_discount: 25,
       max_price: 15.99,
+      sort: "lowest_price",
     });
   });
 
@@ -326,6 +338,8 @@ import {
   loginSchema,
   forgotPasswordSchema,
   resetPasswordSchema,
+  steamCallbackSchema,
+  steamUnlinkSchema,
 } from "../../src/lib/validation.js";
 
 describe("registerSchema", () => {
@@ -353,6 +367,16 @@ describe("registerSchema", () => {
 
   it("should reject missing password", () => {
     expect(() => registerSchema.parse({ email: "user@example.com" })).toThrow();
+  });
+
+  it("should accept an optional name field", () => {
+    const result = registerSchema.parse({ email: "user@example.com", password: "securepass", name: "Alice" });
+    expect(result).toEqual({ email: "user@example.com", password: "securepass", name: "Alice" });
+  });
+
+  it("should allow omitting the name field", () => {
+    const result = registerSchema.parse({ email: "user@example.com", password: "securepass" });
+    expect(result.name).toBeUndefined();
   });
 });
 
@@ -411,5 +435,76 @@ describe("resetPasswordSchema", () => {
 
   it("should reject missing password", () => {
     expect(() => resetPasswordSchema.parse({ token: "abc-123" })).toThrow();
+  });
+});
+
+// ─── Steam Schemas ────────────────────────────────────────────────────────────
+
+describe("steamCallbackSchema", () => {
+  const validCallback = {
+    "openid.claimed_id": "https://steamcommunity.com/openid/id/76561198000000000",
+    "openid.sig": "abc123sig",
+    "openid.assoc_handle": "1234567890",
+  };
+
+  it("should parse valid callback params", () => {
+    const result = steamCallbackSchema.parse(validCallback);
+    expect(result["openid.claimed_id"]).toBe(validCallback["openid.claimed_id"]);
+    expect(result["openid.sig"]).toBe(validCallback["openid.sig"]);
+    expect(result["openid.assoc_handle"]).toBe(validCallback["openid.assoc_handle"]);
+  });
+
+  it("should reject missing openid.claimed_id", () => {
+    const { "openid.claimed_id": _, ...rest } = validCallback;
+    expect(() => steamCallbackSchema.parse(rest)).toThrow();
+  });
+
+  it("should reject missing openid.sig", () => {
+    const { "openid.sig": _, ...rest } = validCallback;
+    expect(() => steamCallbackSchema.parse(rest)).toThrow();
+  });
+
+  it("should reject missing openid.assoc_handle", () => {
+    const { "openid.assoc_handle": _, ...rest } = validCallback;
+    expect(() => steamCallbackSchema.parse(rest)).toThrow();
+  });
+
+  it("should reject empty openid.claimed_id", () => {
+    expect(() => steamCallbackSchema.parse({ ...validCallback, "openid.claimed_id": "" })).toThrow();
+  });
+
+  it("should reject empty openid.sig", () => {
+    expect(() => steamCallbackSchema.parse({ ...validCallback, "openid.sig": "" })).toThrow();
+  });
+
+  it("should reject empty openid.assoc_handle", () => {
+    expect(() => steamCallbackSchema.parse({ ...validCallback, "openid.assoc_handle": "" })).toThrow();
+  });
+});
+
+describe("steamUnlinkSchema", () => {
+  it("should parse when confirm is true", () => {
+    const result = steamUnlinkSchema.parse({ confirm: true });
+    expect(result.confirm).toBe(true);
+  });
+
+  it("should reject when confirm is false", () => {
+    expect(() => steamUnlinkSchema.parse({ confirm: false })).toThrow();
+  });
+
+  it("should reject missing confirm", () => {
+    expect(() => steamUnlinkSchema.parse({})).toThrow();
+  });
+
+  it("should reject non-boolean confirm", () => {
+    expect(() => steamUnlinkSchema.parse({ confirm: "true" })).toThrow();
+  });
+
+  it("should reject numeric 1 as confirm", () => {
+    expect(() => steamUnlinkSchema.parse({ confirm: 1 })).toThrow();
+  });
+
+  it("should reject null as confirm", () => {
+    expect(() => steamUnlinkSchema.parse({ confirm: null })).toThrow();
   });
 });

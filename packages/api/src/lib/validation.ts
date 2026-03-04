@@ -14,7 +14,7 @@ export const genreFilterSchema = z.object({
 });
 
 export const sortSchema = z.object({
-  sort: z.enum(["release_date"]).optional(),
+  sort: z.enum(["best_match", "highest_discount", "lowest_price", "a_z", "release_date"]).optional(),
 });
 
 export const commonQuerySchema = paginationSchema
@@ -30,15 +30,17 @@ export const dealsQuerySchema = commonQuerySchema.merge(
   }),
 );
 
-export const searchQuerySchema = paginationSchema.merge(
-  z.object({
-    q: z.string().min(1),
-    store: z.string().optional(),
-    genre: z.string().optional(),
-    min_discount: z.coerce.number().optional(),
-    max_price: z.coerce.number().optional(),
-  }),
-);
+export const searchQuerySchema = paginationSchema
+  .merge(sortSchema)
+  .merge(
+    z.object({
+      q: z.string().min(1),
+      store: z.string().optional(),
+      genre: z.string().optional(),
+      min_discount: z.coerce.number().optional(),
+      max_price: z.coerce.number().optional(),
+    }),
+  );
 
 export const autocompleteQuerySchema = z.object({
   q: z.string().min(1),
@@ -54,6 +56,7 @@ export const priceHistoryQuerySchema = z.object({
 export const registerSchema = z.object({
   email: z.string().email(),
   password: z.string().min(8),
+  name: z.string().optional(),
 });
 
 export const loginSchema = z.object({
@@ -68,4 +71,16 @@ export const forgotPasswordSchema = z.object({
 export const resetPasswordSchema = z.object({
   token: z.string().min(1),
   password: z.string().min(8),
+});
+
+// ─── Steam Schemas ────────────────────────────────────────────────────────────
+
+export const steamCallbackSchema = z.object({
+  "openid.claimed_id": z.string().min(1),
+  "openid.sig": z.string().min(1),
+  "openid.assoc_handle": z.string().min(1),
+});
+
+export const steamUnlinkSchema = z.object({
+  confirm: z.literal(true),
 });

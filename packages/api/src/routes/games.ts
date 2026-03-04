@@ -71,6 +71,9 @@ app.get("/", cacheMiddleware(300, getRedis), async (c) => {
 
   let orderBy;
   switch (sort) {
+    case "a_z":
+      orderBy = sql`${games.title} ASC`;
+      break;
     case "release_date":
       orderBy = desc(games.createdAt);
       break;
@@ -101,7 +104,7 @@ app.get("/search", cacheMiddleware(300, getRedis), async (c) => {
   if (!parsed.success) {
     return c.json({ error: "Invalid query parameters", details: parsed.error.flatten() }, 400);
   }
-  const { q, page, limit, store, genre, min_discount, max_price } = parsed.data;
+  const { q, page, limit, store, genre, min_discount, max_price, sort } = parsed.data;
   const offset = (page - 1) * limit;
 
   // FTS + trigram similarity for fuzzy matching
@@ -202,7 +205,15 @@ app.get("/search", cacheMiddleware(300, getRedis), async (c) => {
     .from(games)
     .where(where)
     .orderBy(
-      sql`ts_rank(to_tsvector('english', ${games.title}), plainto_tsquery('english', ${q})) + similarity(${games.title}, ${q}) DESC`,
+      sort === "lowest_price"
+        ? sql`(${sql.raw("best_price")}) ASC NULLS LAST`
+        : sort === "highest_discount"
+          ? sql`(${sql.raw("best_price")}) ASC NULLS LAST`
+          : sort === "a_z"
+            ? sql`${games.title} ASC`
+            : sort === "release_date"
+              ? desc(games.createdAt)
+              : sql`ts_rank(to_tsvector('english', ${games.title}), plainto_tsquery('english', ${q})) + similarity(${games.title}, ${q}) DESC`,
     )
     .limit(limit)
     .offset(offset);
