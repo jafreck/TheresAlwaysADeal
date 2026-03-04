@@ -199,4 +199,16 @@ describe('RootLayout', () => {
     );
     expect(adapters.length).toBeGreaterThanOrEqual(1);
   });
+
+  it('should nest QueryProvider inside NuqsAdapter', () => {
+    const element = RootLayout({ children: 'content' });
+    const adapters = findElements(element, (el) =>
+      el.type === 'div' && el.props['data-testid'] === 'nuqs-adapter',
+    );
+    expect(adapters.length).toBeGreaterThanOrEqual(1);
+    const providers = findElements(adapters[0], (el) =>
+      el.type === 'div' && el.props['data-testid'] === 'query-provider',
+    );
+    expect(providers.length).toBeGreaterThanOrEqual(1);
+  });
 });

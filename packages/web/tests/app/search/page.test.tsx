@@ -58,7 +58,7 @@ const mockPages = [
         storeLogoUrl: '/steam.png',
         storeUrl: 'https://store.steampowered.com/app/292030',
       },
-    ],
+    ] as Record<string, unknown>[],
     meta: { page: 1, total: 1, hasNext: false },
   },
 ];
@@ -264,6 +264,22 @@ describe('mapResultToCard', () => {
     const { container } = render(<SearchPage />);
     const grid = container.querySelector('[data-testid="search-results-grid"]');
     expect(grid).toBeTruthy();
+  });
+
+  it('should handle missing optional fields with defaults', () => {
+    mockInfiniteQueryResult.data = {
+      pages: [{
+        data: [{
+          title: 'Minimal Game',
+          slug: 'minimal-game',
+        }],
+        meta: { page: 1, total: 1, hasNext: false },
+      }],
+    };
+    const { container } = render(<SearchPage />);
+    const grid = container.querySelector('[data-testid="search-results-grid"]');
+    expect(grid).toBeTruthy();
+    expect(grid?.getAttribute('data-total')).toBe('1');
   });
 });
 
