@@ -172,7 +172,9 @@ export const alertNotifications = pgTable("alert_notifications", {
   alertId: uuid("alert_id").references(() => priceAlerts.id).notNull(),
   storeListingId: uuid("store_listing_id").references(() => storeListings.id).notNull(),
   triggeredPrice: decimal("triggered_price", { precision: 10, scale: 2 }).notNull(),
-  channel: varchar("channel", { length: 50 }).default("email"),
+  emailStatus: varchar("email_status", { length: 50 }),
+  emailMessageId: text("email_message_id"),
+  emailProvider: varchar("email_provider", { length: 50 }),
   sentAt: timestamp("sent_at").defaultNow().notNull(),
 });
 

@@ -1,0 +1,79 @@
+{
+  "agent": "issue-analyst",
+  "issueNumber": 20,
+  "projectName": "theresalwaysadeal",
+  "repository": "jafreck/TheresAlwaysADeal",
+  "worktreePath": "/Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-20",
+  "phase": 1,
+  "config": {
+    "commands": {
+      "install": "npm install",
+      "build": "npm run build",
+      "test": "npx vitest run",
+      "lint": "npm run lint"
+    }
+  },
+  "inputFiles": [
+    "/Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-20/.cadre/issues/20/issue.json"
+  ],
+  "outputPath": "/Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-20/.cadre/issues/20/analysis.md",
+  "outputSchema": {
+    "type": "object",
+    "properties": {
+      "requirements": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "changeType": {
+        "type": "string",
+        "enum": [
+          "bug-fix",
+          "feature",
+          "refactor",
+          "docs",
+          "chore"
+        ]
+      },
+      "scope": {
+        "type": "string",
+        "enum": [
+          "small",
+          "medium",
+          "large"
+        ]
+      },
+      "scoutPolicy": {
+        "type": "string",
+        "enum": [
+          "required",
+          "optional",
+          "skip"
+        ],
+        "default": "required"
+      },
+      "affectedAreas": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "ambiguities": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      }
+    },
+    "required": [
+      "requirements",
+      "changeType",
+      "scope",
+      "affectedAreas",
+      "ambiguities"
+    ],
+    "additionalProperties": false,
+    "$schema": "http://json-schema.org/draft-07/schema#"
+  }
+}

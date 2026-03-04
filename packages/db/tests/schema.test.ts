@@ -209,7 +209,9 @@ describe("schema", () => {
       expect(columns).toContain("alertId");
       expect(columns).toContain("storeListingId");
       expect(columns).toContain("triggeredPrice");
-      expect(columns).toContain("channel");
+      expect(columns).toContain("emailStatus");
+      expect(columns).toContain("emailMessageId");
+      expect(columns).toContain("emailProvider");
       expect(columns).toContain("sentAt");
     });
 

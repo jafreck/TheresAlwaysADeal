@@ -13,7 +13,7 @@ import {
 import {
   sendVerificationEmail,
   sendPasswordResetEmail,
-} from "../lib/email.js";
+} from "@taad/email";
 import {
   registerSchema,
   loginSchema,
@@ -31,7 +31,6 @@ const bruteForceMemory = new Map<
   { count: number; resetAt: number }
 >();
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function setRefreshCookie(c: any, token: string) {
   setCookie(c, "refresh_token", token, {
     httpOnly: true,
@@ -83,7 +82,7 @@ export function createAuthApp(getRedis: () => RedisClient | null) {
         400,
       );
     }
-    const { email, password } = parsed.data;
+    const { email, password, name } = parsed.data;
 
     // Check for existing user
     const [existing] = await db
@@ -100,7 +99,7 @@ export function createAuthApp(getRedis: () => RedisClient | null) {
 
     const [user] = await db
       .insert(users)
-      .values({ email, passwordHash, emailVerificationToken })
+      .values({ email, passwordHash, emailVerificationToken, name })
       .returning({ id: users.id, email: users.email });
 
     if (!user) {

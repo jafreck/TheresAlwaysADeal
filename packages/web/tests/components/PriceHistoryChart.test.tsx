@@ -1,0 +1,204 @@
+import { describe, it, expect, vi, afterEach } from "vitest";
+import { render, screen, cleanup, fireEvent } from "@testing-library/react";
+
+// Mock recharts to render testable HTML elements
+vi.mock("recharts", () => ({
+  LineChart: ({ children, ..._props }: any) => (
+    <div data-testid="line-chart">{children}</div>
+  ),
+  Line: (props: any) => (
+    <div data-testid="line" data-name={props.name} data-datakey={props.dataKey} />
+  ),
+  XAxis: (_props: any) => <div data-testid="x-axis" />,
+  YAxis: (_props: any) => <div data-testid="y-axis" />,
+  CartesianGrid: () => <div data-testid="grid" />,
+  Tooltip: (props: any) => {
+    (Tooltip as any).__lastFormatter = props.formatter;
+    return <div data-testid="tooltip" data-has-formatter={!!props.formatter} />;
+  },
+  ReferenceLine: (props: any) => (
+    <div data-testid="reference-line" data-y={props.y} />
+  ),
+  ResponsiveContainer: ({ children }: any) => <div>{children}</div>,
+}));
+
+import { Tooltip } from "recharts";
+import PriceHistoryChart from "../../src/components/PriceHistoryChart";
+import type { ChartPriceEntry } from "../../src/components/PriceHistoryChart";
+
+const sampleEntries: ChartPriceEntry[] = [
+  { storeListingId: "store-1", price: 59.99, recordedAt: "2025-01-01T00:00:00Z" },
+  { storeListingId: "store-1", price: 49.99, recordedAt: "2025-03-01T00:00:00Z" },
+  { storeListingId: "store-1", price: 29.99, recordedAt: "2025-06-01T00:00:00Z" },
+  { storeListingId: "store-2", price: 54.99, recordedAt: "2025-01-01T00:00:00Z" },
+  { storeListingId: "store-2", price: 39.99, recordedAt: "2025-03-01T00:00:00Z" },
+  { storeListingId: "store-2", price: 34.99, recordedAt: "2025-06-01T00:00:00Z" },
+];
+
+const storeNames: Record<string, string> = {
+  "store-1": "Steam",
+  "store-2": "GOG",
+};
+
+describe("PriceHistoryChart", () => {
+  afterEach(() => {
+    cleanup();
+  });
+
+  it("should be a function (React component)", () => {
+    expect(typeof PriceHistoryChart).toBe("function");
+  });
+
+  it("should render a LineChart", () => {
+    render(<PriceHistoryChart entries={sampleEntries} storeNames={storeNames} />);
+    expect(screen.getByTestId("line-chart")).toBeDefined();
+  });
+
+  it("should render a line for each store", () => {
+    render(<PriceHistoryChart entries={sampleEntries} storeNames={storeNames} />);
+    const lines = screen.getAllByTestId("line");
+    expect(lines.length).toBe(2);
+  });
+
+  it("should render store names as line names", () => {
+    render(<PriceHistoryChart entries={sampleEntries} storeNames={storeNames} />);
+    const lines = screen.getAllByTestId("line");
+    const names = lines.map((l) => l.getAttribute("data-name"));
+    expect(names).toContain("Steam");
+    expect(names).toContain("GOG");
+  });
+
+  it("should render a ReferenceLine for the all-time low", () => {
+    render(<PriceHistoryChart entries={sampleEntries} storeNames={storeNames} />);
+    const ref = screen.getByTestId("reference-line");
+    expect(ref.getAttribute("data-y")).toBe("29.99");
+  });
+
+  it("should render date range selector buttons (3M, 6M, 1Y, All)", () => {
+    render(<PriceHistoryChart entries={sampleEntries} storeNames={storeNames} />);
+    expect(screen.getByText("3M")).toBeDefined();
+    expect(screen.getByText("6M")).toBeDefined();
+    expect(screen.getByText("1Y")).toBeDefined();
+    expect(screen.getByText("All")).toBeDefined();
+  });
+
+  it("should default to 'All' range (All button has active style)", () => {
+    render(<PriceHistoryChart entries={sampleEntries} storeNames={storeNames} />);
+    const allButton = screen.getByText("All");
+    expect(allButton.className).toContain("bg-primary");
+  });
+
+  it("should render toggleable checkboxes for each store", () => {
+    render(<PriceHistoryChart entries={sampleEntries} storeNames={storeNames} />);
+    const checkboxes = screen.getAllByRole("checkbox") as HTMLInputElement[];
+    expect(checkboxes.length).toBe(2);
+    expect(checkboxes[0].checked).toBe(true);
+  });
+
+  it("should render store names next to checkboxes", () => {
+    render(<PriceHistoryChart entries={sampleEntries} storeNames={storeNames} />);
+    expect(screen.getByText("Steam")).toBeDefined();
+    expect(screen.getByText("GOG")).toBeDefined();
+  });
+
+  it("should render XAxis and YAxis", () => {
+    render(<PriceHistoryChart entries={sampleEntries} storeNames={storeNames} />);
+    expect(screen.getByTestId("x-axis")).toBeDefined();
+    expect(screen.getByTestId("y-axis")).toBeDefined();
+  });
+
+  it("should accept a custom className", () => {
+    const { container } = render(
+      <PriceHistoryChart entries={sampleEntries} storeNames={storeNames} className="custom" />,
+    );
+    expect((container.firstChild as HTMLElement).className).toContain("custom");
+  });
+
+  it("should not render ReferenceLine when entries is empty", () => {
+    render(<PriceHistoryChart entries={[]} storeNames={{}} />);
+    expect(screen.queryByTestId("reference-line")).toBeNull();
+  });
+
+  it("should not render lines when entries is empty", () => {
+    render(<PriceHistoryChart entries={[]} storeNames={{}} />);
+    expect(screen.queryAllByTestId("line").length).toBe(0);
+  });
+
+  it("should hide a line when its checkbox is unchecked", () => {
+    render(<PriceHistoryChart entries={sampleEntries} storeNames={storeNames} />);
+    const checkboxes = screen.getAllByRole("checkbox") as HTMLInputElement[];
+    expect(screen.getAllByTestId("line").length).toBe(2);
+
+    fireEvent.click(checkboxes[0]);
+
+    expect(screen.getAllByTestId("line").length).toBe(1);
+  });
+
+  it("should re-show a line when its checkbox is re-checked", () => {
+    render(<PriceHistoryChart entries={sampleEntries} storeNames={storeNames} />);
+    const checkboxes = screen.getAllByRole("checkbox") as HTMLInputElement[];
+
+    fireEvent.click(checkboxes[0]);
+    expect(screen.getAllByTestId("line").length).toBe(1);
+
+    fireEvent.click(checkboxes[0]);
+    expect(screen.getAllByTestId("line").length).toBe(2);
+  });
+
+  it("should switch active style when clicking a different range button", () => {
+    render(<PriceHistoryChart entries={sampleEntries} storeNames={storeNames} />);
+    const threeM = screen.getByText("3M");
+    const allBtn = screen.getByText("All");
+
+    expect(allBtn.className).toContain("bg-primary");
+    expect(threeM.className).not.toContain("bg-primary");
+
+    fireEvent.click(threeM);
+
+    expect(threeM.className).toContain("bg-primary");
+    expect(allBtn.className).not.toContain("bg-primary");
+  });
+
+  it("should use store ID as line dataKey", () => {
+    render(<PriceHistoryChart entries={sampleEntries} storeNames={storeNames} />);
+    const lines = screen.getAllByTestId("line");
+    const dataKeys = lines.map((l) => l.getAttribute("data-datakey"));
+    expect(dataKeys).toContain("store-1");
+    expect(dataKeys).toContain("store-2");
+  });
+
+  it("should fall back to store ID when storeNames has no mapping", () => {
+    render(<PriceHistoryChart entries={sampleEntries} storeNames={{}} />);
+    const lines = screen.getAllByTestId("line");
+    const names = lines.map((l) => l.getAttribute("data-name"));
+    expect(names).toContain("store-1");
+    expect(names).toContain("store-2");
+  });
+
+  describe("Tooltip formatter", () => {
+    it("should format a numeric value as a dollar amount", () => {
+      render(<PriceHistoryChart entries={sampleEntries} storeNames={storeNames} />);
+      const formatter = (Tooltip as any).__lastFormatter;
+      expect(formatter).toBeDefined();
+      expect(formatter(29.99)).toBe("$29.99");
+    });
+
+    it("should format zero as $0.00", () => {
+      render(<PriceHistoryChart entries={sampleEntries} storeNames={storeNames} />);
+      const formatter = (Tooltip as any).__lastFormatter;
+      expect(formatter(0)).toBe("$0.00");
+    });
+
+    it("should return empty string when value is undefined", () => {
+      render(<PriceHistoryChart entries={sampleEntries} storeNames={storeNames} />);
+      const formatter = (Tooltip as any).__lastFormatter;
+      expect(formatter(undefined)).toBe("");
+    });
+
+    it("should return empty string when value is null", () => {
+      render(<PriceHistoryChart entries={sampleEntries} storeNames={storeNames} />);
+      const formatter = (Tooltip as any).__lastFormatter;
+      expect(formatter(null)).toBe("");
+    });
+  });
+});

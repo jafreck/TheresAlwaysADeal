@@ -63,4 +63,14 @@ describe(".env.example", () => {
     const steamHeaderLine = lines.find((l) => /─── Steam/.test(l) && l.startsWith("#"));
     expect(steamHeaderLine).toBeTruthy();
   });
+
+  it("should contain a NEXT_PUBLIC_ADSENSE_PUBLISHER_ID entry", () => {
+    expect(envExampleContent).toMatch(/^NEXT_PUBLIC_ADSENSE_PUBLISHER_ID=/m);
+  });
+
+  it("should include an Advertising section header comment", () => {
+    const lines = envExampleContent.split("\n");
+    const adHeaderLine = lines.find((l) => /─── Advertising/.test(l) && l.startsWith("#"));
+    expect(adHeaderLine).toBeTruthy();
+  });
 });

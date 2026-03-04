@@ -75,7 +75,7 @@ describe("sortSchema", () => {
   });
 
   it("should accept valid sort values", () => {
-    for (const val of ["release_date"]) {
+    for (const val of ["best_match", "highest_discount", "lowest_price", "a_z", "release_date", "newest"]) {
       const result = sortSchema.parse({ sort: val });
       expect(result.sort).toBe(val);
     }
@@ -119,6 +119,13 @@ describe("commonQuerySchema", () => {
       genre: "rpg",
       sort: "release_date",
     });
+  });
+
+  it("should accept newest as a sort value", () => {
+    const result = commonQuerySchema.parse({
+      sort: "newest",
+    });
+    expect(result.sort).toBe("newest");
   });
 });
 
@@ -182,7 +189,7 @@ describe("dealsQuerySchema", () => {
 describe("searchQuerySchema", () => {
   it("should parse q with pagination defaults", () => {
     const result = searchQuerySchema.parse({ q: "witcher" });
-    expect(result).toEqual({ q: "witcher", page: 1, limit: 20 });
+    expect(result).toEqual({ q: "witcher", page: 1, limit: 20, sort: undefined });
   });
 
   it("should reject missing q parameter", () => {
@@ -195,7 +202,7 @@ describe("searchQuerySchema", () => {
 
   it("should accept pagination with q", () => {
     const result = searchQuerySchema.parse({ q: "test", page: "3", limit: "10" });
-    expect(result).toEqual({ q: "test", page: 3, limit: 10 });
+    expect(result).toEqual({ q: "test", page: 3, limit: 10, sort: undefined });
   });
 
   it("should inherit pagination validation (reject negative page)", () => {
@@ -222,12 +229,22 @@ describe("searchQuerySchema", () => {
     expect(result.max_price).toBe(9.99);
   });
 
+  it("should parse optional sort parameter", () => {
+    const result = searchQuerySchema.parse({ q: "witcher", sort: "highest_discount" });
+    expect(result.sort).toBe("highest_discount");
+  });
+
+  it("should reject invalid sort values in search", () => {
+    expect(() => searchQuerySchema.parse({ q: "witcher", sort: "invalid" })).toThrow();
+  });
+
   it("should leave filter fields undefined when omitted", () => {
     const result = searchQuerySchema.parse({ q: "witcher" });
     expect(result.store).toBeUndefined();
     expect(result.genre).toBeUndefined();
     expect(result.min_discount).toBeUndefined();
     expect(result.max_price).toBeUndefined();
+    expect(result.sort).toBeUndefined();
   });
 
   it("should parse all filter fields together", () => {
@@ -239,6 +256,7 @@ describe("searchQuerySchema", () => {
       genre: "rpg",
       min_discount: "25",
       max_price: "15.99",
+      sort: "lowest_price",
     });
     expect(result).toEqual({
       q: "witcher",
@@ -248,6 +266,7 @@ describe("searchQuerySchema", () => {
       genre: "rpg",
       min_discount: 25,
       max_price: 15.99,
+      sort: "lowest_price",
     });
   });
 
@@ -328,6 +347,7 @@ import {
   resetPasswordSchema,
   steamCallbackSchema,
   steamUnlinkSchema,
+  unsubscribeSchema,
 } from "../../src/lib/validation.js";
 
 describe("registerSchema", () => {
@@ -355,6 +375,16 @@ describe("registerSchema", () => {
 
   it("should reject missing password", () => {
     expect(() => registerSchema.parse({ email: "user@example.com" })).toThrow();
+  });
+
+  it("should accept an optional name field", () => {
+    const result = registerSchema.parse({ email: "user@example.com", password: "securepass", name: "Alice" });
+    expect(result).toEqual({ email: "user@example.com", password: "securepass", name: "Alice" });
+  });
+
+  it("should allow omitting the name field", () => {
+    const result = registerSchema.parse({ email: "user@example.com", password: "securepass" });
+    expect(result.name).toBeUndefined();
   });
 });
 
@@ -484,5 +514,29 @@ describe("steamUnlinkSchema", () => {
 
   it("should reject null as confirm", () => {
     expect(() => steamUnlinkSchema.parse({ confirm: null })).toThrow();
+  });
+});
+
+
+// ─── Unsubscribe Schema ───────────────────────────────────────────────────────
+
+describe("unsubscribeSchema", () => {
+  it("should parse valid token", () => {
+    const result = unsubscribeSchema.parse({ token: "abc123" });
+    expect(result).toEqual({ token: "abc123" });
+  });
+
+  it("should reject empty token", () => {
+    expect(() => unsubscribeSchema.parse({ token: "" })).toThrow();
+  });
+
+  it("should reject missing token", () => {
+    expect(() => unsubscribeSchema.parse({})).toThrow();
+  });
+
+  it("should accept long token strings", () => {
+    const longToken = "a".repeat(500);
+    const result = unsubscribeSchema.parse({ token: longToken });
+    expect(result.token).toBe(longToken);
   });
 });

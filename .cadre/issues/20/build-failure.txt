@@ -1,0 +1,76 @@
+• turbo 2.8.10
+@taad/worker:build: ERROR: command finished with error: command (/Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-20/packages/worker) /opt/homebrew/bin/pnpm run build exited (2)
+@taad/worker#build: command (/Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-20/packages/worker) /opt/homebrew/bin/pnpm run build exited (2)
+ ERROR  run failed: command  exited (2)
+
+> theres-always-a-deal@0.0.1 build
+> turbo run build
+
+• Packages in scope: @taad/api, @taad/crypto, @taad/db, @taad/email, @taad/scraper, @taad/web, @taad/worker
+• Running build in 7 packages
+• Remote caching disabled, using shared worktree cache
+@taad/db:build: cache miss, executing 669e7f4f189d1475
+@taad/crypto:build: cache hit, replaying logs 1c324a99065347d7
+@taad/crypto:build: 
+@taad/crypto:build: > @taad/crypto@0.0.1 build /Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-20/packages/crypto
+@taad/crypto:build: > tsc -p tsconfig.json
+@taad/crypto:build: 
+@taad/db:build: 
+@taad/db:build: > @taad/db@0.0.1 build /Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-20/packages/db
+@taad/db:build: > tsc -p tsconfig.json
+@taad/db:build: 
+@taad/email:build: cache miss, executing f401c9d995226315
+@taad/web:build: cache miss, executing 82053d121641d429
+@taad/scraper:build: cache miss, executing c51640b1b31397ee
+@taad/scraper:build: 
+@taad/scraper:build: > @taad/scraper@0.0.1 build /Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-20/packages/scraper
+@taad/scraper:build: > tsc -p tsconfig.json
+@taad/scraper:build: 
+@taad/web:build: 
+@taad/web:build: > @taad/web@0.0.1 build /Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-20/packages/web
+@taad/web:build: > next build
+@taad/web:build: 
+@taad/email:build: 
+@taad/email:build: > @taad/email@0.0.1 build /Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-20/packages/email
+@taad/email:build: > tsc -p tsconfig.json
+@taad/email:build: 
+@taad/api:build: cache miss, executing 6cfeab9fb03ab682
+@taad/worker:build: cache miss, executing 1fb5f8f1b213ff18
+@taad/web:build:  ⚠ Warning: Next.js inferred your workspace root, but it may not be correct.
+@taad/web:build:  We detected multiple lockfiles and selected the directory of /Users/jacobfreck/Source/cadre/package-lock.json as the root directory.
+@taad/web:build:  To silence this warning, set `outputFileTracingRoot` in your Next.js config, or consider removing one of the lockfiles if it's not needed.
+@taad/web:build:    See https://nextjs.org/docs/app/api-reference/config/next-config-js/output#caveats for more information.
+@taad/web:build:  Detected additional lockfiles: 
+@taad/web:build:    * /Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-20/pnpm-lock.yaml
+@taad/web:build: 
+@taad/web:build:    ▲ Next.js 15.5.12
+@taad/web:build: 
+@taad/web:build:    Creating an optimized production build ...
+@taad/api:build: 
+@taad/api:build: > @taad/api@0.0.1 build /Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-20/packages/api
+@taad/api:build: > tsc -p tsconfig.json
+@taad/api:build: 
+@taad/worker:build: 
+@taad/worker:build: > @taad/worker@0.0.1 build /Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-20/packages/worker
+@taad/worker:build: > tsc -p tsconfig.json
+@taad/worker:build: 
+@taad/worker:build: src/index.ts(5,1): error TS1185: Merge conflict marker encountered.
+@taad/worker:build: src/index.ts(11,1): error TS1185: Merge conflict marker encountered.
+@taad/worker:build: src/index.ts(16,1): error TS1185: Merge conflict marker encountered.
+@taad/worker:build: src/index.ts(622,1): error TS1185: Merge conflict marker encountered.
+@taad/worker:build: src/index.ts(626,1): error TS1185: Merge conflict marker encountered.
+@taad/worker:build: src/index.ts(628,1): error TS1185: Merge conflict marker encountered.
+@taad/worker:build: src/queues.ts(24,1): error TS1185: Merge conflict marker encountered.
+@taad/worker:build: src/queues.ts(27,1): error TS1185: Merge conflict marker encountered.
+@taad/worker:build: src/queues.ts(30,1): error TS1185: Merge conflict marker encountered.
+@taad/worker:build: src/queues.ts(36,1): error TS1185: Merge conflict marker encountered.
+@taad/worker:build: src/queues.ts(38,1): error TS1185: Merge conflict marker encountered.
+@taad/worker:build: src/queues.ts(40,1): error TS1185: Merge conflict marker encountered.
+@taad/worker:build:  ELIFECYCLE  Command failed with exit code 2.
+@taad/web:build:  ELIFECYCLE  Command failed with exit code 130.
+
+ Tasks:    4 successful, 7 total
+Cached:    1 cached, 7 total
+  Time:    7.399s 
+Failed:    @taad/worker#build
+

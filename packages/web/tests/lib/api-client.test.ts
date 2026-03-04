@@ -1,6 +1,21 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 import { useAuthStore } from '@/lib/auth-store';
-import { apiClient, ApiError, type EnvelopeResponse, type EnvelopeMeta } from '@/lib/api-client';
+import {
+  apiClient,
+  ApiError,
+  type EnvelopeResponse,
+  type EnvelopeMeta,
+  type GameDetail,
+  type StoreListing,
+  type PriceStats,
+  type PriceHistoryEntry,
+  type WishlistResponse,
+  type PriceAlertResponse,
+  type SearchGamesParams,
+  type AutocompleteParams,
+  type AutocompleteItem,
+  type AutocompleteResponse,
+} from '@/lib/api-client';
 
 const mockFetch = vi.fn();
 vi.stubGlobal('fetch', mockFetch);
@@ -60,6 +75,7 @@ describe('api-client', () => {
       expect(mockFetch).toHaveBeenCalledWith(
         expect.any(String),
         expect.objectContaining({
+          credentials: 'include',
           headers: expect.objectContaining({
             'Content-Type': 'application/json',
           }),
@@ -237,6 +253,469 @@ describe('api-client', () => {
         expect(err.status).toBe(500);
         expect(err.body).toBeNull();
       }
+    });
+  });
+
+  describe('type exports', () => {
+    it('GameDetail interface should be structurally correct', () => {
+      const detail: GameDetail = {
+        id: 1,
+        title: 'Test Game',
+        slug: 'test-game',
+        description: 'A test game',
+        headerImageUrl: 'https://example.com/img.jpg',
+        steamAppId: '12345',
+        createdAt: '2024-01-01T00:00:00Z',
+        updatedAt: '2024-01-01T00:00:00Z',
+        storeListings: [],
+        priceStats: [],
+      };
+      expect(detail.title).toBe('Test Game');
+      expect(detail.storeListings).toEqual([]);
+      expect(detail.priceStats).toEqual([]);
+    });
+
+    it('StoreListing interface should be structurally correct', () => {
+      const listing: StoreListing = {
+        id: 1,
+        storeId: 2,
+        storeName: 'Steam',
+        storeSlug: 'steam',
+        storeUrl: 'https://store.steampowered.com/app/123',
+        isActive: true,
+        isAllTimeLow: false,
+      };
+      expect(listing.storeName).toBe('Steam');
+    });
+
+    it('PriceStats interface should be structurally correct', () => {
+      const stats: PriceStats = {
+        id: 1,
+        storeListingId: 1,
+        currentPrice: '9.99',
+        lowestPrice: '4.99',
+        highestPrice: '19.99',
+        averagePrice: '12.49',
+        lastCheckedAt: '2024-01-01T00:00:00Z',
+      };
+      expect(stats.currentPrice).toBe('9.99');
+    });
+
+    it('PriceHistoryEntry interface should be structurally correct', () => {
+      const entry: PriceHistoryEntry = {
+        id: 1,
+        storeListingId: 1,
+        price: '9.99',
+        originalPrice: '19.99',
+        currency: 'USD',
+        discount: 50,
+        saleEndsAt: null,
+        recordedAt: '2024-01-01T00:00:00Z',
+      };
+      expect(entry.discount).toBe(50);
+    });
+
+    it('WishlistResponse interface should be structurally correct', () => {
+      const wishlist: WishlistResponse = {
+        id: 1,
+        gameId: 1,
+        userId: 1,
+        createdAt: '2024-01-01T00:00:00Z',
+      };
+      expect(wishlist.gameId).toBe(1);
+    });
+
+    it('PriceAlertResponse interface should be structurally correct', () => {
+      const alert: PriceAlertResponse = {
+        id: 1,
+        gameId: 1,
+        userId: 1,
+        targetPrice: '9.99',
+        isActive: true,
+        createdAt: '2024-01-01T00:00:00Z',
+      };
+      expect(alert.isActive).toBe(true);
+    });
+  });
+
+  describe('apiClient.getGameBySlug', () => {
+    it('should make a GET request to /api/v1/games/:slug', async () => {
+      const gameData = { data: { id: 1, title: 'Portal 2', slug: 'portal-2' } };
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve(gameData),
+      });
+
+      const result = await apiClient.getGameBySlug('portal-2');
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        'http://localhost:3001/api/v1/games/portal-2',
+        expect.objectContaining({ method: 'GET' }),
+      );
+      expect(result).toEqual(gameData);
+    });
+
+    it('should throw ApiError when game is not found', async () => {
+      mockFetch.mockResolvedValue({
+        ok: false,
+        status: 404,
+        statusText: 'Not Found',
+        json: () => Promise.resolve({ message: 'Game not found' }),
+      });
+
+      await expect(apiClient.getGameBySlug('nonexistent')).rejects.toThrow(ApiError);
+
+      try {
+        await apiClient.getGameBySlug('nonexistent');
+      } catch (e) {
+        const err = e as ApiError;
+        expect(err.status).toBe(404);
+      }
+    });
+  });
+
+  describe('apiClient.getPriceHistory', () => {
+    it('should make a GET request to /api/v1/games/:slug/price-history', async () => {
+      const historyData = { data: [{ id: 1, price: '9.99' }] };
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve(historyData),
+      });
+
+      const result = await apiClient.getPriceHistory('portal-2');
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        'http://localhost:3001/api/v1/games/portal-2/price-history',
+        expect.objectContaining({ method: 'GET' }),
+      );
+      expect(result).toEqual(historyData);
+    });
+
+    it('should include store query parameter when provided', async () => {
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve({ data: [] }),
+      });
+
+      await apiClient.getPriceHistory('portal-2', 'steam');
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        'http://localhost:3001/api/v1/games/portal-2/price-history?store=steam',
+        expect.objectContaining({ method: 'GET' }),
+      );
+    });
+
+    it('should encode special characters in store parameter', async () => {
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve({ data: [] }),
+      });
+
+      await apiClient.getPriceHistory('portal-2', 'GOG & Epic');
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        'http://localhost:3001/api/v1/games/portal-2/price-history?store=GOG%20%26%20Epic',
+        expect.objectContaining({ method: 'GET' }),
+      );
+    });
+  });
+
+  describe('apiClient.toggleWishlist', () => {
+    it('should make a POST request to /api/v1/wishlists with gameId', async () => {
+      const wishlistData = { data: { id: 1, gameId: 42, userId: 1 } };
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve(wishlistData),
+      });
+
+      const result = await apiClient.toggleWishlist(42);
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        'http://localhost:3001/api/v1/wishlists',
+        expect.objectContaining({
+          method: 'POST',
+          body: JSON.stringify({ gameId: 42 }),
+        }),
+      );
+      expect(result).toEqual(wishlistData);
+    });
+
+    it('should throw ApiError when not authenticated', async () => {
+      mockFetch.mockResolvedValue({
+        ok: false,
+        status: 401,
+        statusText: 'Unauthorized',
+        json: () => Promise.resolve({ message: 'Not authenticated' }),
+      });
+
+      await expect(apiClient.toggleWishlist(42)).rejects.toThrow(ApiError);
+
+      try {
+        await apiClient.toggleWishlist(42);
+      } catch (e) {
+        const err = e as ApiError;
+        expect(err.status).toBe(401);
+      }
+    });
+  });
+
+  describe('apiClient.createPriceAlert', () => {
+    it('should make a POST request to /api/v1/price-alerts with gameId and targetPrice', async () => {
+      const alertData = { data: { id: 1, gameId: 42, targetPrice: '9.99' } };
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve(alertData),
+      });
+
+      const result = await apiClient.createPriceAlert(42, 9.99);
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        'http://localhost:3001/api/v1/price-alerts',
+        expect.objectContaining({
+          method: 'POST',
+          body: JSON.stringify({ gameId: 42, targetPrice: 9.99 }),
+        }),
+      );
+      expect(result).toEqual(alertData);
+    });
+
+    it('should throw ApiError on validation error', async () => {
+      mockFetch.mockResolvedValue({
+        ok: false,
+        status: 422,
+        statusText: 'Unprocessable Entity',
+        json: () => Promise.resolve({ errors: ['targetPrice must be positive'] }),
+      });
+
+      await expect(apiClient.createPriceAlert(42, -1)).rejects.toThrow(ApiError);
+
+      try {
+        await apiClient.createPriceAlert(42, -1);
+      } catch (e) {
+        const err = e as ApiError;
+        expect(err.status).toBe(422);
+        expect(err.body).toEqual({ errors: ['targetPrice must be positive'] });
+      }
+    });
+  });
+
+  describe('new method type contracts', () => {
+    it('GameDetail should support nullable fields', () => {
+      const detail: GameDetail = {
+        id: 1,
+        title: 'Test Game',
+        slug: 'test-game',
+        description: null,
+        headerImageUrl: null,
+        steamAppId: null,
+        createdAt: '2024-01-01T00:00:00Z',
+        updatedAt: '2024-01-01T00:00:00Z',
+        storeListings: [],
+        priceStats: [],
+      };
+      expect(detail.description).toBeNull();
+      expect(detail.headerImageUrl).toBeNull();
+      expect(detail.steamAppId).toBeNull();
+    });
+
+    it('PriceHistoryEntry should support nullable saleEndsAt', () => {
+      const entry: PriceHistoryEntry = {
+        id: 1,
+        storeListingId: 1,
+        price: '9.99',
+        originalPrice: '19.99',
+        currency: 'USD',
+        discount: 50,
+        saleEndsAt: '2025-12-31T00:00:00Z',
+        recordedAt: '2024-01-01T00:00:00Z',
+      };
+      expect(entry.saleEndsAt).toBe('2025-12-31T00:00:00Z');
+    });
+  });
+
+
+  describe('apiClient.searchGames', () => {
+    it('should make a GET request to /api/v1/games/search with query params', async () => {
+      const envelope: EnvelopeResponse<unknown> = {
+        data: [{ id: 1, title: 'Test Game' }],
+        meta: { total: 1, page: 1, limit: 20, hasNext: false },
+      };
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve(envelope),
+      });
+
+      const result = await apiClient.searchGames({ q: 'test' });
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        expect.stringContaining('/api/v1/games/search?'),
+        expect.objectContaining({ method: 'GET' }),
+      );
+      const url = mockFetch.mock.calls[0][0] as string;
+      const params = new URLSearchParams(url.split('?')[1]);
+      expect(params.get('q')).toBe('test');
+      expect(result).toEqual(envelope);
+    });
+
+    it('should include all optional params in the query string', async () => {
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve({ data: [], meta: { total: 0, page: 1, limit: 10, hasNext: false } }),
+      });
+
+      const searchParams: SearchGamesParams = {
+        q: 'rpg',
+        page: 2,
+        limit: 10,
+        store: 'steam',
+        genre: 'action',
+        min_discount: 50,
+        max_price: 20,
+      };
+      await apiClient.searchGames(searchParams);
+
+      const url = mockFetch.mock.calls[0][0] as string;
+      const params = new URLSearchParams(url.split('?')[1]);
+      expect(params.get('q')).toBe('rpg');
+      expect(params.get('page')).toBe('2');
+      expect(params.get('limit')).toBe('10');
+      expect(params.get('store')).toBe('steam');
+      expect(params.get('genre')).toBe('action');
+      expect(params.get('min_discount')).toBe('50');
+      expect(params.get('max_price')).toBe('20');
+    });
+
+    it('should omit undefined optional params from the query string', async () => {
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve({ data: [], meta: { total: 0, page: 1, limit: 20, hasNext: false } }),
+      });
+
+      await apiClient.searchGames({ q: 'puzzle' });
+
+      const url = mockFetch.mock.calls[0][0] as string;
+      const params = new URLSearchParams(url.split('?')[1]);
+      expect(params.get('q')).toBe('puzzle');
+      expect(params.has('page')).toBe(false);
+      expect(params.has('limit')).toBe(false);
+      expect(params.has('store')).toBe(false);
+    });
+
+    it('should throw ApiError on non-2xx response', async () => {
+      mockFetch.mockResolvedValue({
+        ok: false,
+        status: 400,
+        statusText: 'Bad Request',
+        json: () => Promise.resolve({ message: 'invalid query' }),
+      });
+
+      await expect(apiClient.searchGames({ q: '' })).rejects.toThrow(ApiError);
+    });
+  });
+
+  describe('apiClient.autocomplete', () => {
+    it('should make a GET request to /api/v1/games/autocomplete with query params', async () => {
+      const response: AutocompleteResponse = {
+        data: [{ title: 'Test Game', slug: 'test-game' }],
+      };
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve(response),
+      });
+
+      const result = await apiClient.autocomplete({ q: 'test' });
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        expect.stringContaining('/api/v1/games/autocomplete?'),
+        expect.objectContaining({ method: 'GET' }),
+      );
+      const url = mockFetch.mock.calls[0][0] as string;
+      const params = new URLSearchParams(url.split('?')[1]);
+      expect(params.get('q')).toBe('test');
+      expect(result).toEqual(response);
+    });
+
+    it('should include limit param when provided', async () => {
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve({ data: [] }),
+      });
+
+      await apiClient.autocomplete({ q: 'game', limit: 5 });
+
+      const url = mockFetch.mock.calls[0][0] as string;
+      const params = new URLSearchParams(url.split('?')[1]);
+      expect(params.get('q')).toBe('game');
+      expect(params.get('limit')).toBe('5');
+    });
+
+    it('should omit limit param when not provided', async () => {
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve({ data: [] }),
+      });
+
+      await apiClient.autocomplete({ q: 'game' });
+
+      const url = mockFetch.mock.calls[0][0] as string;
+      const params = new URLSearchParams(url.split('?')[1]);
+      expect(params.has('limit')).toBe(false);
+    });
+
+    it('should throw ApiError on non-2xx response', async () => {
+      mockFetch.mockResolvedValue({
+        ok: false,
+        status: 500,
+        statusText: 'Internal Server Error',
+        json: () => Promise.resolve(null),
+      });
+
+      await expect(apiClient.autocomplete({ q: 'fail' })).rejects.toThrow(ApiError);
+    });
+  });
+
+  describe('SearchGamesParams type', () => {
+    it('should be structurally correct with all fields', () => {
+      const params: SearchGamesParams = {
+        q: 'test',
+        page: 1,
+        limit: 20,
+        store: 'steam',
+        genre: 'action',
+        min_discount: 10,
+        max_price: 60,
+      };
+      expect(params.q).toBe('test');
+      expect(params.page).toBe(1);
+    });
+  });
+
+  describe('AutocompleteParams type', () => {
+    it('should be structurally correct', () => {
+      const params: AutocompleteParams = { q: 'search', limit: 5 };
+      expect(params.q).toBe('search');
+      expect(params.limit).toBe(5);
+    });
+  });
+
+  describe('AutocompleteItem type', () => {
+    it('should have title and slug', () => {
+      const item: AutocompleteItem = { title: 'My Game', slug: 'my-game' };
+      expect(item.title).toBe('My Game');
+      expect(item.slug).toBe('my-game');
+    });
+  });
+
+  describe('AutocompleteResponse type', () => {
+    it('should contain data array of AutocompleteItems', () => {
+      const response: AutocompleteResponse = {
+        data: [
+          { title: 'Game A', slug: 'game-a' },
+          { title: 'Game B', slug: 'game-b' },
+        ],
+      };
+      expect(response.data).toHaveLength(2);
+      expect(response.data[0].slug).toBe('game-a');
     });
   });
 });

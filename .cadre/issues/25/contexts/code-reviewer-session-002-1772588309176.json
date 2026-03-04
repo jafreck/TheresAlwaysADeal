@@ -1,0 +1,104 @@
+{
+  "agent": "code-reviewer",
+  "issueNumber": 25,
+  "projectName": "theresalwaysadeal",
+  "repository": "jafreck/TheresAlwaysADeal",
+  "worktreePath": "/Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-25",
+  "phase": 3,
+  "sessionId": "session-002",
+  "config": {
+    "commands": {
+      "install": "npm install",
+      "build": "npm run build",
+      "test": "npx vitest run",
+      "lint": "npm run lint"
+    }
+  },
+  "inputFiles": [
+    "/Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-25/.cadre/issues/25/diff-session-002.patch",
+    "/Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-25/.cadre/issues/25/session-session-002.md",
+    "/Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-25/.cadre/issues/25/analysis.md",
+    "/Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-25/.cadre/issues/25/scout-report.md"
+  ],
+  "outputPath": "/Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-25/.cadre/issues/25/review-session-002.md",
+  "payload": {
+    "sessionId": "session-002",
+    "acceptanceCriteria": [
+      "Component renders a list of suggestions with `role=\"listbox\"` and items with `role=\"option\"`",
+      "Each suggestion displays the game title",
+      "A 'See all results' action is rendered at the bottom of the dropdown",
+      "Arrow keys move the highlighted index up/down with `aria-selected` attribute",
+      "Enter key on a suggestion calls `onSelect(slug)`, Enter on 'See all results' calls `onSeeAll()`",
+      "Escape key calls `onClose()`",
+      "Clicking a suggestion calls `onSelect(slug)`",
+      "Component accepts `suggestions`, `highlightedIndex`, `onSelect`, `onSeeAll`, `onClose`, and `isOpen` props",
+      "Renders a search `<input>` with `type=\"search\"` and `aria-label=\"Search games\"`",
+      "Uses `useDebounce` with 200ms delay on the input value",
+      "Fetches autocomplete results via `apiClient.autocomplete` using `useQuery` from TanStack Query when debounced value length >= 2",
+      "Opens AutocompleteDropdown when suggestions are available and input is focused",
+      "Keyboard: ↑/↓ navigate suggestions, Enter on empty selection navigates to `/search?q={value}`, Enter on selection navigates to game, Escape closes dropdown",
+      "Clicking 'See all results' navigates to `/search?q={value}`",
+      "Dropdown closes when input loses focus (with a small delay for click events)",
+      "Has `aria-expanded`, `aria-controls`, `aria-activedescendant` attributes for accessibility",
+      "Accepts optional `className` prop for styling flexibility",
+      "Desktop search area renders `<SearchBar />` instead of a plain `<input>`",
+      "Mobile search area renders `<SearchBar />` instead of a plain `<input>`",
+      "Existing Header layout, navigation links, and mobile menu behavior are preserved",
+      "Existing Header tests continue to pass (search inputs are now inside SearchBar)"
+    ],
+    "issueBody": "## Overview\nBuild the search results page and the global search experience, including the instant search/autocomplete in the header.\n\n## URL Pattern\n`/search?q=witcher&store=steam&genre=rpg&min_discount=50`\n\n## Features\n\n### Global Search Bar (Header — appears on every page)\n- Text input with autocomplete dropdown\n- Autocomplete shows top 5 game title suggestions (`GET /api/games/autocomplete?q=`)\n- Each suggestion shows: game cover thumbnail, title, best current price\n- Press Enter or click \"See all results\" → navigate to `/search?q=`\n- Keyboard navigable (↑/↓ arrows, Enter to select, Escape to close)\n\n### Search Results Page\n- Results grid (same `<GameCard>` components as homepage)\n- Result count: \"342 results for 'witcher'\"\n- No-results state with suggestions\n\n### Filters Panel (sidebar on desktop, drawer on mobile)\n- **Store**: checkboxes for Steam, GOG, Epic, Humble, Fanatical\n- **Genre**: multi-select chips\n- **Discount**: slider or preset chips (25%+, 50%+, 75%+, 90%+)\n- **Max price**: $5, $10, $20, $30, free only\n- **Sort**: Best Match, Highest Discount, Lowest Price, A–Z, Release Date\n\n### URL State\n- All filter and sort state reflected in the URL query string (shareable/bookmarkable)\n- Browser back/forward navigation works correctly\n\n## Tasks\n- [ ] Implement `/search` route\n- [ ] Implement header search bar with debounced autocomplete (debounce: 200ms)\n- [ ] Implement filters panel with URL state sync (use `nuqs` or `useSearchParams`)\n- [ ] Fetch results from `GET /api/games/search?q=&...filters`\n- [ ] Implement pagination / infinite scroll for results\n- [ ] Handle empty state gracefully with suggestions (\"Try searching for 'action' or browse deals\")\n- [ ] Add meta title: \"Search Results for 'witcher' | There's Always A Deal\"\n\n## Acceptance Criteria\n- Autocomplete appears within 200ms of typing\n- Filters update results without full page reload\n- URL reflects current filter state (shareable links work)\n\n## Dependencies\n- #22 Frontend Framework Setup & Design System\n- #14 Game Search API"
+  },
+  "outputSchema": {
+    "type": "object",
+    "properties": {
+      "verdict": {
+        "type": "string",
+        "enum": [
+          "pass",
+          "needs-fixes"
+        ]
+      },
+      "issues": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "file": {
+              "type": "string"
+            },
+            "line": {
+              "type": "number"
+            },
+            "severity": {
+              "type": "string",
+              "enum": [
+                "error",
+                "warning",
+                "suggestion"
+              ]
+            },
+            "description": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "file",
+            "severity",
+            "description"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "summary": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "verdict",
+      "issues",
+      "summary"
+    ],
+    "additionalProperties": false,
+    "$schema": "http://json-schema.org/draft-07/schema#"
+  }
+}

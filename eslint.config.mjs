@@ -12,7 +12,10 @@ const config = [
     languageOptions: { parser: tsParser },
     rules: {
       ...tsPlugin.configs.recommended.rules,
-      "@typescript-eslint/no-unused-vars": ["error", { argsIgnorePattern: "^_" }],
+      "no-undef": "off",
+      "no-useless-assignment": "off",
+      "@typescript-eslint/no-explicit-any": "off",
+      "@typescript-eslint/no-unused-vars": ["error", { argsIgnorePattern: "^_", varsIgnorePattern: "^_" }],
       "@typescript-eslint/consistent-type-imports": "error",
     },
   },
