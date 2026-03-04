@@ -75,7 +75,7 @@ describe("sortSchema", () => {
   });
 
   it("should accept valid sort values", () => {
-    for (const val of ["release_date"]) {
+    for (const val of ["release_date", "newest"]) {
       const result = sortSchema.parse({ sort: val });
       expect(result.sort).toBe(val);
     }
