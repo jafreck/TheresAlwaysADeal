@@ -1,5 +1,25 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
+// Node.js 25+ localStorage is an accessor property without standard methods.
+// Polyfill before any module imports consent.ts.
+vi.hoisted(() => {
+  if (typeof globalThis.localStorage?.getItem !== 'function') {
+    let store: Record<string, string> = {};
+    Object.defineProperty(globalThis, 'localStorage', {
+      value: {
+        getItem(key: string) { return key in store ? store[key] : null; },
+        setItem(key: string, value: string) { store[key] = String(value); },
+        removeItem(key: string) { delete store[key]; },
+        clear() { store = {}; },
+        get length() { return Object.keys(store).length; },
+        key(i: number) { return Object.keys(store)[i] ?? null; },
+      },
+      writable: true,
+      configurable: true,
+    });
+  }
+});
+
 // Mock server-api module
 vi.mock('../../src/lib/server-api', () => ({
   serverApi: {

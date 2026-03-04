@@ -14,7 +14,7 @@ export const genreFilterSchema = z.object({
 });
 
 export const sortSchema = z.object({
-  sort: z.enum(["release_date", "newest"]).optional(),
+  sort: z.enum(["best_match", "highest_discount", "lowest_price", "a_z", "release_date", "newest"]).optional(),
 });
 
 export const commonQuerySchema = paginationSchema
@@ -30,15 +30,17 @@ export const dealsQuerySchema = commonQuerySchema.merge(
   }),
 );
 
-export const searchQuerySchema = paginationSchema.merge(
-  z.object({
-    q: z.string().min(1),
-    store: z.string().optional(),
-    genre: z.string().optional(),
-    min_discount: z.coerce.number().optional(),
-    max_price: z.coerce.number().optional(),
-  }),
-);
+export const searchQuerySchema = paginationSchema
+  .merge(sortSchema)
+  .merge(
+    z.object({
+      q: z.string().min(1),
+      store: z.string().optional(),
+      genre: z.string().optional(),
+      min_discount: z.coerce.number().optional(),
+      max_price: z.coerce.number().optional(),
+    }),
+  );
 
 export const autocompleteQuerySchema = z.object({
   q: z.string().min(1),
