@@ -3,7 +3,7 @@ import { Worker, Queue } from "bullmq";
 import { Redis } from "ioredis";
 import { eq, and, desc, isNotNull, gte } from "drizzle-orm";
 import { db, games, stores, storeListings, priceHistory, storeListingStats, users, wishlists, priceAlerts } from "@taad/db";
-import { BaseScraper, type ScrapedGame, buildReferralUrl } from "@taad/scraper";
+import { type BaseScraper, type ScrapedGame, buildReferralUrl } from "@taad/scraper";
 import { sendPriceAlert, type PriceAlertData } from "@taad/email";
 import { scrapeQueue, ingestQueue, priceDropQueue, allTimeLowQueue, featuredScrapeQueue, steamSyncQueue, emailQueue } from "./queues.js";
 

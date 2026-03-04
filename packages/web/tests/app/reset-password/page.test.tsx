@@ -80,8 +80,8 @@ describe('ResetPasswordPage', () => {
 
   it('should render password and confirmPassword fields', () => {
     const { container } = render(<ResetPasswordPage />);
-    expect(container.querySelector('input#password')).toBeTruthy();
-    expect(container.querySelector('input#confirmPassword')).toBeTruthy();
+    expect(container.querySelector('input[id="password"]')).toBeTruthy();
+    expect(container.querySelector('input[id="confirmPassword"]')).toBeTruthy();
   });
 
   it('should render labels for form fields', () => {
@@ -115,8 +115,8 @@ describe('ResetPasswordPage', () => {
   it('should redirect to /login on successful reset', async () => {
     const { container } = render(<ResetPasswordPage />);
 
-    fireEvent.change(container.querySelector('input#password')!, { target: { value: 'newpasswd' } });
-    fireEvent.change(container.querySelector('input#confirmPassword')!, { target: { value: 'newpasswd' } });
+    fireEvent.change(container.querySelector('input[id="password"]')!, { target: { value: 'newpasswd' } });
+    fireEvent.change(container.querySelector('input[id="confirmPassword"]')!, { target: { value: 'newpasswd' } });
     fireEvent.submit(container.querySelector('form')!);
 
     await waitFor(() => {
@@ -132,8 +132,8 @@ describe('ResetPasswordPage', () => {
     mockPost.mockRejectedValue(new ApiError(400, 'Bad Request', { message: 'Token expired' }));
     const { container } = render(<ResetPasswordPage />);
 
-    fireEvent.change(container.querySelector('input#password')!, { target: { value: 'newpasswd' } });
-    fireEvent.change(container.querySelector('input#confirmPassword')!, { target: { value: 'newpasswd' } });
+    fireEvent.change(container.querySelector('input[id="password"]')!, { target: { value: 'newpasswd' } });
+    fireEvent.change(container.querySelector('input[id="confirmPassword"]')!, { target: { value: 'newpasswd' } });
     fireEvent.submit(container.querySelector('form')!);
 
     await waitFor(() => {
@@ -145,8 +145,8 @@ describe('ResetPasswordPage', () => {
     mockPost.mockRejectedValue(new Error('Network error'));
     const { container } = render(<ResetPasswordPage />);
 
-    fireEvent.change(container.querySelector('input#password')!, { target: { value: 'newpasswd' } });
-    fireEvent.change(container.querySelector('input#confirmPassword')!, { target: { value: 'newpasswd' } });
+    fireEvent.change(container.querySelector('input[id="password"]')!, { target: { value: 'newpasswd' } });
+    fireEvent.change(container.querySelector('input[id="confirmPassword"]')!, { target: { value: 'newpasswd' } });
     fireEvent.submit(container.querySelector('form')!);
 
     await waitFor(() => {
@@ -157,8 +157,8 @@ describe('ResetPasswordPage', () => {
   it('should show validation errors when passwords do not match', async () => {
     const { container } = render(<ResetPasswordPage />);
 
-    fireEvent.change(container.querySelector('input#password')!, { target: { value: 'newpasswd' } });
-    fireEvent.change(container.querySelector('input#confirmPassword')!, { target: { value: 'different' } });
+    fireEvent.change(container.querySelector('input[id="password"]')!, { target: { value: 'newpasswd' } });
+    fireEvent.change(container.querySelector('input[id="confirmPassword"]')!, { target: { value: 'different' } });
     fireEvent.submit(container.querySelector('form')!);
 
     await waitFor(() => {
@@ -169,7 +169,7 @@ describe('ResetPasswordPage', () => {
 
   it('should have proper autocomplete attributes', () => {
     const { container } = render(<ResetPasswordPage />);
-    expect(container.querySelector('input#password')?.getAttribute('autocomplete')).toBe('new-password');
-    expect(container.querySelector('input#confirmPassword')?.getAttribute('autocomplete')).toBe('new-password');
+    expect(container.querySelector('input[id="password"]')?.getAttribute('autocomplete')).toBe('new-password');
+    expect(container.querySelector('input[id="confirmPassword"]')?.getAttribute('autocomplete')).toBe('new-password');
   });
 });

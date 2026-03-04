@@ -75,7 +75,7 @@ describe("sortSchema", () => {
   });
 
   it("should accept valid sort values", () => {
-    for (const val of ["release_date", "newest"]) {
+    for (const val of ["best_match", "highest_discount", "lowest_price", "a_z", "release_date", "newest"]) {
       const result = sortSchema.parse({ sort: val });
       expect(result.sort).toBe(val);
     }
@@ -189,7 +189,7 @@ describe("dealsQuerySchema", () => {
 describe("searchQuerySchema", () => {
   it("should parse q with pagination defaults", () => {
     const result = searchQuerySchema.parse({ q: "witcher" });
-    expect(result).toEqual({ q: "witcher", page: 1, limit: 20 });
+    expect(result).toEqual({ q: "witcher", page: 1, limit: 20, sort: undefined });
   });
 
   it("should reject missing q parameter", () => {
@@ -202,7 +202,7 @@ describe("searchQuerySchema", () => {
 
   it("should accept pagination with q", () => {
     const result = searchQuerySchema.parse({ q: "test", page: "3", limit: "10" });
-    expect(result).toEqual({ q: "test", page: 3, limit: 10 });
+    expect(result).toEqual({ q: "test", page: 3, limit: 10, sort: undefined });
   });
 
   it("should inherit pagination validation (reject negative page)", () => {
@@ -229,12 +229,22 @@ describe("searchQuerySchema", () => {
     expect(result.max_price).toBe(9.99);
   });
 
+  it("should parse optional sort parameter", () => {
+    const result = searchQuerySchema.parse({ q: "witcher", sort: "highest_discount" });
+    expect(result.sort).toBe("highest_discount");
+  });
+
+  it("should reject invalid sort values in search", () => {
+    expect(() => searchQuerySchema.parse({ q: "witcher", sort: "invalid" })).toThrow();
+  });
+
   it("should leave filter fields undefined when omitted", () => {
     const result = searchQuerySchema.parse({ q: "witcher" });
     expect(result.store).toBeUndefined();
     expect(result.genre).toBeUndefined();
     expect(result.min_discount).toBeUndefined();
     expect(result.max_price).toBeUndefined();
+    expect(result.sort).toBeUndefined();
   });
 
   it("should parse all filter fields together", () => {
@@ -246,6 +256,7 @@ describe("searchQuerySchema", () => {
       genre: "rpg",
       min_discount: "25",
       max_price: "15.99",
+      sort: "lowest_price",
     });
     expect(result).toEqual({
       q: "witcher",
@@ -255,6 +266,7 @@ describe("searchQuerySchema", () => {
       genre: "rpg",
       min_discount: 25,
       max_price: 15.99,
+      sort: "lowest_price",
     });
   });
 

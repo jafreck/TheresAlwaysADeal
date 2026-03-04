@@ -23,10 +23,12 @@ export function useAuth() {
     try {
       const res = await apiClient.post<AuthResponse>("/api/auth/login", { email, password });
       setAccessToken(res.accessToken);
+      const profile = await apiClient.get<UserProfile>("/api/auth/me");
+      setUserProfile(profile);
     } finally {
       setIsLoading(false);
     }
-  }, [setAccessToken]);
+  }, [setAccessToken, setUserProfile]);
 
   const register = useCallback(async (data: RegisterData) => {
     setIsLoading(true);

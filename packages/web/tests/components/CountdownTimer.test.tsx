@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, act, cleanup } from '@testing-library/react';
+import { render, act, cleanup } from '@testing-library/react';
 import CountdownTimer from '../../src/components/CountdownTimer';
 
 describe('CountdownTimer', () => {

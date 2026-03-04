@@ -27,6 +27,7 @@ export const steamSyncQueue = new Queue("steam-sync", { connection });
 /** Queues email send jobs for price alert notifications. */
 export const emailQueue = new Queue("email", { connection });
 
+
 export const scrapeQueueEvents = new QueueEvents("scrape", { connection });
 export const ingestQueueEvents = new QueueEvents("ingest", { connection });
 export const priceDropQueueEvents = new QueueEvents("price-drop", { connection });

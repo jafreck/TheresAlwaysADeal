@@ -1,8 +1,11 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import Link from "next/link";
+import Script from "next/script";
+import { NuqsAdapter } from "nuqs/adapters/next/app";
 import { QueryProvider } from "@/lib/query-provider";
 import Header from "@/components/Header";
+import CookieConsentBanner from "@/components/CookieConsentBanner";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -34,8 +37,14 @@ export default function RootLayout({ children }: { children: ReactNode }) {
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
         />
+        <Script
+          src={`https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${process.env.NEXT_PUBLIC_ADSENSE_PUBLISHER_ID}`}
+          strategy="afterInteractive"
+          crossOrigin="anonymous"
+        />
       </head>
       <body className="flex min-h-screen flex-col">
+        <NuqsAdapter>
         <QueryProvider>
           <Header />
 
@@ -104,6 +113,9 @@ export default function RootLayout({ children }: { children: ReactNode }) {
             </div>
           </footer>
         </QueryProvider>
+        </NuqsAdapter>
+
+        <CookieConsentBanner />
       </body>
     </html>
   );

@@ -26,7 +26,7 @@ vi.mock('../../src/components/EmptyState', () => ({
 
 import FeaturedDealsSection from '../../src/components/FeaturedDealsSection';
 import type { FeaturedDeal } from '../../src/components/FeaturedDealsSection';
-import EmptyState from '../../src/components/EmptyState';
+
 
 const makeDeal = (overrides: Partial<FeaturedDeal> = {}): FeaturedDeal => ({
   gameTitle: 'Portal 2',

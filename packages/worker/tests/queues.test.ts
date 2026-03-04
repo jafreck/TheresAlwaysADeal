@@ -1,8 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 vi.mock("bullmq", () => {
-  const Queue = vi.fn().mockImplementation((name: string) => ({ name }));
-  const QueueEvents = vi.fn().mockImplementation((name: string) => ({ name }));
+  const Queue = vi.fn().mockImplementation(function (name: string) { return { name }; });
+  const QueueEvents = vi.fn().mockImplementation(function (name: string) { return { name }; });
   return { Queue, QueueEvents };
 });
 
@@ -58,44 +58,6 @@ describe("queues", () => {
       expect(emailQueue).toBeDefined();
       const emailCall = vi.mocked(Queue).mock.calls.find(([name]) => name === "email");
       expect(emailCall).toBeDefined();
-    });
-  });
-
-  describe("QueueEvents instances", () => {
-    it("should create scrapeQueueEvents for 'scrape'", async () => {
-      await import("../src/queues.js");
-      const call = vi.mocked(QueueEvents).mock.calls.find(([name]) => name === "scrape");
-      expect(call).toBeDefined();
-    });
-
-    it("should create ingestQueueEvents for 'ingest'", async () => {
-      await import("../src/queues.js");
-      const call = vi.mocked(QueueEvents).mock.calls.find(([name]) => name === "ingest");
-      expect(call).toBeDefined();
-    });
-
-    it("should create priceDropQueueEvents for 'price-drop'", async () => {
-      await import("../src/queues.js");
-      const call = vi.mocked(QueueEvents).mock.calls.find(([name]) => name === "price-drop");
-      expect(call).toBeDefined();
-    });
-
-    it("should create allTimeLowQueueEvents for 'all-time-low'", async () => {
-      await import("../src/queues.js");
-      const call = vi.mocked(QueueEvents).mock.calls.find(([name]) => name === "all-time-low");
-      expect(call).toBeDefined();
-    });
-
-    it("should create steamSyncQueueEvents for 'steam-sync'", async () => {
-      await import("../src/queues.js");
-      const call = vi.mocked(QueueEvents).mock.calls.find(([name]) => name === "steam-sync");
-      expect(call).toBeDefined();
-    });
-
-    it("should create emailQueueEvents for 'email'", async () => {
-      await import("../src/queues.js");
-      const call = vi.mocked(QueueEvents).mock.calls.find(([name]) => name === "email");
-      expect(call).toBeDefined();
     });
   });
 

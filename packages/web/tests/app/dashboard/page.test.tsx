@@ -22,6 +22,12 @@ vi.mock('@/components/LoadingSpinner', () => ({
     React.createElement('div', { 'data-testid': 'loading-spinner', 'data-size': size }),
 }));
 
+vi.mock('@/components/AdSlot', () => ({
+  default: function MockAdSlot(props: Record<string, unknown>) {
+    return React.createElement('div', { 'data-testid': 'ad-slot', 'data-slot-id': props.slotId });
+  },
+}));
+
 import DashboardPage from '../../../src/app/dashboard/page';
 
 describe('DashboardPage', () => {
@@ -66,5 +72,25 @@ describe('DashboardPage', () => {
     const h1 = container.querySelector('h1');
     expect(h1).toBeTruthy();
     expect(h1?.textContent).toContain('Welcome');
+  });
+
+  it('should render AdSlot with dashboard-banner slotId', () => {
+    const { container } = render(<DashboardPage />);
+    const adSlot = container.querySelector('[data-testid="ad-slot"]');
+    expect(adSlot).toBeTruthy();
+    expect(adSlot?.getAttribute('data-slot-id')).toBe('dashboard-banner');
+  });
+
+  it('should render AdSlot after dashboard text content', () => {
+    const { container } = render(<DashboardPage />);
+    const h1 = container.querySelector('h1');
+    const adSlot = container.querySelector('[data-testid="ad-slot"]');
+    expect(h1).toBeTruthy();
+    expect(adSlot).toBeTruthy();
+    // AdSlot should appear after the heading in DOM order
+    const allElements = Array.from(container.querySelectorAll('*'));
+    const h1Idx = allElements.indexOf(h1!);
+    const adIdx = allElements.indexOf(adSlot!);
+    expect(adIdx).toBeGreaterThan(h1Idx);
   });
 });
