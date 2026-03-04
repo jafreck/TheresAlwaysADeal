@@ -12,6 +12,7 @@ import FreeGamesSection, {
 import TrendingDealsSection from "@/components/TrendingDealsSection";
 import GenreBrowseSection from "@/components/GenreBrowseSection";
 import RecentlyViewedSection from "@/components/RecentlyViewedSection";
+import type { EnvelopeResponse } from "@/lib/api-client";
 
 export const revalidate = 900;
 
@@ -28,10 +29,6 @@ export const metadata: Metadata = {
     images: [{ url: "/og-home.png", width: 1200, height: 630 }],
   },
 };
-
-interface EnvelopeResponse<T> {
-  data: T[];
-}
 
 async function fetchDeals<T>(path: string): Promise<T[]> {
   try {
