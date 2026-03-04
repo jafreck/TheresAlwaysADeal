@@ -2,6 +2,8 @@ import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, fireEvent } from '@testing-library/react';
 
+const mockPush = vi.fn();
+
 vi.mock('next/link', () => ({
   default: ({ children, href, onClick, ...props }: Record<string, unknown>) =>
     React.createElement(
@@ -18,9 +20,27 @@ vi.mock('next/link', () => ({
     ),
 }));
 
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ push: mockPush }),
+}));
+
+const mockUseAuth = vi.fn();
+vi.mock('@/lib/useAuth', () => ({
+  useAuth: () => mockUseAuth(),
+}));
+
 import Header from '../../src/components/Header';
 
 describe('Header', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockUseAuth.mockReturnValue({
+      isAuthenticated: false,
+      user: null,
+      logout: vi.fn(),
+    });
+  });
+
   it('should be a function (React component)', () => {
     expect(typeof Header).toBe('function');
   });
@@ -77,11 +97,11 @@ describe('Header', () => {
     expect(nav?.className).toContain('md:flex');
   });
 
-  it('should render a Sign In button', () => {
+  it('should render a Sign In link when unauthenticated', () => {
     const { container } = render(<Header />);
-    const buttons = container.querySelectorAll('button');
-    const signInBtn = Array.from(buttons).find((b) => b.textContent === 'Sign In');
-    expect(signInBtn).toBeTruthy();
+    const links = container.querySelectorAll('a');
+    const signInLink = Array.from(links).find((l) => l.textContent === 'Sign In' && l.getAttribute('href') === '/login');
+    expect(signInLink).toBeTruthy();
   });
 
   it('should render a hamburger menu button with aria-label', () => {
@@ -163,14 +183,14 @@ describe('Header', () => {
     expect(container.querySelector('nav[aria-label="Mobile navigation"]')).toBeNull();
   });
 
-  it('should render a Sign In button in the mobile menu', () => {
+  it('should render a Sign In link in the mobile menu when unauthenticated', () => {
     const { container } = render(<Header />);
     const menuBtn = container.querySelector('button[aria-label="Toggle menu"]')!;
     fireEvent.click(menuBtn);
     const mobileNav = container.querySelector('nav[aria-label="Mobile navigation"]')!;
-    const signInBtn = mobileNav.querySelector('button');
-    expect(signInBtn).toBeTruthy();
-    expect(signInBtn?.textContent).toBe('Sign In');
+    const signInLink = mobileNav.querySelector('a[href="/login"]');
+    expect(signInLink).toBeTruthy();
+    expect(signInLink?.textContent).toBe('Sign In');
   });
 
   it('should have focus-visible styles on interactive elements', () => {
@@ -179,5 +199,87 @@ describe('Header', () => {
     for (const link of Array.from(links)) {
       expect(link.className).toContain('focus-visible:outline');
     }
+  });
+
+  // Authenticated state tests
+  describe('when authenticated', () => {
+    const mockLogout = vi.fn().mockResolvedValue(undefined);
+
+    beforeEach(() => {
+      mockUseAuth.mockReturnValue({
+        isAuthenticated: true,
+        user: { id: '1', email: 'test@example.com', name: 'Test User' },
+        logout: mockLogout,
+      });
+    });
+
+    it('should show user name instead of Sign In', () => {
+      const { container } = render(<Header />);
+      expect(container.textContent).toContain('Test User');
+      const links = container.querySelectorAll('a[href="/login"]');
+      // Desktop Sign In link should not be present
+      const desktopAuthArea = container.querySelector('.hidden.md\\:block');
+      expect(desktopAuthArea?.querySelector('a[href="/login"]')).toBeNull();
+    });
+
+    it('should render a Sign Out button', () => {
+      const { container } = render(<Header />);
+      const buttons = container.querySelectorAll('button');
+      const signOutBtn = Array.from(buttons).find((b) => b.textContent === 'Sign Out');
+      expect(signOutBtn).toBeTruthy();
+    });
+
+    it('should call logout and redirect to / when Sign Out is clicked', async () => {
+      const { container } = render(<Header />);
+      const buttons = container.querySelectorAll('button');
+      const signOutBtn = Array.from(buttons).find((b) => b.textContent === 'Sign Out')!;
+      fireEvent.click(signOutBtn);
+      await vi.waitFor(() => {
+        expect(mockLogout).toHaveBeenCalled();
+        expect(mockPush).toHaveBeenCalledWith('/');
+      });
+    });
+
+    it('should show Sign Out button in mobile menu', () => {
+      const { container } = render(<Header />);
+      const menuBtn = container.querySelector('button[aria-label="Toggle menu"]')!;
+      fireEvent.click(menuBtn);
+      const mobileNav = container.querySelector('nav[aria-label="Mobile navigation"]')!;
+      const buttons = mobileNav.querySelectorAll('button');
+      const signOutBtn = Array.from(buttons).find((b) => b.textContent === 'Sign Out');
+      expect(signOutBtn).toBeTruthy();
+    });
+
+    it('should call logout and redirect when mobile Sign Out is clicked', async () => {
+      const { container } = render(<Header />);
+      const menuBtn = container.querySelector('button[aria-label="Toggle menu"]')!;
+      fireEvent.click(menuBtn);
+      const mobileNav = container.querySelector('nav[aria-label="Mobile navigation"]')!;
+      const buttons = mobileNav.querySelectorAll('button');
+      const signOutBtn = Array.from(buttons).find((b) => b.textContent === 'Sign Out')!;
+      fireEvent.click(signOutBtn);
+      await vi.waitFor(() => {
+        expect(mockLogout).toHaveBeenCalled();
+        expect(mockPush).toHaveBeenCalledWith('/');
+      });
+    });
+
+    it('should not show Sign In link in mobile menu when authenticated', () => {
+      const { container } = render(<Header />);
+      const menuBtn = container.querySelector('button[aria-label="Toggle menu"]')!;
+      fireEvent.click(menuBtn);
+      const mobileNav = container.querySelector('nav[aria-label="Mobile navigation"]')!;
+      expect(mobileNav.querySelector('a[href="/login"]')).toBeNull();
+    });
+
+    it('should display user email when name is not available', () => {
+      mockUseAuth.mockReturnValue({
+        isAuthenticated: true,
+        user: { id: '1', email: 'test@example.com' },
+        logout: mockLogout,
+      });
+      const { container } = render(<Header />);
+      expect(container.textContent).toContain('test@example.com');
+    });
   });
 });
