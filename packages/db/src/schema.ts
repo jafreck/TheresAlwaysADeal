@@ -99,6 +99,7 @@ export const wishlists = pgTable("wishlists", {
   id: uuid("id").defaultRandom().primaryKey(),
   userId: uuid("user_id").references(() => users.id).notNull(),
   gameId: uuid("game_id").references(() => games.id).notNull(),
+  source: varchar("source", { length: 50 }).default("manual").notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

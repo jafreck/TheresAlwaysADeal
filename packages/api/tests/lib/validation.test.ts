@@ -326,6 +326,8 @@ import {
   loginSchema,
   forgotPasswordSchema,
   resetPasswordSchema,
+  steamCallbackSchema,
+  steamUnlinkSchema,
 } from "../../src/lib/validation.js";
 
 describe("registerSchema", () => {
@@ -411,5 +413,76 @@ describe("resetPasswordSchema", () => {
 
   it("should reject missing password", () => {
     expect(() => resetPasswordSchema.parse({ token: "abc-123" })).toThrow();
+  });
+});
+
+// ─── Steam Schemas ────────────────────────────────────────────────────────────
+
+describe("steamCallbackSchema", () => {
+  const validCallback = {
+    "openid.claimed_id": "https://steamcommunity.com/openid/id/76561198000000000",
+    "openid.sig": "abc123sig",
+    "openid.assoc_handle": "1234567890",
+  };
+
+  it("should parse valid callback params", () => {
+    const result = steamCallbackSchema.parse(validCallback);
+    expect(result["openid.claimed_id"]).toBe(validCallback["openid.claimed_id"]);
+    expect(result["openid.sig"]).toBe(validCallback["openid.sig"]);
+    expect(result["openid.assoc_handle"]).toBe(validCallback["openid.assoc_handle"]);
+  });
+
+  it("should reject missing openid.claimed_id", () => {
+    const { "openid.claimed_id": _, ...rest } = validCallback;
+    expect(() => steamCallbackSchema.parse(rest)).toThrow();
+  });
+
+  it("should reject missing openid.sig", () => {
+    const { "openid.sig": _, ...rest } = validCallback;
+    expect(() => steamCallbackSchema.parse(rest)).toThrow();
+  });
+
+  it("should reject missing openid.assoc_handle", () => {
+    const { "openid.assoc_handle": _, ...rest } = validCallback;
+    expect(() => steamCallbackSchema.parse(rest)).toThrow();
+  });
+
+  it("should reject empty openid.claimed_id", () => {
+    expect(() => steamCallbackSchema.parse({ ...validCallback, "openid.claimed_id": "" })).toThrow();
+  });
+
+  it("should reject empty openid.sig", () => {
+    expect(() => steamCallbackSchema.parse({ ...validCallback, "openid.sig": "" })).toThrow();
+  });
+
+  it("should reject empty openid.assoc_handle", () => {
+    expect(() => steamCallbackSchema.parse({ ...validCallback, "openid.assoc_handle": "" })).toThrow();
+  });
+});
+
+describe("steamUnlinkSchema", () => {
+  it("should parse when confirm is true", () => {
+    const result = steamUnlinkSchema.parse({ confirm: true });
+    expect(result.confirm).toBe(true);
+  });
+
+  it("should reject when confirm is false", () => {
+    expect(() => steamUnlinkSchema.parse({ confirm: false })).toThrow();
+  });
+
+  it("should reject missing confirm", () => {
+    expect(() => steamUnlinkSchema.parse({})).toThrow();
+  });
+
+  it("should reject non-boolean confirm", () => {
+    expect(() => steamUnlinkSchema.parse({ confirm: "true" })).toThrow();
+  });
+
+  it("should reject numeric 1 as confirm", () => {
+    expect(() => steamUnlinkSchema.parse({ confirm: 1 })).toThrow();
+  });
+
+  it("should reject null as confirm", () => {
+    expect(() => steamUnlinkSchema.parse({ confirm: null })).toThrow();
   });
 });
