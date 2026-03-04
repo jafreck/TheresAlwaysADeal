@@ -39,7 +39,8 @@ function LoginForm() {
     try {
       await login(data.email, data.password);
       const redirect = searchParams.get("redirect") ?? "/dashboard";
-      router.push(redirect);
+      const safeRedirect = redirect.startsWith("/") && !redirect.startsWith("//") ? redirect : "/dashboard";
+      router.push(safeRedirect);
     } catch (err) {
       if (err instanceof ApiError) {
         const body = err.body as { message?: string } | null;

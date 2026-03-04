@@ -152,6 +152,32 @@ describe('LoginPage', () => {
     });
   });
 
+  it('should block external redirect URLs (open redirect protection)', async () => {
+    mockSearchParams.set('redirect', 'https://evil.com');
+    const { container } = render(<LoginPage />);
+
+    fireEvent.change(container.querySelector('input#email')!, { target: { value: 'test@example.com' } });
+    fireEvent.change(container.querySelector('input#password')!, { target: { value: 'password' } });
+    fireEvent.submit(container.querySelector('form')!);
+
+    await waitFor(() => {
+      expect(mockPush).toHaveBeenCalledWith('/dashboard');
+    });
+  });
+
+  it('should block protocol-relative redirect URLs', async () => {
+    mockSearchParams.set('redirect', '//evil.com');
+    const { container } = render(<LoginPage />);
+
+    fireEvent.change(container.querySelector('input#email')!, { target: { value: 'test@example.com' } });
+    fireEvent.change(container.querySelector('input#password')!, { target: { value: 'password' } });
+    fireEvent.submit(container.querySelector('form')!);
+
+    await waitFor(() => {
+      expect(mockPush).toHaveBeenCalledWith('/dashboard');
+    });
+  });
+
   it('should show server error on ApiError', async () => {
     mockLogin.mockRejectedValue(new ApiError(401, 'Unauthorized', { message: 'Invalid email or password' }));
     const { container } = render(<LoginPage />);
