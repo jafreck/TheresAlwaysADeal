@@ -1,6 +1,6 @@
 import React from 'react';
 import { describe, it, expect, vi } from 'vitest';
-import { render } from '@testing-library/react';
+import { render, fireEvent } from '@testing-library/react';
 
 vi.mock('next/image', () => ({
   default: function MockImage(props: Record<string, unknown>) {

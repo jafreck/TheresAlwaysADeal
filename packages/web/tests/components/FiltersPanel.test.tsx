@@ -198,4 +198,21 @@ describe('FiltersPanel', () => {
     expect(legendTexts).toContain('Max Price');
     expect(legendTexts).toContain('Sort By');
   });
+
+  it('should call onStoreChange to add a third store', () => {
+    const props = { ...defaultProps, values: { ...defaultProps.values, store: 'Steam,GOG' } };
+    const { container } = render(<FiltersPanel {...props} />);
+    const labels = Array.from(container.querySelectorAll('label'));
+    const epicLabel = labels.find((l) => l.textContent?.includes('Epic'));
+    const checkbox = epicLabel?.querySelector('input[type="checkbox"]') as HTMLInputElement;
+    fireEvent.click(checkbox);
+    expect(defaultProps.onStoreChange).toHaveBeenCalledWith('Steam,GOG,Epic');
+  });
+
+  it('should render desktop sidebar hidden on mobile', () => {
+    const { container } = render(<FiltersPanel {...defaultProps} />);
+    const aside = container.querySelector('aside');
+    expect(aside?.className).toContain('hidden');
+    expect(aside?.className).toContain('md:block');
+  });
 });

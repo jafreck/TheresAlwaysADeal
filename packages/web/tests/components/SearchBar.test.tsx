@@ -211,4 +211,47 @@ describe('SearchBar', () => {
     fireEvent.keyDown(input, { key: 'Enter' });
     expect(mockPush).toHaveBeenCalledWith('/search?q=game');
   });
+
+  it('should reset highlighted index when typing after keyboard navigation', () => {
+    mockQueryData = {
+      data: [
+        { title: 'Portal 2', slug: 'portal-2' },
+        { title: 'Portal Knights', slug: 'portal-knights' },
+      ],
+    };
+    const { container } = render(<SearchBar />);
+    const input = container.querySelector('input[type="search"]') as HTMLInputElement;
+    fireEvent.change(input, { target: { value: 'portal' } });
+    fireEvent.keyDown(input, { key: 'ArrowDown' }); // highlight index 0
+    fireEvent.change(input, { target: { value: 'portal 2' } }); // should reset highlight
+    fireEvent.keyDown(input, { key: 'Enter' }); // should go to search, not game
+    expect(mockPush).toHaveBeenCalledWith('/search?q=portal%202');
+  });
+
+  it('should trim whitespace from search value on navigation', () => {
+    const { container } = render(<SearchBar />);
+    const input = container.querySelector('input[type="search"]') as HTMLInputElement;
+    fireEvent.change(input, { target: { value: '  portal  ' } });
+    fireEvent.keyDown(input, { key: 'Enter' });
+    expect(mockPush).toHaveBeenCalledWith('/search?q=portal');
+  });
+
+  it('should not navigate when value is only whitespace', () => {
+    const { container } = render(<SearchBar />);
+    const input = container.querySelector('input[type="search"]') as HTMLInputElement;
+    fireEvent.change(input, { target: { value: '   ' } });
+    fireEvent.keyDown(input, { key: 'Enter' });
+    expect(mockPush).not.toHaveBeenCalled();
+  });
+
+  it('should clear value and close dropdown after selecting a game', () => {
+    mockQueryData = { data: [{ title: 'Portal 2', slug: 'portal-2' }] };
+    const { container } = render(<SearchBar />);
+    const input = container.querySelector('input[type="search"]') as HTMLInputElement;
+    fireEvent.change(input, { target: { value: 'portal' } });
+    const options = container.querySelectorAll('#autocomplete-listbox li[role="option"]');
+    fireEvent.click(options[0]);
+    expect(input.value).toBe('');
+    expect(container.querySelector('#autocomplete-listbox')).toBeNull();
+  });
 });
