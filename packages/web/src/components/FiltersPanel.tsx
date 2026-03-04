@@ -6,6 +6,15 @@ import { cn } from "@/lib/utils";
 
 const STORES = ["Steam", "GOG", "Epic", "Humble", "Fanatical"] as const;
 
+const GENRES = [
+  { label: "Action", slug: "action" },
+  { label: "Adventure", slug: "adventure" },
+  { label: "RPG", slug: "rpg" },
+  { label: "Roguelike", slug: "roguelike" },
+  { label: "Metroidvania", slug: "metroidvania" },
+  { label: "Co-op", slug: "co-op" },
+] as const;
+
 const DISCOUNT_PRESETS = [
   { label: "25%+", value: 25 },
   { label: "50%+", value: 50 },
@@ -31,6 +40,7 @@ const SORT_OPTIONS = [
 
 export interface FilterValues {
   store: string;
+  genre: string;
   min_discount: number | null;
   max_price: number | null;
   sort: string;
@@ -39,6 +49,7 @@ export interface FilterValues {
 export interface FiltersPanelProps {
   values: FilterValues;
   onStoreChange: (store: string) => void;
+  onGenreChange: (genre: string) => void;
   onMinDiscountChange: (discount: number | null) => void;
   onMaxPriceChange: (price: number | null) => void;
   onSortChange: (sort: string) => void;
@@ -47,17 +58,26 @@ export interface FiltersPanelProps {
 function FilterContent({
   values,
   onStoreChange,
+  onGenreChange,
   onMinDiscountChange,
   onMaxPriceChange,
   onSortChange,
 }: FiltersPanelProps) {
   const selectedStores = values.store ? values.store.split(",") : [];
+  const selectedGenres = values.genre ? values.genre.split(",") : [];
 
   function toggleStore(store: string) {
     const updated = selectedStores.includes(store)
       ? selectedStores.filter((s) => s !== store)
       : [...selectedStores, store];
     onStoreChange(updated.join(","));
+  }
+
+  function toggleGenre(slug: string) {
+    const updated = selectedGenres.includes(slug)
+      ? selectedGenres.filter((s) => s !== slug)
+      : [...selectedGenres, slug];
+    onGenreChange(updated.join(","));
   }
 
   return (
@@ -81,6 +101,30 @@ function FilterContent({
               />
               {store}
             </label>
+          ))}
+        </div>
+      </fieldset>
+
+      {/* Genre */}
+      <fieldset>
+        <legend className="mb-2 text-sm font-semibold text-zinc-300">
+          Genre
+        </legend>
+        <div className="flex flex-wrap gap-2">
+          {GENRES.map(({ label, slug }) => (
+            <button
+              key={slug}
+              type="button"
+              onClick={() => toggleGenre(slug)}
+              className={cn(
+                "rounded-full px-3 py-1 text-sm font-medium transition-colors",
+                selectedGenres.includes(slug)
+                  ? "bg-primary text-white"
+                  : "bg-zinc-800 text-zinc-300 hover:bg-zinc-700",
+              )}
+            >
+              {label}
+            </button>
           ))}
         </div>
       </fieldset>

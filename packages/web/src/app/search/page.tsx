@@ -39,6 +39,7 @@ function SearchPageContent() {
   const {
     filters,
     setStore,
+    setGenre,
     setMinDiscount,
     setMaxPrice,
     setSort,
@@ -129,11 +130,13 @@ function SearchPageContent() {
         <FiltersPanel
           values={{
             store: filters.store,
+            genre: filters.genre,
             min_discount: filters.min_discount,
             max_price: filters.max_price,
             sort: filters.sort,
           }}
           onStoreChange={setStore}
+          onGenreChange={setGenre}
           onMinDiscountChange={setMinDiscount}
           onMaxPriceChange={setMaxPrice}
           onSortChange={setSort}

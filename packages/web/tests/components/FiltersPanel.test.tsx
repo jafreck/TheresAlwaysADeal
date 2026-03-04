@@ -32,11 +32,13 @@ describe('FiltersPanel', () => {
     defaultProps = {
       values: {
         store: '',
+        genre: '',
         min_discount: null,
         max_price: null,
         sort: 'best_match',
       },
       onStoreChange: vi.fn(),
+      onGenreChange: vi.fn(),
       onMinDiscountChange: vi.fn(),
       onMaxPriceChange: vi.fn(),
       onSortChange: vi.fn(),
