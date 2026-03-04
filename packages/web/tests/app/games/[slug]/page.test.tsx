@@ -166,6 +166,17 @@ function collectAllNodes(node: unknown): unknown[] {
   if (!node || typeof node !== "object") return [];
   const result: unknown[] = [node];
   const n = node as Record<string, unknown>;
+
+  // If node type is a mock function, call it to resolve the rendered output
+  if (typeof n.type === "function" && n.props) {
+    try {
+      const rendered = (n.type as (p: unknown) => unknown)(n.props);
+      result.push(...collectAllNodes(rendered));
+    } catch {
+      // ignore render errors
+    }
+  }
+
   if (n.props && typeof n.props === "object") {
     const p = n.props as Record<string, unknown>;
     if (Array.isArray(p.children)) {
