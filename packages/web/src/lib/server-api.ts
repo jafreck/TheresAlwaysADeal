@@ -12,6 +12,12 @@ export class ServerApiError extends Error {
   }
 }
 
+export interface Genre {
+  id: string;
+  name: string;
+  slug: string;
+}
+
 export const serverApi = {
   async get<T>(path: string, revalidate?: number): Promise<T> {
     const options: RequestInit = {};
@@ -26,5 +32,10 @@ export const serverApi = {
     }
 
     return res.json() as Promise<T>;
+  },
+
+  async getGenres(revalidate?: number): Promise<Genre[]> {
+    const res = await serverApi.get<{ data: Genre[] }>("/genres", revalidate);
+    return res.data;
   },
 };

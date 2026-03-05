@@ -22,7 +22,7 @@ export default function GenreBrowseSection() {
         {GENRES.map((genre) => (
           <Link
             key={genre.slug}
-            href={`/search?genre=${genre.slug}`}
+            href={`/games/genre/${genre.slug}`}
             className="rounded-full border border-border bg-surface px-4 py-2 text-sm font-medium transition-colors hover:bg-primary hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
           >
             {genre.name}

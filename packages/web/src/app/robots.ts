@@ -6,7 +6,7 @@ export default function robots(): MetadataRoute.Robots {
       {
         userAgent: "*",
         allow: "/",
-        disallow: ["/api/", "/admin/"],
+        disallow: ["/api/", "/dashboard"],
       },
     ],
     sitemap: "https://theresalwaysadeal.com/sitemap.xml",

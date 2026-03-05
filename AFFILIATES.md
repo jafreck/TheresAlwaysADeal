@@ -31,3 +31,7 @@ This document describes each affiliate/referral program used by TheresAlwaysADea
 - **Environment Variable:** `FANATICAL_REF`
 - **Query Parameter:** `?ref=<ref>` (appended to fanatical.com URLs)
 - **Status:** Active — Fanatical Affiliate program
+
+## Public Disclosure
+
+A user-facing affiliate disclosure page is available at [`/affiliate-disclosure`](https://theresalwaysadeal.com/affiliate-disclosure) on the website.

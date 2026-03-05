@@ -185,3 +185,12 @@ export const searchAnalytics = pgTable("search_analytics", {
   resultCount: integer("result_count").notNull(),
   searchedAt: timestamp("searched_at").defaultNow().notNull(),
 });
+
+// ─── Slug Redirects ───────────────────────────────────────────────────────────
+export const slugRedirects = pgTable("slug_redirects", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  oldSlug: varchar("old_slug", { length: 500 }).notNull().unique(),
+  newSlug: varchar("new_slug", { length: 500 }).notNull(),
+  gameId: uuid("game_id").references(() => games.id).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});

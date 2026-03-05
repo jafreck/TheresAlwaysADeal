@@ -11,6 +11,7 @@ import {
   gameGenres,
   genres,
   searchAnalytics,
+  slugRedirects,
 } from "@taad/db";
 import {
   commonQuerySchema,
@@ -268,6 +269,17 @@ app.get("/:slug", cacheMiddleware(60, getRedis), async (c) => {
     .limit(1);
 
   if (!game) {
+    // Check slug_redirects for an old slug that has been renamed
+    const [redirectEntry] = await db
+      .select({ newSlug: slugRedirects.newSlug })
+      .from(slugRedirects)
+      .where(eq(slugRedirects.oldSlug, slug))
+      .limit(1);
+
+    if (redirectEntry) {
+      return c.json({ redirect: true, newSlug: redirectEntry.newSlug }, 301);
+    }
+
     return c.json({ error: "Not found" }, 404);
   }
 

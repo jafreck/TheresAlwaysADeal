@@ -13,6 +13,7 @@ import { createAuthApp } from "./routes/auth.js";
 import { createSteamApp } from "./routes/steam.js";
 import { createUserApp } from "./routes/user.js";
 import { alertsApp } from "./routes/alerts.js";
+import { genresApp } from "./routes/genres.js";
 import { openApiApp } from "./openapi.js";
 
 const app = new Hono();
@@ -73,6 +74,12 @@ v1.route("/user", createUserApp());
 
 // Mount alerts routes (unsubscribe is public, no auth middleware)
 v1.route("/alerts", alertsApp);
+
+// Mount genres routes with 5-min cache
+const genresRouter = new Hono();
+genresRouter.use("*", cacheMiddleware(300, getRedis));
+genresRouter.route("/", genresApp);
+v1.route("/genres", genresRouter);
 
 // Mount versioned router
 app.route("/api/v1", v1);

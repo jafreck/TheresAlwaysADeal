@@ -146,4 +146,42 @@ describe("priceAlertTemplate", () => {
     expect(html).toContain(gameTitle);
     expect(html).toContain("Price Drop Alert");
   });
+
+  it("should escape HTML special characters in game title", () => {
+    const dangerousTitle = '<script>alert("xss")</script>';
+    const html = priceAlertTemplate(dangerousTitle, imageUrl, samplePrices, unsubscribeUrl);
+    expect(html).not.toContain("<script>alert");
+    expect(html).toContain("&lt;script&gt;");
+    expect(html).toContain("&quot;xss&quot;");
+  });
+
+  it("should escape ampersands in game title", () => {
+    const titleWithAmp = "Ratchet & Clank";
+    const html = priceAlertTemplate(titleWithAmp, imageUrl, samplePrices, unsubscribeUrl);
+    expect(html).toContain("Ratchet &amp; Clank");
+  });
+
+  it("should escape HTML special characters in store name", () => {
+    const dangerousPrices: PriceEntry[] = [
+      { storeName: '<b>Evil Store</b>', price: "9.99", referralUrl: "https://example.com" },
+    ];
+    const html = priceAlertTemplate(gameTitle, imageUrl, dangerousPrices, unsubscribeUrl);
+    expect(html).not.toContain("<b>Evil Store</b>");
+    expect(html).toContain("&lt;b&gt;Evil Store&lt;/b&gt;");
+  });
+
+  it("should escape HTML special characters in price", () => {
+    const dangerousPrices: PriceEntry[] = [
+      { storeName: "Steam", price: '19.99"<img>', referralUrl: "https://example.com" },
+    ];
+    const html = priceAlertTemplate(gameTitle, imageUrl, dangerousPrices, unsubscribeUrl);
+    expect(html).not.toContain('<img>');
+    expect(html).toContain("&lt;img&gt;");
+  });
+
+  it("should escape single quotes in game title", () => {
+    const titleWithQuote = "Assassin's Creed";
+    const html = priceAlertTemplate(titleWithQuote, imageUrl, samplePrices, unsubscribeUrl);
+    expect(html).toContain("Assassin&#39;s Creed");
+  });
 });

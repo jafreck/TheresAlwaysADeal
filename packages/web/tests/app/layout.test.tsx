@@ -1,4 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
+import { metadata } from '../../src/app/layout';
 
 vi.mock('next/link', () => ({
   default: function MockLink({ children, href, ...props }: Record<string, unknown>) {
@@ -30,6 +31,9 @@ vi.mock('next/script', () => ({
   },
 }));
 
+vi.mock('@/lib/sentry', () => ({
+  initSentry: vi.fn(),
+}));
 
 vi.mock('nuqs/adapters/next/app', () => ({
   NuqsAdapter: function MockNuqsAdapter({ children }: { children: unknown }) {
@@ -173,6 +177,24 @@ describe('RootLayout', () => {
     expect(hrefs).toContain('/privacy');
   });
 
+  it('should include footer link to Terms of Service', () => {
+    const element = RootLayout({ children: 'content' });
+    const footers = findElements(element, (el) => el.type === 'footer');
+    const links = findElements(footers[0], (el) => el.type === 'a');
+    const termsLink = links.find((l) => l.props.href === '/terms');
+    expect(termsLink).toBeTruthy();
+    expect(termsLink!.props.children).toBe('Terms of Service');
+  });
+
+  it('should include footer link to Affiliate Disclosure', () => {
+    const element = RootLayout({ children: 'content' });
+    const footers = findElements(element, (el) => el.type === 'footer');
+    const links = findElements(footers[0], (el) => el.type === 'a');
+    const affiliateLink = links.find((l) => l.props.href === '/affiliate-disclosure');
+    expect(affiliateLink).toBeTruthy();
+    expect(affiliateLink!.props.children).toBe('Affiliate Disclosure');
+  });
+
   it('should include focus-visible styles on footer links', () => {
     const element = RootLayout({ children: 'content' });
     const footers = findElements(element, (el) => el.type === 'footer');
@@ -293,5 +315,36 @@ describe('RootLayout', () => {
       el.type === 'div' && el.props['data-testid'] === 'query-provider',
     );
     expect(providers.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('should set metadataBase to theresalwaysadeal.com', () => {
+    expect(metadata.metadataBase).toEqual(new URL('https://theresalwaysadeal.com'));
+  });
+
+  it('should include default twitter metadata with summary_large_image card', () => {
+    const twitter = metadata.twitter as Record<string, unknown>;
+    expect(twitter.card).toBe('summary_large_image');
+    expect(twitter.title).toContain('Always a Deal');
+    expect(twitter.description).toBeDefined();
+  });
+
+  it('should call initSentry at module load time', async () => {
+    const { initSentry } = await import('@/lib/sentry');
+    expect(initSentry).toHaveBeenCalled();
+  });
+
+  describe('Plausible analytics script', () => {
+    it('should not render Plausible script when NEXT_PUBLIC_PLAUSIBLE_DOMAIN is unset', () => {
+      delete process.env.NEXT_PUBLIC_PLAUSIBLE_DOMAIN;
+      // Re-import not needed since the module captures env at load, and it's already loaded
+      // without the env var. We verify no plausible script in the current render.
+      const element = RootLayout({ children: 'content' });
+      const heads = findElements(element, (el) => el.type === 'head');
+      const scripts = findElements(heads[0], (el) => el.type === 'script');
+      const plausibleScript = scripts.find(
+        (s) => String(s.props.src ?? '').includes('plausible.io'),
+      );
+      expect(plausibleScript).toBeUndefined();
+    });
   });
 });

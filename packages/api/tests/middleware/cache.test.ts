@@ -52,6 +52,7 @@ describe("cacheMiddleware", () => {
     const body = await res.json();
     expect(body).toEqual({ cached: true });
     expect(handler).not.toHaveBeenCalled();
+    expect(res.headers.get("Cache-Control")).toBe("public, max-age=300, s-maxage=300");
   });
 
   it("should store response in cache on cache miss", async () => {
@@ -67,6 +68,7 @@ describe("cacheMiddleware", () => {
       "EX",
       60,
     );
+    expect(res.headers.get("Cache-Control")).toBe("public, max-age=60, s-maxage=60");
   });
 
   it("should sort query parameters for consistent cache keys", async () => {
@@ -113,5 +115,34 @@ describe("cacheMiddleware", () => {
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body).toEqual({ ok: true });
+  });
+
+  it("should not set Cache-Control header on non-GET requests", async () => {
+    const redis = createMockRedis();
+    app.use("*", cacheMiddleware(300, () => redis));
+    app.post("/test", (c) => c.json({ ok: true }));
+
+    const res = await app.request("/test", { method: "POST" });
+    expect(res.status).toBe(200);
+    expect(res.headers.get("Cache-Control")).toBeNull();
+  });
+
+  it("should not set Cache-Control header on non-200 responses", async () => {
+    const redis = createMockRedis();
+    app.use("*", cacheMiddleware(60, () => redis));
+    app.get("/test", (c) => c.json({ error: "bad" }, 400));
+
+    const res = await app.request("/test");
+    expect(res.status).toBe(400);
+    expect(res.headers.get("Cache-Control")).toBeNull();
+  });
+
+  it("should use the configured TTL in Cache-Control header", async () => {
+    const redis = createMockRedis();
+    app.use("*", cacheMiddleware(120, () => redis));
+    app.get("/test", (c) => c.json({ ok: true }));
+
+    const res = await app.request("/test");
+    expect(res.headers.get("Cache-Control")).toBe("public, max-age=120, s-maxage=120");
   });
 });
