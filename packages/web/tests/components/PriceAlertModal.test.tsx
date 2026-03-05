@@ -21,8 +21,8 @@ vi.mock("lucide-react", () => ({
   },
 }));
 
-vi.mock("@radix-ui/react-dialog", () => {
-  const React = require("react");
+vi.mock("@radix-ui/react-dialog", async () => {
+  const React = await import("react");
   return {
     Root: ({ children, open, onOpenChange }: { children: React.ReactNode; open: boolean; onOpenChange: (v: boolean) => void }) => {
       return <div data-testid="dialog-root" data-open={open} data-onchange={!!onOpenChange}>{children}</div>;

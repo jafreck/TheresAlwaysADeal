@@ -21,7 +21,7 @@ const mockRedisDisconnect = vi.fn();
 const mockRedisClient = { zadd: mockRedisZadd, expire: mockRedisExpire, disconnect: mockRedisDisconnect };
 
 vi.mock("ioredis", () => {
-  const Redis = vi.fn().mockImplementation(() => mockRedisClient);
+  const Redis = vi.fn().mockImplementation(function () { return mockRedisClient; });
   return { Redis };
 });
 
@@ -38,12 +38,14 @@ function makeMockQueueInstance() {
 
 // ─── Mocks ────────────────────────────────────────────────────────────────────
 vi.mock("bullmq", () => {
-  const Queue = vi.fn().mockImplementation(() => makeMockQueueInstance());
-  const Worker = vi.fn().mockImplementation(() => ({
-    on: vi.fn(),
-    close: mockWorkerClose,
-  }));
-  const QueueEvents = vi.fn().mockReturnValue({});
+  const Queue = vi.fn().mockImplementation(function () { return makeMockQueueInstance(); });
+  const Worker = vi.fn().mockImplementation(function () {
+    return {
+      on: vi.fn(),
+      close: mockWorkerClose,
+    };
+  });
+  const QueueEvents = vi.fn().mockImplementation(function () { return {}; });
   return { Queue, Worker, QueueEvents };
 });
 
@@ -55,11 +57,14 @@ vi.mock("@taad/db", () => {
   };
   return {
     db: mockDb,
-    games: { slug: "slug_col", id: "id_col" },
+    games: { slug: "slug_col", id: "id_col", steamAppId: "steam_app_id_col" },
     stores: { slug: "slug_col", id: "id_col" },
-    storeListings: { gameId: "gameId_col", storeId: "storeId_col", id: "id_col" },
+    storeListings: { gameId: "gameId_col", storeId: "storeId_col", id: "id_col", storeUrl: "storeUrl_col", storeGameId: "storeGameId_col", isAllTimeLow: "isAllTimeLow_col" },
     priceHistory: { storeListingId: "sl_col", recordedAt: "ra_col" },
-    storeListingStats: { storeListingId: "sl_stats_col" },
+    storeListingStats: { storeListingId: "sl_stats_col", allTimeLowPrice: "allTimeLowPrice_col" },
+    priceAlerts: { id: "id_col", userId: "userId_col", gameId: "gameId_col", isActive: "isActive_col", targetPrice: "targetPrice_col" },
+    users: { id: "id_col", email: "email_col", steamId: "steam_id_col" },
+    wishlists: { userId: "user_id_col", gameId: "game_id_col", source: "source_col" },
   };
 });
 
@@ -67,10 +72,19 @@ vi.mock("drizzle-orm", () => ({
   eq: vi.fn((col: unknown, val: unknown) => ({ col, val })),
   and: vi.fn((...args: unknown[]) => args),
   desc: vi.fn((col: unknown) => col),
+  isNotNull: vi.fn((col: unknown) => ({ col, op: "isNotNull" })),
+  gte: vi.fn((col: unknown, val: unknown) => ({ col, val })),
 }));
 
+const mockBuildReferralUrl = vi.fn().mockImplementation((url: string, slug: string) => `https://ref.example.com/${slug}?url=${encodeURIComponent(url)}`);
 vi.mock("@taad/scraper", () => ({
   BaseScraper: class {},
+  buildReferralUrl: (...args: unknown[]) => mockBuildReferralUrl(...args),
+}));
+
+const mockSendPriceAlert = vi.fn().mockResolvedValue(undefined);
+vi.mock("@taad/email", () => ({
+  sendPriceAlert: (...args: unknown[]) => mockSendPriceAlert(...args),
 }));
 
 // ─── Helper to build fluent DB select chain ───────────────────────────────────
@@ -116,8 +130,8 @@ function makeRequest(
 }
 
 // ─── Module imports & server startup ─────────────────────────────────────────
-let db: Awaited<typeof import("@taad/db")>["db"];
-let Worker: Awaited<typeof import("bullmq")>["Worker"];
+let db: any;
+let Worker: any;
 let startupQueueAddCalls: unknown[][] = [];
 
 beforeAll(async () => {
@@ -357,7 +371,7 @@ describe("ingest worker processor", () => {
     await processor(mockJob);
 
     // db.insert should have been called only for the game upsert, NOT for priceHistory
-    const priceHistoryCalls = insertSpy.mock.calls.filter(
+    const _priceHistoryCalls = insertSpy.mock.calls.filter(
       ([table]: [{ storeListingId: unknown }]) => table === "priceHistory_mock",
     );
     // The key assertion: priceHistory insert is NOT called because nothing changed
@@ -695,5 +709,652 @@ describe("featured scrape worker", () => {
       { retailerDomain: "steam" },
       expect.objectContaining({ repeat: { pattern: process.env.SCRAPE_CRON ?? "0 */6 * * *" } }),
     );
+  });
+});
+
+// ─── Steam Sync Worker tests ──────────────────────────────────────────────────
+describe("steam sync worker", () => {
+  it("should create a Worker for the 'steam-sync' queue", () => {
+    const calls = vi.mocked(Worker).mock.calls;
+    const steamSyncCall = calls.find(([name]) => name === "steam-sync");
+    expect(steamSyncCall).toBeDefined();
+  });
+
+  function getSteamSyncProcessor(): (job: unknown) => Promise<void> {
+    const calls = vi.mocked(Worker).mock.calls;
+    const steamSyncCall = calls.find(([name]) => name === "steam-sync");
+    if (!steamSyncCall) throw new Error("Steam sync Worker was not created");
+    return steamSyncCall[1] as (job: unknown) => Promise<void>;
+  }
+
+  it("should query users where steamId IS NOT NULL and fetch wishlists", async () => {
+    const mockUser = { id: "user-1", steamId: "76561198000000001" };
+    const mockGame = { id: "game-1", steamAppId: 400 };
+
+    (db.select as ReturnType<typeof vi.fn>)
+      .mockReturnValueOnce(buildSelectChain([mockUser])) // users with steamId
+      .mockReturnValueOnce(buildSelectChain([mockGame])) // game match
+      .mockReturnValueOnce(buildSelectChain([])); // no existing wishlist entry
+
+    const insertChain = {
+      values: vi.fn().mockResolvedValue(undefined),
+    };
+    (db.insert as ReturnType<typeof vi.fn>).mockReturnValue(insertChain);
+
+    const mockFetch = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      new Response(JSON.stringify({ "400": { name: "Portal" } }), { status: 200 }),
+    );
+
+    const processor = getSteamSyncProcessor();
+    await processor({});
+
+    expect(mockFetch).toHaveBeenCalledWith(
+      "https://store.steampowered.com/wishlist/profiles/76561198000000001/wishlistdata/",
+    );
+    expect(db.insert).toHaveBeenCalled();
+    expect(insertChain.values).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: "user-1", gameId: "game-1", source: "steam_sync" }),
+    );
+
+    mockFetch.mockRestore();
+  });
+
+  it("should handle private wishlists gracefully (non-200 response)", async () => {
+    const mockUser = { id: "user-2", steamId: "76561198000000002" };
+
+    (db.select as ReturnType<typeof vi.fn>)
+      .mockReturnValueOnce(buildSelectChain([mockUser]));
+
+    const mockFetch = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      new Response("", { status: 403 }),
+    );
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    const processor = getSteamSyncProcessor();
+    await expect(processor({})).resolves.toBeUndefined();
+
+    expect(warnSpy).toHaveBeenCalled();
+    mockFetch.mockRestore();
+    warnSpy.mockRestore();
+  });
+
+  it("should handle empty wishlists gracefully", async () => {
+    const mockUser = { id: "user-3", steamId: "76561198000000003" };
+
+    (db.select as ReturnType<typeof vi.fn>)
+      .mockReturnValueOnce(buildSelectChain([mockUser]));
+
+    const mockFetch = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      new Response(JSON.stringify({}), { status: 200 }),
+    );
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    const processor = getSteamSyncProcessor();
+    await expect(processor({})).resolves.toBeUndefined();
+
+    expect(warnSpy).toHaveBeenCalled();
+    mockFetch.mockRestore();
+    warnSpy.mockRestore();
+  });
+
+  it("should do nothing when no users have a steamId", async () => {
+    (db.select as ReturnType<typeof vi.fn>)
+      .mockReturnValueOnce(buildSelectChain([])); // no users
+
+    const mockFetch = vi.spyOn(globalThis, "fetch");
+
+    const processor = getSteamSyncProcessor();
+    await expect(processor({})).resolves.toBeUndefined();
+
+    // fetch should never be called when there are no users
+    expect(mockFetch).not.toHaveBeenCalled();
+    mockFetch.mockRestore();
+  });
+
+  it("should skip appIds that do not match any game in the database", async () => {
+    const mockUser = { id: "user-4", steamId: "76561198000000004" };
+
+    (db.select as ReturnType<typeof vi.fn>)
+      .mockReturnValueOnce(buildSelectChain([mockUser])) // users
+      .mockReturnValueOnce(buildSelectChain([])); // no game match for appId
+
+    (db.insert as ReturnType<typeof vi.fn>).mockClear();
+
+    const mockFetch = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      new Response(JSON.stringify({ "99999": { name: "Unknown Game" } }), { status: 200 }),
+    );
+
+    const processor = getSteamSyncProcessor();
+    await processor({});
+
+    // insert should NOT be called because the game was not found
+    expect(db.insert).not.toHaveBeenCalled();
+
+    mockFetch.mockRestore();
+  });
+
+  it("should handle fetch throwing a network error gracefully", async () => {
+    const mockUser = { id: "user-5", steamId: "76561198000000005" };
+
+    (db.select as ReturnType<typeof vi.fn>)
+      .mockReturnValueOnce(buildSelectChain([mockUser]));
+
+    const mockFetch = vi.spyOn(globalThis, "fetch").mockRejectedValueOnce(
+      new Error("Network error"),
+    );
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    const processor = getSteamSyncProcessor();
+    await expect(processor({})).resolves.toBeUndefined();
+
+    expect(warnSpy).toHaveBeenCalled();
+    const warnArg = warnSpy.mock.calls[0]?.[0] as string;
+    expect(warnArg).toContain("steam-sync-error");
+    expect(warnArg).toContain("user-5");
+
+    mockFetch.mockRestore();
+    warnSpy.mockRestore();
+  });
+
+  it("should process multiple users independently", async () => {
+    const user1 = { id: "user-a", steamId: "76561198000000010" };
+    const user2 = { id: "user-b", steamId: "76561198000000011" };
+    const mockGameA = { id: "game-a", steamAppId: 10 };
+
+    (db.select as ReturnType<typeof vi.fn>)
+      .mockReturnValueOnce(buildSelectChain([user1, user2])) // both users
+      .mockReturnValueOnce(buildSelectChain([mockGameA])) // user1's game match
+      .mockReturnValueOnce(buildSelectChain([])) // no existing wishlist for user1/game-a
+      .mockReturnValueOnce(buildSelectChain([])); // user2's game not found
+
+    const insertChain = {
+      values: vi.fn().mockResolvedValue(undefined),
+    };
+    (db.insert as ReturnType<typeof vi.fn>).mockReturnValue(insertChain);
+
+    const mockFetch = vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ "10": { name: "GameA" } }), { status: 200 }),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ "20": { name: "GameB" } }), { status: 200 }),
+      );
+
+    const processor = getSteamSyncProcessor();
+    await processor({});
+
+    // fetch called once per user
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+    // insert only for user1 (user2's game not found)
+    expect(insertChain.values).toHaveBeenCalledTimes(1);
+    expect(insertChain.values).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: "user-a", gameId: "game-a", source: "steam_sync" }),
+    );
+
+    mockFetch.mockRestore();
+  });
+
+  it("should upsert multiple wishlist entries when wishlist has multiple matching appIds", async () => {
+    const mockUser = { id: "user-6", steamId: "76561198000000006" };
+    const game1 = { id: "game-x", steamAppId: 400 };
+    const game2 = { id: "game-y", steamAppId: 440 };
+
+    (db.select as ReturnType<typeof vi.fn>)
+      .mockReturnValueOnce(buildSelectChain([mockUser])) // users
+      .mockReturnValueOnce(buildSelectChain([game1])) // match for appId 400
+      .mockReturnValueOnce(buildSelectChain([])) // no existing wishlist for game-x
+      .mockReturnValueOnce(buildSelectChain([game2])) // match for appId 440
+      .mockReturnValueOnce(buildSelectChain([])); // no existing wishlist for game-y
+
+    const insertChain = {
+      values: vi.fn().mockResolvedValue(undefined),
+    };
+    (db.insert as ReturnType<typeof vi.fn>).mockReturnValue(insertChain);
+
+    const mockFetch = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      new Response(JSON.stringify({ "400": { name: "Portal" }, "440": { name: "TF2" } }), { status: 200 }),
+    );
+
+    const processor = getSteamSyncProcessor();
+    await processor({});
+
+    expect(insertChain.values).toHaveBeenCalledTimes(2);
+    expect(insertChain.values).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: "user-6", gameId: "game-x" }),
+    );
+    expect(insertChain.values).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: "user-6", gameId: "game-y" }),
+    );
+
+    mockFetch.mockRestore();
+  });
+
+  it("should have concurrency 1 for the steam-sync worker", () => {
+    const calls = vi.mocked(Worker).mock.calls;
+    const steamSyncCall = calls.find(([name]) => name === "steam-sync");
+    expect(steamSyncCall).toBeDefined();
+    const opts = steamSyncCall![2] as { concurrency: number };
+    expect(opts.concurrency).toBe(1);
+  });
+
+  it("should schedule a steam-sync-all CRON job on startup", () => {
+    const steamSyncCall = startupQueueAddCalls.find(([name]) => name === "steam-sync-all");
+    expect(steamSyncCall).toBeDefined();
+    expect(steamSyncCall![2]).toMatchObject({ repeat: { pattern: expect.any(String) } });
+  });
+
+  it("should schedule steam-sync-all with STEAM_SYNC_CRON pattern", () => {
+    const steamSyncCall = startupQueueAddCalls.find(([name]) => name === "steam-sync-all");
+    expect(steamSyncCall).toBeDefined();
+    expect(steamSyncCall![2]).toMatchObject({
+      repeat: { pattern: process.env.STEAM_SYNC_CRON ?? "0 0 * * *" },
+    });
+  });
+
+  it("should include steamSyncWorker in SIGTERM graceful shutdown", async () => {
+    // The SIGTERM handler calls close() on all workers including steamSyncWorker.
+    // mockWorkerClose is shared across all Worker instances; the afterAll block
+    // triggers SIGTERM and we verify the expected call count (4 workers total).
+    // This test just verifies the worker was created — shutdown is covered by afterAll.
+    const calls = vi.mocked(Worker).mock.calls;
+    const steamSyncCall = calls.find(([name]) => name === "steam-sync");
+    expect(steamSyncCall).toBeDefined();
+  });
+
+  it("should log a warning and continue when fetch throws for a user", async () => {
+    const mockUser1 = { id: "user-5", steamId: "76561198000000005" };
+    const mockUser2 = { id: "user-6", steamId: "76561198000000006" };
+    const mockGame = { id: "game-2", steamAppId: 500 };
+
+    (db.select as ReturnType<typeof vi.fn>)
+      .mockReturnValueOnce(buildSelectChain([mockUser1, mockUser2])) // two users
+      .mockReturnValueOnce(buildSelectChain([mockGame])) // game match for user-6
+      .mockReturnValueOnce(buildSelectChain([])); // no existing wishlist for user-6/game-2
+
+    const insertChain = {
+      values: vi.fn().mockResolvedValue(undefined),
+    };
+    (db.insert as ReturnType<typeof vi.fn>).mockReturnValue(insertChain);
+
+    let fetchCallCount = 0;
+    const mockFetch = vi.spyOn(globalThis, "fetch").mockImplementation(async (_url) => {
+      fetchCallCount++;
+      if (fetchCallCount === 1) {
+        throw new Error("Connection refused");
+      }
+      return new Response(JSON.stringify({ "500": { name: "Game" } }), { status: 200 });
+    });
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    const processor = getSteamSyncProcessor();
+    await expect(processor({})).resolves.toBeUndefined();
+
+    // Should have warned about the first user's failure
+    expect(warnSpy).toHaveBeenCalled();
+    const warnCall = warnSpy.mock.calls[0][0] as string;
+    expect(warnCall).toContain("steam-sync-error");
+    expect(warnCall).toContain("user-5");
+
+    mockFetch.mockRestore();
+    warnSpy.mockRestore();
+  });
+});
+
+// ─── Notification Worker (processNotification) tests ──────────────────────────
+describe("price-drop worker processor (processNotification)", () => {
+  function getPriceDropProcessor(): (job: unknown) => Promise<void> {
+    const calls = vi.mocked(Worker).mock.calls;
+    const call = calls.find(([name]) => name === "price-drop");
+    if (!call) throw new Error("price-drop Worker was not created");
+    return call[1] as (job: unknown) => Promise<void>;
+  }
+
+  it("should create a Worker for the 'price-drop' queue", () => {
+    const calls = vi.mocked(Worker).mock.calls;
+    const call = calls.find(([name]) => name === "price-drop");
+    expect(call).toBeDefined();
+  });
+
+  it("should enqueue email jobs for matching alerts", async () => {
+    const matchingAlerts = [
+      { alertId: "alert-1", userId: "user-1", email: "user1@example.com" },
+      { alertId: "alert-2", userId: "user-2", email: "user2@example.com" },
+    ];
+    const mockGame = { id: "game-1", title: "Portal" };
+    const mockListing = { id: "listing-1", storeUrl: "https://store.steam.com/portal", storeId: "store-1" };
+    const mockStore = { id: "store-1", slug: "steam" };
+
+    // Build a select chain that also supports innerJoin
+    const alertSelectChain = buildSelectChain(matchingAlerts);
+    (alertSelectChain as any).innerJoin = vi.fn().mockReturnValue(alertSelectChain);
+
+    (db.select as ReturnType<typeof vi.fn>)
+      .mockReturnValueOnce(alertSelectChain) // matching alerts with innerJoin
+      .mockReturnValueOnce(buildSelectChain([mockGame])) // game lookup
+      .mockReturnValueOnce(buildSelectChain([mockListing])) // listing lookup
+      .mockReturnValueOnce(buildSelectChain([mockStore])); // store lookup
+
+    mockQueueAdd.mockClear();
+
+    const processor = getPriceDropProcessor();
+    await processor({
+      data: { storeListingId: "listing-1", newPrice: 9.99, gameId: "game-1", previousPrice: 19.99 },
+    });
+
+    expect(mockQueueAdd).toHaveBeenCalledTimes(2);
+    expect(mockQueueAdd).toHaveBeenCalledWith(
+      "send-price-alert",
+      expect.objectContaining({
+        userId: "user-1",
+        alertId: "alert-1",
+        email: "user1@example.com",
+        gameTitle: "Portal",
+        newPrice: 9.99,
+      }),
+    );
+    expect(mockQueueAdd).toHaveBeenCalledWith(
+      "send-price-alert",
+      expect.objectContaining({
+        userId: "user-2",
+        alertId: "alert-2",
+        email: "user2@example.com",
+      }),
+    );
+  });
+
+  it("should return early when no alerts match", async () => {
+    const alertSelectChain = buildSelectChain([]);
+    (alertSelectChain as any).innerJoin = vi.fn().mockReturnValue(alertSelectChain);
+
+    (db.select as ReturnType<typeof vi.fn>)
+      .mockReturnValueOnce(alertSelectChain); // no matching alerts
+
+    mockQueueAdd.mockClear();
+
+    const processor = getPriceDropProcessor();
+    await processor({
+      data: { storeListingId: "listing-1", newPrice: 9.99, gameId: "game-1" },
+    });
+
+    expect(mockQueueAdd).not.toHaveBeenCalled();
+  });
+
+  it("should return early when game is not found", async () => {
+    const alertSelectChain = buildSelectChain([
+      { alertId: "alert-1", userId: "user-1", email: "user@example.com" },
+    ]);
+    (alertSelectChain as any).innerJoin = vi.fn().mockReturnValue(alertSelectChain);
+
+    (db.select as ReturnType<typeof vi.fn>)
+      .mockReturnValueOnce(alertSelectChain) // matching alerts
+      .mockReturnValueOnce(buildSelectChain([])); // game NOT found
+
+    mockQueueAdd.mockClear();
+
+    const processor = getPriceDropProcessor();
+    await processor({
+      data: { storeListingId: "listing-1", newPrice: 9.99, gameId: "game-1" },
+    });
+
+    expect(mockQueueAdd).not.toHaveBeenCalled();
+  });
+
+  it("should return early when listing is not found", async () => {
+    const alertSelectChain = buildSelectChain([
+      { alertId: "alert-1", userId: "user-1", email: "user@example.com" },
+    ]);
+    (alertSelectChain as any).innerJoin = vi.fn().mockReturnValue(alertSelectChain);
+
+    (db.select as ReturnType<typeof vi.fn>)
+      .mockReturnValueOnce(alertSelectChain) // matching alerts
+      .mockReturnValueOnce(buildSelectChain([{ id: "game-1", title: "Portal" }])) // game found
+      .mockReturnValueOnce(buildSelectChain([])); // listing NOT found
+
+    mockQueueAdd.mockClear();
+
+    const processor = getPriceDropProcessor();
+    await processor({
+      data: { storeListingId: "listing-1", newPrice: 9.99, gameId: "game-1" },
+    });
+
+    expect(mockQueueAdd).not.toHaveBeenCalled();
+  });
+
+  it("should use empty string for storeSlug when store is not found", async () => {
+    const alertSelectChain = buildSelectChain([
+      { alertId: "alert-1", userId: "user-1", email: "user@example.com" },
+    ]);
+    (alertSelectChain as any).innerJoin = vi.fn().mockReturnValue(alertSelectChain);
+
+    (db.select as ReturnType<typeof vi.fn>)
+      .mockReturnValueOnce(alertSelectChain)
+      .mockReturnValueOnce(buildSelectChain([{ id: "game-1", title: "Portal" }]))
+      .mockReturnValueOnce(buildSelectChain([{ id: "listing-1", storeUrl: "https://store.com", storeId: "store-1" }]))
+      .mockReturnValueOnce(buildSelectChain([])); // store NOT found
+
+    mockQueueAdd.mockClear();
+
+    const processor = getPriceDropProcessor();
+    await processor({
+      data: { storeListingId: "listing-1", newPrice: 9.99, gameId: "game-1" },
+    });
+
+    expect(mockQueueAdd).toHaveBeenCalledWith(
+      "send-price-alert",
+      expect.objectContaining({ storeSlug: "" }),
+    );
+  });
+});
+
+describe("all-time-low worker processor", () => {
+  it("should create a Worker for the 'all-time-low' queue", () => {
+    const calls = vi.mocked(Worker).mock.calls;
+    const call = calls.find(([name]) => name === "all-time-low");
+    expect(call).toBeDefined();
+  });
+
+  it("should delegate to processNotification (same logic as price-drop)", async () => {
+    function getAllTimeLowProcessor(): (job: unknown) => Promise<void> {
+      const calls = vi.mocked(Worker).mock.calls;
+      const call = calls.find(([name]) => name === "all-time-low");
+      if (!call) throw new Error("all-time-low Worker was not created");
+      return call[1] as (job: unknown) => Promise<void>;
+    }
+
+    const alertSelectChain = buildSelectChain([]);
+    (alertSelectChain as any).innerJoin = vi.fn().mockReturnValue(alertSelectChain);
+
+    (db.select as ReturnType<typeof vi.fn>)
+      .mockReturnValueOnce(alertSelectChain); // no matching alerts
+
+    mockQueueAdd.mockClear();
+
+    const processor = getAllTimeLowProcessor();
+    await processor({
+      data: { storeListingId: "listing-1", newPrice: 4.99, gameId: "game-1" },
+    });
+
+    // Should return early since no matching alerts
+    expect(mockQueueAdd).not.toHaveBeenCalled();
+  });
+});
+
+// ─── Email Worker tests ───────────────────────────────────────────────────────
+describe("email worker processor", () => {
+  function getEmailProcessor(): (job: unknown) => Promise<void> {
+    const calls = vi.mocked(Worker).mock.calls;
+    const call = calls.find(([name]) => name === "email");
+    if (!call) throw new Error("email Worker was not created");
+    return call[1] as (job: unknown) => Promise<void>;
+  }
+
+  it("should create a Worker for the 'email' queue", () => {
+    const calls = vi.mocked(Worker).mock.calls;
+    const call = calls.find(([name]) => name === "email");
+    expect(call).toBeDefined();
+  });
+
+  it("should call sendPriceAlert with correct data", async () => {
+    mockSendPriceAlert.mockClear();
+    mockBuildReferralUrl.mockClear();
+
+    const processor = getEmailProcessor();
+    await processor({
+      data: {
+        userId: "user-1",
+        alertId: "alert-1",
+        email: "user@example.com",
+        gameTitle: "Portal",
+        gameId: "game-1",
+        storeListingId: "listing-1",
+        storeUrl: "https://store.steam.com/portal",
+        storeSlug: "steam",
+        newPrice: 9.99,
+        previousPrice: 19.99,
+      },
+    });
+
+    expect(mockBuildReferralUrl).toHaveBeenCalledWith("https://store.steam.com/portal", "steam");
+    expect(mockSendPriceAlert).toHaveBeenCalledWith(
+      "user-1",
+      "alert-1",
+      expect.objectContaining({
+        gameTitle: "Portal",
+        prices: expect.arrayContaining([
+          expect.objectContaining({
+            storeName: "steam",
+            price: "$9.99",
+          }),
+        ]),
+      }),
+      "user@example.com",
+      "listing-1",
+      "9.99",
+    );
+  });
+
+  it("should include unsubscribeUrl using APP_URL env var", async () => {
+    const origAppUrl = process.env.APP_URL;
+    process.env.APP_URL = "https://myapp.example.com";
+    mockSendPriceAlert.mockClear();
+
+    const processor = getEmailProcessor();
+    await processor({
+      data: {
+        userId: "user-1",
+        alertId: "alert-42",
+        email: "user@example.com",
+        gameTitle: "Test",
+        gameId: "game-1",
+        storeListingId: "listing-1",
+        storeUrl: "https://store.com",
+        storeSlug: "steam",
+        newPrice: 5.0,
+      },
+    });
+
+    const priceData = mockSendPriceAlert.mock.calls[0][2];
+    expect(priceData.unsubscribeUrl).toBe("https://myapp.example.com/api/v1/alerts/alert-42/unsubscribe");
+
+    if (origAppUrl === undefined) {
+      delete process.env.APP_URL;
+    } else {
+      process.env.APP_URL = origAppUrl;
+    }
+  });
+
+  it("should fallback to localhost:3000 for unsubscribeUrl when APP_URL not set", async () => {
+    const origAppUrl = process.env.APP_URL;
+    delete process.env.APP_URL;
+    mockSendPriceAlert.mockClear();
+
+    const processor = getEmailProcessor();
+    await processor({
+      data: {
+        userId: "user-1",
+        alertId: "alert-99",
+        email: "user@example.com",
+        gameTitle: "Test",
+        gameId: "game-1",
+        storeListingId: "listing-1",
+        storeUrl: "https://store.com",
+        storeSlug: "steam",
+        newPrice: 5.0,
+      },
+    });
+
+    const priceData = mockSendPriceAlert.mock.calls[0][2];
+    expect(priceData.unsubscribeUrl).toBe("http://localhost:3000/api/v1/alerts/alert-99/unsubscribe");
+
+    if (origAppUrl !== undefined) {
+      process.env.APP_URL = origAppUrl;
+    }
+  });
+
+  it("should handle sendPriceAlert failure gracefully", async () => {
+    mockSendPriceAlert.mockRejectedValueOnce(new Error("SMTP error"));
+    const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const processor = getEmailProcessor();
+    await expect(
+      processor({
+        data: {
+          userId: "user-1",
+          alertId: "alert-fail",
+          email: "user@example.com",
+          gameTitle: "Test",
+          gameId: "game-1",
+          storeListingId: "listing-1",
+          storeUrl: "https://store.com",
+          storeSlug: "steam",
+          newPrice: 5.0,
+        },
+      }),
+    ).resolves.toBeUndefined();
+
+    expect(consoleSpy).toHaveBeenCalledWith(
+      expect.stringContaining("[email-worker] Failed to send price alert for alert alert-fail"),
+      expect.any(Error),
+    );
+    consoleSpy.mockRestore();
+  });
+
+  it("should format price with two decimal places", async () => {
+    mockSendPriceAlert.mockClear();
+
+    const processor = getEmailProcessor();
+    await processor({
+      data: {
+        userId: "user-1",
+        alertId: "alert-1",
+        email: "user@example.com",
+        gameTitle: "Test",
+        gameId: "game-1",
+        storeListingId: "listing-1",
+        storeUrl: "https://store.com",
+        storeSlug: "gog",
+        newPrice: 5,
+      },
+    });
+
+    const priceData = mockSendPriceAlert.mock.calls[0][2];
+    expect(priceData.prices[0].price).toBe("$5.00");
+  });
+});
+
+// ─── Graceful Shutdown tests ──────────────────────────────────────────────────
+describe("graceful shutdown", () => {
+  it("should close all workers including new notification and email workers on SIGTERM", () => {
+    // The afterAll hook already calls process.emit("SIGTERM") and verifies cleanup.
+    // Here we just verify that all 6 workers were created.
+    const calls = vi.mocked(Worker).mock.calls;
+    const workerNames = calls.map(([name]) => name);
+    expect(workerNames).toContain("scrape");
+    expect(workerNames).toContain("ingest");
+    expect(workerNames).toContain("featured-scrape");
+    expect(workerNames).toContain("price-drop");
+    expect(workerNames).toContain("all-time-low");
+    expect(workerNames).toContain("email");
+    expect(workerNames).toContain("steam-sync");
   });
 });

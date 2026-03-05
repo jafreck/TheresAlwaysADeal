@@ -1,0 +1,96 @@
+{
+  "agent": "code-reviewer",
+  "issueNumber": 21,
+  "projectName": "theresalwaysadeal",
+  "repository": "jafreck/TheresAlwaysADeal",
+  "worktreePath": "/Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-21",
+  "phase": 3,
+  "sessionId": "session-003",
+  "config": {
+    "commands": {
+      "install": "npm install",
+      "build": "npm run build",
+      "test": "npx vitest run",
+      "lint": "npm run lint"
+    }
+  },
+  "inputFiles": [
+    "/Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-21/.cadre/issues/21/diff-session-003.patch",
+    "/Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-21/.cadre/issues/21/session-session-003.md",
+    "/Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-21/.cadre/issues/21/analysis.md",
+    "/Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-21/.cadre/issues/21/scout-report.md"
+  ],
+  "outputPath": "/Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-21/.cadre/issues/21/review-session-003.md",
+  "payload": {
+    "sessionId": "session-003",
+    "acceptanceCriteria": [
+      "`slackNotificationQueue` is exported with queue name 'slack-notification'",
+      "`slackNotificationQueueEvents` is exported for the same queue name",
+      "Existing queue exports are unchanged",
+      "Queue tests assert the new queue and queue events are created",
+      "A new BullMQ Worker consumes from the 'slack-notification' queue",
+      "Worker resolves webhook URL with per-alert priority over global user webhook",
+      "Worker decrypts the webhook URL using AES-256-GCM (same encryption utility pattern as API)",
+      "Worker POSTs Slack Block Kit JSON with game image, price, discount, buy link",
+      "On 4xx from Slack, the webhook column is set to null and the email stub is called",
+      "On 5xx or network error, the job retries up to 3 times with exponential backoff (BullMQ backoff config)",
+      "Each notification attempt is logged to `alertNotifications` with `channel = 'slack'`",
+      "The ingest worker enqueues a job to `slackNotificationQueue` when a price-drop or all-time-low event is detected for a user with a configured Slack webhook",
+      "The new worker is closed in the graceful shutdown handler"
+    ],
+    "issueBody": "## Overview\nAllow users to receive price alert notifications via Slack by configuring a Slack Incoming Webhook URL in their profile or per-alert settings.\n\n## How It Works\nUsers generate a Slack Incoming Webhook URL in their Slack workspace and paste it into our app. No Slack OAuth app installation required.\n\n**To generate a webhook:**\n1. Go to `https://api.slack.com/apps` → Create App → Incoming Webhooks\n2. Enable webhooks and add to a channel\n3. Copy the webhook URL (format: `https://hooks.slack.com/services/T.../B.../...`)\n\n## Notification Message Format (Block Kit)\n\n```json\n{\n  \"blocks\": [\n    {\n      \"type\": \"section\",\n      \"text\": {\n        \"type\": \"mrkdwn\",\n        \"text\": \":fire: *Price Alert: The Witcher 3*\\n75% off — now *$4.99* (was $19.99) on GOG\"\n      },\n      \"accessory\": {\n        \"type\": \"image\",\n        \"image_url\": \"https://cdn.../cover.jpg\",\n        \"alt_text\": \"The Witcher 3\"\n      }\n    },\n    {\n      \"type\": \"actions\",\n      \"elements\": [\n        { \"type\": \"button\", \"text\": { \"type\": \"plain_text\", \"text\": \"Buy on GOG\" }, \"url\": \"https://gog.com/...\" },\n        { \"type\": \"button\", \"text\": { \"type\": \"plain_text\", \"text\": \"See all prices\" }, \"url\": \"https://theresalwaysadeal.com/games/...\" }\n      ]\n    }\n  ]\n}\n```\n\n## Tasks\n- [ ] Add `notify_slack_webhook` field to `price_alerts` and `users` (already in schema from #2)\n- [ ] Implement `SlackNotificationService.sendPriceAlert(webhookUrl, alertData)`:\n  - `POST` the Block Kit JSON payload to the webhook URL\n  - Handle 4xx errors (invalid webhook) — disable the webhook and notify user via email\n  - Handle 5xx / network errors — retry up to 3 times with exponential backoff\n- [ ] Consume from the same notification job queue as the email service (#20)\n- [ ] Add a \"Test Notification\" endpoint: `POST /api/user/me/alerts/test-slack` — sends a test message to the configured webhook\n- [ ] Store Slack webhook URLs encrypted at rest (AES-256)\n- [ ] Log all notification attempts in `alert_notifications` table with `channel = 'slack'`\n\n## Acceptance Criteria\n- Users can add a Slack webhook URL per alert or globally in their profile\n- Price alert messages are delivered to Slack with game image and buy links\n- Invalid webhook URLs are caught and reported to the user via email\n- Test notification endpoint confirms webhook is working\n\n## Dependencies\n- #19 Price Watchlist & Alert Rules API\n- #16 User Profile Management API"
+  },
+  "outputSchema": {
+    "type": "object",
+    "properties": {
+      "verdict": {
+        "type": "string",
+        "enum": [
+          "pass",
+          "needs-fixes"
+        ]
+      },
+      "issues": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "file": {
+              "type": "string"
+            },
+            "line": {
+              "type": "number"
+            },
+            "severity": {
+              "type": "string",
+              "enum": [
+                "error",
+                "warning",
+                "suggestion"
+              ]
+            },
+            "description": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "file",
+            "severity",
+            "description"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "summary": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "verdict",
+      "issues",
+      "summary"
+    ],
+    "additionalProperties": false,
+    "$schema": "http://json-schema.org/draft-07/schema#"
+  }
+}

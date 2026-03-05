@@ -1,0 +1,77 @@
+• turbo 2.8.10
+@taad/web:build: ERROR: command finished with error: command (/Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-25/packages/web) /opt/homebrew/bin/pnpm run build exited (1)
+@taad/web#build: command (/Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-25/packages/web) /opt/homebrew/bin/pnpm run build exited (1)
+ ERROR  run failed: command  exited (1)
+
+> theres-always-a-deal@0.0.1 build
+> turbo run build
+
+• Packages in scope: @taad/api, @taad/db, @taad/scraper, @taad/web, @taad/worker
+• Running build in 5 packages
+• Remote caching disabled, using shared worktree cache
+@taad/db:build: cache hit, replaying logs e2efb2f232598317
+@taad/db:build: 
+@taad/db:build: > @taad/db@0.0.1 build /Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-25/packages/db
+@taad/db:build: > tsc -p tsconfig.json
+@taad/db:build: 
+@taad/web:build: cache miss, executing 304626546ac55f9c
+@taad/scraper:build: cache hit, replaying logs a3c88866539013d7
+@taad/scraper:build: 
+@taad/scraper:build: > @taad/scraper@0.0.1 build /Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-17/packages/scraper
+@taad/scraper:build: > tsc -p tsconfig.json
+@taad/scraper:build: 
+@taad/worker:build: cache hit, replaying logs 2b3224a68403302b
+@taad/worker:build: 
+@taad/worker:build: > @taad/worker@0.0.1 build /Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-17/packages/worker
+@taad/worker:build: > tsc -p tsconfig.json
+@taad/worker:build: 
+@taad/api:build: cache hit, replaying logs 72523e78e35e28d4
+@taad/api:build: 
+@taad/api:build: > @taad/api@0.0.1 build /Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-25/packages/api
+@taad/api:build: > tsc -p tsconfig.json
+@taad/api:build: 
+@taad/web:build: 
+@taad/web:build: > @taad/web@0.0.1 build /Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-25/packages/web
+@taad/web:build: > next build
+@taad/web:build: 
+@taad/web:build:  ⚠ Warning: Next.js inferred your workspace root, but it may not be correct.
+@taad/web:build:  We detected multiple lockfiles and selected the directory of /Users/jacobfreck/Source/cadre/package-lock.json as the root directory.
+@taad/web:build:  To silence this warning, set `outputFileTracingRoot` in your Next.js config, or consider removing one of the lockfiles if it's not needed.
+@taad/web:build:    See https://nextjs.org/docs/app/api-reference/config/next-config-js/output#caveats for more information.
+@taad/web:build:  Detected additional lockfiles: 
+@taad/web:build:    * /Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-25/pnpm-lock.yaml
+@taad/web:build: 
+@taad/web:build:    ▲ Next.js 15.5.12
+@taad/web:build: 
+@taad/web:build:    Creating an optimized production build ...
+@taad/web:build: Failed to compile.
+@taad/web:build: 
+@taad/web:build: ./src/app/forgot-password/page.tsx
+@taad/web:build: Module not found: Can't resolve '@hookform/resolvers/zod'
+@taad/web:build: 
+@taad/web:build: https://nextjs.org/docs/messages/module-not-found
+@taad/web:build: 
+@taad/web:build: ./src/app/login/page.tsx
+@taad/web:build: Module not found: Can't resolve '@hookform/resolvers/zod'
+@taad/web:build: 
+@taad/web:build: https://nextjs.org/docs/messages/module-not-found
+@taad/web:build: 
+@taad/web:build: ./src/app/register/page.tsx
+@taad/web:build: Module not found: Can't resolve '@hookform/resolvers/zod'
+@taad/web:build: 
+@taad/web:build: https://nextjs.org/docs/messages/module-not-found
+@taad/web:build: 
+@taad/web:build: ./src/app/reset-password/page.tsx
+@taad/web:build: Module not found: Can't resolve '@hookform/resolvers/zod'
+@taad/web:build: 
+@taad/web:build: https://nextjs.org/docs/messages/module-not-found
+@taad/web:build: 
+@taad/web:build: 
+@taad/web:build: > Build failed because of webpack errors
+@taad/web:build:  ELIFECYCLE  Command failed with exit code 1.
+
+ Tasks:    4 successful, 5 total
+Cached:    4 cached, 5 total
+  Time:    3.945s 
+Failed:    @taad/web#build
+

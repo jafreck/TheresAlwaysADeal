@@ -44,7 +44,7 @@ function collectAll(element: any): any[] {
   return results;
 }
 
-function findByType(element: any, type: string | Function): any[] {
+function findByType(element: any, type: string | ((...args: any[]) => any)): any[] {
   return collectAll(element).filter((el) => el.type === type);
 }
 

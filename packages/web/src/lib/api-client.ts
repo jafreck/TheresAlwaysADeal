@@ -45,6 +45,7 @@ async function request<T>(
   const res = await fetch(`${BASE_URL}${path}`, {
     method,
     headers: getHeaders(),
+    credentials: "include",
     body: body != null ? JSON.stringify(body) : undefined,
   });
 
@@ -126,6 +127,42 @@ export interface PriceAlertResponse {
   createdAt: string;
 }
 
+
+export interface SearchGamesParams {
+  q: string;
+  page?: number;
+  limit?: number;
+  store?: string;
+  genre?: string;
+  min_discount?: number;
+  max_price?: number;
+  sort?: string;
+}
+
+export interface AutocompleteParams {
+  q: string;
+  limit?: number;
+}
+
+export interface AutocompleteItem {
+  title: string;
+  slug: string;
+}
+
+export interface AutocompleteResponse {
+  data: AutocompleteItem[];
+}
+
+function buildQuery(params: Record<string, string | number | undefined | null>): string {
+  const search = new URLSearchParams();
+  for (const [key, value] of Object.entries(params)) {
+    if (value != null && value !== "") {
+      search.set(key, String(value));
+    }
+  }
+  return search.toString();
+}
+
 export const apiClient = {
   get: <T>(path: string) => request<T>("GET", path),
   post: <T>(path: string, body?: unknown) => request<T>("POST", path, body),
@@ -151,4 +188,15 @@ export const apiClient = {
       gameId,
       targetPrice,
     }),
+
+
+  searchGames: (params: SearchGamesParams) => {
+    const qs = buildQuery({ ...params });
+    return request<EnvelopeResponse<unknown>>("GET", `/api/v1/games/search?${qs}`);
+  },
+
+  autocomplete: (params: AutocompleteParams) => {
+    const qs = buildQuery({ ...params });
+    return request<AutocompleteResponse>("GET", `/api/v1/games/autocomplete?${qs}`);
+  },
 };

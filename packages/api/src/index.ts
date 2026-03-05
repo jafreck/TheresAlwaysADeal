@@ -10,6 +10,9 @@ import { createGamesApp } from "./routes/games.js";
 import { createDealsApp } from "./routes/deals.js";
 import { storesApp } from "./routes/stores.js";
 import { createAuthApp } from "./routes/auth.js";
+import { createSteamApp } from "./routes/steam.js";
+import { createUserApp } from "./routes/user.js";
+import { alertsApp } from "./routes/alerts.js";
 import { openApiApp } from "./openapi.js";
 
 const app = new Hono();
@@ -61,6 +64,15 @@ v1.route("/stores", storesApp);
 
 // Mount auth routes
 v1.route("/auth", createAuthApp(getRedis));
+
+// Mount Steam auth routes under /auth/steam
+v1.route("/auth/steam", createSteamApp());
+
+// Mount user routes
+v1.route("/user", createUserApp());
+
+// Mount alerts routes (unsubscribe is public, no auth middleware)
+v1.route("/alerts", alertsApp);
 
 // Mount versioned router
 app.route("/api/v1", v1);

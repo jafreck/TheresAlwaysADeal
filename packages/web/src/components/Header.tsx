@@ -2,6 +2,9 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useAuth } from "@/lib/useAuth";
+import SearchBar from "./SearchBar";
 
 const navLinks = [
   { href: "/deals", label: "Deals" },
@@ -11,6 +14,13 @@ const navLinks = [
 
 export default function Header() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const { isAuthenticated, user, logout } = useAuth();
+  const router = useRouter();
+
+  const handleSignOut = async () => {
+    await logout();
+    router.push("/");
+  };
 
   return (
     <header className="sticky top-0 z-50 border-b border-zinc-800 bg-zinc-950/95 backdrop-blur supports-[backdrop-filter]:bg-zinc-950/80">
@@ -23,16 +33,9 @@ export default function Header() {
           There&apos;s Always a Deal
         </Link>
 
-        {/* Search bar placeholder */}
+        {/* Search bar */}
         <div className="hidden flex-1 md:block md:max-w-md">
-          <div className="relative">
-            <input
-              type="search"
-              placeholder="Search games..."
-              aria-label="Search games"
-              className="w-full rounded-lg border border-zinc-700 bg-zinc-900 px-4 py-2 text-sm text-zinc-200 placeholder:text-zinc-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
-            />
-          </div>
+          <SearchBar />
         </div>
 
         {/* Desktop nav */}
@@ -48,14 +51,27 @@ export default function Header() {
           ))}
         </nav>
 
-        {/* Auth CTA placeholder */}
+        {/* Auth CTA */}
         <div className="hidden md:block">
-          <button
-            type="button"
-            className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-zinc-50 transition-colors hover:bg-primary/90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
-          >
-            Sign In
-          </button>
+          {isAuthenticated ? (
+            <div className="flex items-center gap-3">
+              <span className="text-sm text-zinc-300">{user?.name ?? user?.email}</span>
+              <button
+                type="button"
+                onClick={handleSignOut}
+                className="rounded-lg border border-zinc-700 px-4 py-2 text-sm font-medium text-zinc-300 transition-colors hover:bg-zinc-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+              >
+                Sign Out
+              </button>
+            </div>
+          ) : (
+            <Link
+              href="/login"
+              className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-zinc-50 transition-colors hover:bg-primary/90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+            >
+              Sign In
+            </Link>
+          )}
         </div>
 
         {/* Hamburger menu button (mobile) */}
@@ -84,12 +100,7 @@ export default function Header() {
           <div className="space-y-1 px-4 pb-4 pt-2">
             {/* Mobile search */}
             <div className="pb-2">
-              <input
-                type="search"
-                placeholder="Search games..."
-                aria-label="Search games"
-                className="w-full rounded-lg border border-zinc-700 bg-zinc-900 px-4 py-2 text-sm text-zinc-200 placeholder:text-zinc-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
-              />
+              <SearchBar />
             </div>
 
             {navLinks.map((link) => (
@@ -103,12 +114,26 @@ export default function Header() {
               </Link>
             ))}
 
-            <button
-              type="button"
-              className="mt-2 w-full rounded-lg bg-primary px-4 py-2 text-sm font-medium text-zinc-50 transition-colors hover:bg-primary/90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
-            >
-              Sign In
-            </button>
+            {isAuthenticated ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setMobileMenuOpen(false);
+                  handleSignOut();
+                }}
+                className="mt-2 w-full rounded-lg border border-zinc-700 px-4 py-2 text-sm font-medium text-zinc-300 transition-colors hover:bg-zinc-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+              >
+                Sign Out
+              </button>
+            ) : (
+              <Link
+                href="/login"
+                onClick={() => setMobileMenuOpen(false)}
+                className="mt-2 block w-full rounded-lg bg-primary px-4 py-2 text-center text-sm font-medium text-zinc-50 transition-colors hover:bg-primary/90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+              >
+                Sign In
+              </Link>
+            )}
           </div>
         </nav>
       )}

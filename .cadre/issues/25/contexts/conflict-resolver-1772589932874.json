@@ -1,0 +1,36 @@
+{
+  "agent": "conflict-resolver",
+  "issueNumber": 25,
+  "projectName": "theresalwaysadeal",
+  "repository": "jafreck/TheresAlwaysADeal",
+  "worktreePath": "/Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-25",
+  "phase": 0,
+  "config": {
+    "commands": {
+      "install": "npm install",
+      "build": "npm run build",
+      "test": "npx vitest run",
+      "lint": "npm run lint"
+    }
+  },
+  "inputFiles": [
+    "/Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-25/packages/api/src/lib/validation.ts",
+    "/Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-25/packages/api/tests/lib/validation.test.ts",
+    "/Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-25/packages/web/src/components/Header.tsx",
+    "/Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-25/packages/web/src/lib/useAuth.ts",
+    "/Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-25/packages/web/tests/components/Header.test.tsx",
+    "/Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-25/packages/web/tsconfig.tsbuildinfo"
+  ],
+  "outputPath": "/Users/jacobfreck/Source/cadre/.cadre/configs/.cadre/state/worktrees/issue-25/.cadre/issues/25/conflict-resolution-report.md",
+  "payload": {
+    "conflictedFiles": [
+      "packages/api/src/lib/validation.ts",
+      "packages/api/tests/lib/validation.test.ts",
+      "packages/web/src/components/Header.tsx",
+      "packages/web/src/lib/useAuth.ts",
+      "packages/web/tests/components/Header.test.tsx",
+      "packages/web/tsconfig.tsbuildinfo"
+    ],
+    "baseBranch": "main"
+  }
+}
