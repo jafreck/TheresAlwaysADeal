@@ -130,3 +130,86 @@ describe('serverApi.get', () => {
     );
   });
 });
+
+describe('serverApi.getGenres', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('should return genre array from API response', async () => {
+    const genres = [
+      { id: 'g1', name: 'Action', slug: 'action' },
+      { id: 'g2', name: 'RPG', slug: 'rpg' },
+    ];
+    mockFetch.mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({ data: genres }),
+    });
+
+    const result = await serverApi.getGenres();
+    expect(result).toEqual(genres);
+  });
+
+  it('should call /genres endpoint', async () => {
+    mockFetch.mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({ data: [] }),
+    });
+
+    await serverApi.getGenres();
+    expect(mockFetch).toHaveBeenCalledWith(
+      'http://localhost:3001/genres',
+      expect.any(Object),
+    );
+  });
+
+  it('should pass revalidate option when provided', async () => {
+    mockFetch.mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({ data: [] }),
+    });
+
+    await serverApi.getGenres(3600);
+    expect(mockFetch).toHaveBeenCalledWith(
+      'http://localhost:3001/genres',
+      expect.objectContaining({
+        next: { revalidate: 3600 },
+      }),
+    );
+  });
+
+  it('should not pass next option when revalidate is undefined', async () => {
+    mockFetch.mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({ data: [] }),
+    });
+
+    await serverApi.getGenres();
+    const options = mockFetch.mock.calls[0][1];
+    expect(options.next).toBeUndefined();
+  });
+
+  it('should throw ServerApiError on non-OK response', async () => {
+    mockFetch.mockResolvedValue({
+      ok: false,
+      status: 500,
+      statusText: 'Internal Server Error',
+    });
+
+    await expect(serverApi.getGenres()).rejects.toThrow(ServerApiError);
+  });
+
+  it('should return empty array from API when no genres exist', async () => {
+    mockFetch.mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({ data: [] }),
+    });
+
+    const result = await serverApi.getGenres();
+    expect(result).toEqual([]);
+  });
+});

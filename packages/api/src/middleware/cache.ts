@@ -21,10 +21,13 @@ export function cacheMiddleware(
     const sortedParams = new URLSearchParams([...url.searchParams.entries()].sort());
     const cacheKey = `cache:${url.pathname}?${sortedParams.toString()}`;
 
+    const cacheControlValue = `public, max-age=${ttlSeconds}, s-maxage=${ttlSeconds}`;
+
     try {
       const cached = await redis.get(cacheKey);
       if (cached) {
         const parsed = JSON.parse(cached);
+        c.header("Cache-Control", cacheControlValue);
         return c.json(parsed);
       }
     } catch {
@@ -37,6 +40,7 @@ export function cacheMiddleware(
 
     // Store response in cache after handler
     if (c.res.status === 200) {
+      c.header("Cache-Control", cacheControlValue);
       try {
         const body = await c.res.clone().json();
         await redis.set(cacheKey, JSON.stringify(body), "EX", ttlSeconds);

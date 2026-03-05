@@ -20,12 +20,12 @@ describe('robots', () => {
     expect(mainRule.allow).toBe('/');
   });
 
-  it('should disallow /api/ and /admin/', () => {
+  it('should disallow /api/ and /dashboard', () => {
     const result = robots();
     const rules = Array.isArray(result.rules) ? result.rules : [result.rules];
     const mainRule = rules[0];
     expect(mainRule.disallow).toContain('/api/');
-    expect(mainRule.disallow).toContain('/admin/');
+    expect(mainRule.disallow).toContain('/dashboard');
   });
 
   it('should reference the sitemap URL', () => {

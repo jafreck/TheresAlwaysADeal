@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import Image from "next/image";
 import {
   apiClient,
+  ApiError,
   type GameDetail,
   type PriceHistoryEntry,
 } from "@/lib/api-client";
@@ -28,7 +29,13 @@ async function fetchGame(slug: string): Promise<GameDetail | null> {
   try {
     const response = await apiClient.getGameBySlug(slug);
     return response.data;
-  } catch {
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 301) {
+      const body = error.body as { redirect?: boolean; newSlug?: string } | null;
+      if (body?.redirect && body.newSlug) {
+        redirect(`/games/${body.newSlug}`);
+      }
+    }
     return null;
   }
 }
@@ -51,20 +58,42 @@ export async function generateMetadata({
     return { title: "Game Not Found" };
   }
 
+  const description = game.description
+    ? generateMetaDescription(game.description)
+    : `Compare prices and find the best deals for ${game.title} across multiple stores.`;
+
   return {
     title: game.title,
-    description:
-      game.description?.slice(0, 160) ??
-      `Find the best prices for ${game.title}.`,
+    description,
+    alternates: {
+      canonical: `https://theresalwaysadeal.com/games/${slug}`,
+    },
     openGraph: {
       title: game.title,
-      description:
-        game.description?.slice(0, 160) ??
-        `Find the best prices for ${game.title}.`,
+      description,
       images: game.headerImageUrl ? [{ url: game.headerImageUrl }] : [],
       type: "website",
     },
+    twitter: {
+      card: "summary_large_image" as const,
+      title: game.title,
+      description,
+      images: game.headerImageUrl ? [game.headerImageUrl] : [],
+    },
   };
+}
+
+function generateMetaDescription(description: string): string {
+  // Find the first complete sentence within 160 chars
+  const sentenceEnd = description.search(/[.!?]\s/);
+  if (sentenceEnd !== -1 && sentenceEnd < 155) {
+    return description.slice(0, sentenceEnd + 1);
+  }
+  // Fall back to truncating at a word boundary
+  if (description.length <= 160) return description;
+  const truncated = description.slice(0, 157);
+  const lastSpace = truncated.lastIndexOf(" ");
+  return lastSpace > 100 ? truncated.slice(0, lastSpace) + "..." : truncated + "...";
 }
 
 function findBestDeal(
@@ -143,21 +172,43 @@ export default async function GameDetailPage({ params }: PageProps) {
   // Use the first genre for breadcrumb (fallback to "Games")
   const primaryGenre = { name: "Games", slug: "all" };
 
+  const allOffers = game.storeListings
+    .filter((listing) => listing.isActive)
+    .map((listing) => {
+      const stats = game.priceStats.find(
+        (s) => s.storeListingId === listing.id,
+      );
+      if (!stats) return null;
+      return {
+        "@type": "Offer" as const,
+        price: stats.currentPrice,
+        priceCurrency: "USD",
+        url: listing.storeUrl,
+        availability: "https://schema.org/InStock",
+      };
+    })
+    .filter((o): o is NonNullable<typeof o> => o !== null);
+
+  const prices = allOffers.map((o) => Number(o.price));
+  const offersJsonLd =
+    allOffers.length > 1
+      ? {
+          "@type": "AggregateOffer" as const,
+          lowPrice: String(Math.min(...prices)),
+          highPrice: String(Math.max(...prices)),
+          priceCurrency: "USD",
+          offerCount: allOffers.length,
+          offers: allOffers,
+        }
+      : allOffers[0] ?? undefined;
+
   const jsonLd = {
     "@context": "https://schema.org",
     "@type": "Product",
     name: game.title,
     description: game.description ?? undefined,
     image: game.headerImageUrl ?? undefined,
-    offers: bestDeal
-      ? {
-          "@type": "Offer",
-          price: bestDeal.stats.currentPrice,
-          priceCurrency: "USD",
-          url: bestDeal.listing.storeUrl,
-          availability: "https://schema.org/InStock",
-        }
-      : undefined,
+    offers: offersJsonLd,
   };
 
   return (
@@ -169,6 +220,7 @@ export default async function GameDetailPage({ params }: PageProps) {
 
       <GameBreadcrumb
         gameTitle={game.title}
+        gameSlug={slug}
         genreName={primaryGenre.name}
         genreSlug={primaryGenre.slug}
         className="mb-4"

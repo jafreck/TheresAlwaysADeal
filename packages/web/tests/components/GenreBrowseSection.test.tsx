@@ -37,9 +37,9 @@ describe('GenreBrowseSection', () => {
     const element = GenreBrowseSection();
     const container = element.props.children[1];
     const links = container.props.children;
-    expect(links[0].props.href).toBe('/search?genre=action');
-    expect(links[1].props.href).toBe('/search?genre=rpg');
-    expect(links[2].props.href).toBe('/search?genre=strategy');
+    expect(links[0].props.href).toBe('/games/genre/action');
+    expect(links[1].props.href).toBe('/games/genre/rpg');
+    expect(links[2].props.href).toBe('/games/genre/strategy');
   });
 
   it('should render genre names as link text', () => {

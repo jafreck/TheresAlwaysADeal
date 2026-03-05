@@ -4,11 +4,17 @@ import Link from "next/link";
 import Script from "next/script";
 import { NuqsAdapter } from "nuqs/adapters/next/app";
 import { QueryProvider } from "@/lib/query-provider";
+import { initSentry } from "@/lib/sentry";
 import Header from "@/components/Header";
 import CookieConsentBanner from "@/components/CookieConsentBanner";
 import "./globals.css";
 
+initSentry();
+
+const plausibleDomain = process.env.NEXT_PUBLIC_PLAUSIBLE_DOMAIN;
+
 export const metadata: Metadata = {
+  metadataBase: new URL("https://theresalwaysadeal.com"),
   title: {
     default: "There's Always a Deal",
     template: "%s | There's Always a Deal",
@@ -18,6 +24,11 @@ export const metadata: Metadata = {
     title: "There's Always a Deal",
     description: "Find the best deals across the web, automatically aggregated and curated.",
     type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "There's Always a Deal",
+    description: "Find the best deals across the web, automatically aggregated and curated.",
   },
 };
 
@@ -42,6 +53,14 @@ export default function RootLayout({ children }: { children: ReactNode }) {
           strategy="afterInteractive"
           crossOrigin="anonymous"
         />
+        {plausibleDomain && (
+          <Script
+            src="https://plausible.io/js/script.js"
+            data-domain={plausibleDomain}
+            strategy="afterInteractive"
+            defer
+          />
+        )}
       </head>
       <body className="flex min-h-screen flex-col">
         <NuqsAdapter>
@@ -94,6 +113,16 @@ export default function RootLayout({ children }: { children: ReactNode }) {
                     <li>
                       <Link href="/privacy" className="text-sm text-zinc-400 transition-colors hover:text-zinc-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">
                         Privacy Policy
+                      </Link>
+                    </li>
+                    <li>
+                      <Link href="/terms" className="text-sm text-zinc-400 transition-colors hover:text-zinc-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">
+                        Terms of Service
+                      </Link>
+                    </li>
+                    <li>
+                      <Link href="/affiliate-disclosure" className="text-sm text-zinc-400 transition-colors hover:text-zinc-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">
+                        Affiliate Disclosure
                       </Link>
                     </li>
                   </ul>

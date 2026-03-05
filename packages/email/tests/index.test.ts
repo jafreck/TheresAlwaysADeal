@@ -1,13 +1,17 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
-const mockSend = vi.fn();
+const { mockSend, mockInsert } = vi.hoisted(() => {
+  const mockSend = vi.fn();
+  const mockInsert = vi.fn().mockReturnValue({ values: vi.fn().mockResolvedValue(undefined) });
+  return { mockSend, mockInsert };
+});
+
 vi.mock("resend", () => ({
-  Resend: vi.fn().mockImplementation(() => ({
-    emails: { send: mockSend },
-  })),
+  Resend: class MockResend {
+    emails = { send: mockSend };
+  },
 }));
 
-const mockInsert = vi.fn().mockReturnValue({ values: vi.fn().mockResolvedValue(undefined) });
 vi.mock("@taad/db", () => ({
   db: { insert: (...args: unknown[]) => mockInsert(...args) },
   alertNotifications: Symbol("alertNotifications"),
@@ -207,6 +211,30 @@ describe("sendPriceAlert", () => {
       expect.objectContaining({
         emailStatus: "sent",
         emailMessageId: null,
+      }),
+    );
+  });
+
+  it("should not crash when email succeeds but DB logging fails", async () => {
+    mockSend.mockResolvedValueOnce({ data: { id: "msg_ok" } });
+    mockInsert.mockReturnValueOnce({ values: vi.fn().mockRejectedValue(new Error("DB write error")) });
+
+    await expect(
+      sendPriceAlert("user-1", "alert-1", priceData, "user@test.com", "listing-1", "19.99"),
+    ).resolves.toBeUndefined();
+  });
+
+  it("should attempt to log success (not failure) when email succeeds but DB fails", async () => {
+    const mockValues = vi.fn().mockRejectedValue(new Error("DB write error"));
+    mockSend.mockResolvedValueOnce({ data: { id: "msg_ok" } });
+    mockInsert.mockReturnValueOnce({ values: mockValues });
+
+    await sendPriceAlert("user-1", "alert-1", priceData, "user@test.com", "listing-1", "19.99");
+
+    expect(mockValues).toHaveBeenCalledWith(
+      expect.objectContaining({
+        emailStatus: "sent",
+        emailMessageId: "msg_ok",
       }),
     );
   });

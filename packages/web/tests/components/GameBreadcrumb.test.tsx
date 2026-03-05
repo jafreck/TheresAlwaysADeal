@@ -11,6 +11,7 @@ import GameBreadcrumb from '../../src/components/GameBreadcrumb';
 
 const baseProps = {
   gameTitle: 'Portal 2',
+  gameSlug: 'portal-2',
   genreName: 'Puzzle',
   genreSlug: 'puzzle',
 };
@@ -41,11 +42,11 @@ describe('GameBreadcrumb', () => {
     expect(homeLink.getAttribute('href')).toBe('/');
   });
 
-  it('should render Genre link pointing to /games?genre=slug', () => {
+  it('should render Genre link pointing to /games/genre/slug', () => {
     const { getByText } = render(<GameBreadcrumb {...baseProps} />);
     const genreLink = getByText('Puzzle');
     expect(genreLink.tagName).toBe('A');
-    expect(genreLink.getAttribute('href')).toBe('/games?genre=puzzle');
+    expect(genreLink.getAttribute('href')).toBe('/games/genre/puzzle');
   });
 
   it('should render game title as current page (not a link)', () => {
@@ -81,5 +82,49 @@ describe('GameBreadcrumb', () => {
     const { container } = render(<GameBreadcrumb {...baseProps} />);
     const items = container.querySelectorAll('li');
     expect(items).toHaveLength(5);
+  });
+
+  it('should render a JSON-LD BreadcrumbList script tag', () => {
+    const { container } = render(<GameBreadcrumb {...baseProps} />);
+    const script = container.querySelector('script[type="application/ld+json"]');
+    expect(script).toBeTruthy();
+    const data = JSON.parse(script!.textContent!);
+    expect(data['@context']).toBe('https://schema.org');
+    expect(data['@type']).toBe('BreadcrumbList');
+  });
+
+  it('should have 3 BreadcrumbList items: Home, Genre, Game Title', () => {
+    const { container } = render(<GameBreadcrumb {...baseProps} />);
+    const script = container.querySelector('script[type="application/ld+json"]');
+    const data = JSON.parse(script!.textContent!);
+    const items = data.itemListElement;
+    expect(items).toHaveLength(3);
+
+    expect(items[0]['@type']).toBe('ListItem');
+    expect(items[0].position).toBe(1);
+    expect(items[0].name).toBe('Home');
+    expect(items[0].item).toBe('https://theresalwaysadeal.com');
+
+    expect(items[1]['@type']).toBe('ListItem');
+    expect(items[1].position).toBe(2);
+    expect(items[1].name).toBe('Puzzle');
+    expect(items[1].item).toBe('https://theresalwaysadeal.com/games/genre/puzzle');
+
+    expect(items[2]['@type']).toBe('ListItem');
+    expect(items[2].position).toBe(3);
+    expect(items[2].name).toBe('Portal 2');
+    expect(items[2].item).toBe('https://theresalwaysadeal.com/games/portal-2');
+  });
+
+  it('should include position, name, and item fields on each ListItem', () => {
+    const { container } = render(<GameBreadcrumb {...baseProps} />);
+    const script = container.querySelector('script[type="application/ld+json"]');
+    const data = JSON.parse(script!.textContent!);
+    for (const item of data.itemListElement) {
+      expect(item).toHaveProperty('@type', 'ListItem');
+      expect(item).toHaveProperty('position');
+      expect(item).toHaveProperty('name');
+      expect(item).toHaveProperty('item');
+    }
   });
 });

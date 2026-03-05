@@ -31,6 +31,7 @@ vi.mock("@taad/db", () => ({
   platforms: stubTable({ id: "id", name: "name", slug: "slug" }),
   gamePlatforms: stubTable({ gameId: "gameId", platformId: "platformId" }),
   searchAnalytics: stubTable({ id: "id", query: "query", resultCount: "resultCount", searchedAt: "searchedAt" }),
+  slugRedirects: stubTable({ id: "id", oldSlug: "oldSlug", newSlug: "newSlug", gameId: "gameId", createdAt: "createdAt" }),
 }));
 
 // Stub cache middleware to be a pass-through
@@ -446,15 +447,53 @@ describe("GET /:slug (game detail)", () => {
     });
   });
 
-  it("should return 404 when slug does not match any game", async () => {
-    mockDbResult = [];
-    mockDb.select.mockReturnValue(createBuilder());
+  it("should return 404 when slug does not match any game or redirect", async () => {
+    mockDb.select.mockImplementation(() => {
+      const builder: any = {
+        from: () => builder,
+        where: () => builder,
+        orderBy: () => builder,
+        limit: () => Promise.resolve([]),
+        offset: () => Promise.resolve([]),
+        innerJoin: () => builder,
+        then: (resolve: (v: any) => any, reject: (e: any) => any) =>
+          Promise.resolve([]).then(resolve, reject),
+      };
+      return builder;
+    });
 
     const res = await app.request("/nonexistent-game");
     expect(res.status).toBe(404);
 
     const body = await res.json();
     expect(body).toEqual({ error: "Not found" });
+  });
+
+  it("should return 301 with redirect info when slug is found in slugRedirects", async () => {
+    let callCount = 0;
+    mockDb.select.mockImplementation(() => {
+      callCount++;
+      // First call: game lookup returns empty
+      // Second call: slugRedirects lookup returns redirect entry
+      const result = callCount === 1 ? [] : [{ newSlug: "new-game-slug" }];
+      const builder: any = {
+        from: () => builder,
+        where: () => builder,
+        orderBy: () => builder,
+        limit: () => Promise.resolve(result),
+        offset: () => Promise.resolve(result),
+        innerJoin: () => builder,
+        then: (resolve: (v: any) => any, reject: (e: any) => any) =>
+          Promise.resolve(result).then(resolve, reject),
+      };
+      return builder;
+    });
+
+    const res = await app.request("/old-game-slug");
+    expect(res.status).toBe(301);
+
+    const body = await res.json();
+    expect(body).toEqual({ redirect: true, newSlug: "new-game-slug" });
   });
 });
 

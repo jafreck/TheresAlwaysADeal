@@ -16,6 +16,7 @@ import {
   gameGenres,
   gamePlatforms,
   searchAnalytics,
+  slugRedirects,
 } from "../src/schema.js";
 
 describe("schema", () => {
@@ -356,6 +357,25 @@ describe("schema", () => {
     it("should not export removed tables", async () => {
       const schema = await import("../src/schema.js");
       expect((schema as any).searchLogs).toBeUndefined();
+    });
+  });
+
+  describe("slugRedirects", () => {
+    it("should export the slugRedirects table", () => {
+      expect(slugRedirects).toBeDefined();
+    });
+
+    it("should have the correct table name", () => {
+      expect(getTableName(slugRedirects)).toBe("slug_redirects");
+    });
+
+    it("should have the correct columns", () => {
+      const columns = Object.keys(slugRedirects);
+      expect(columns).toContain("id");
+      expect(columns).toContain("oldSlug");
+      expect(columns).toContain("newSlug");
+      expect(columns).toContain("gameId");
+      expect(columns).toContain("createdAt");
     });
   });
 

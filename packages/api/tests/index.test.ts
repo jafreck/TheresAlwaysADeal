@@ -39,6 +39,7 @@ vi.mock("@taad/db", () => ({
   refreshTokens: stubTable({ id: "id", userId: "userId", token: "token", expiresAt: "expiresAt", revokedAt: "revokedAt", createdAt: "createdAt" }),
   searchAnalytics: stubTable({ id: "id", query: "query", resultCount: "resultCount", searchedAt: "searchedAt" }),
   wishlists: stubTable({ id: "id", userId: "userId", gameId: "gameId", source: "source" }),
+  slugRedirects: stubTable({ id: "id", oldSlug: "oldSlug", newSlug: "newSlug", gameId: "gameId", createdAt: "createdAt" }),
 }));
 
 // Mock auth utilities used by auth routes

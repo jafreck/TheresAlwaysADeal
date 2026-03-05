@@ -8,6 +8,9 @@ const workflowPath = resolve(__dirname, '../../../.github/workflows/deploy.yml')
 const workflow = readFileSync(workflowPath, 'utf-8');
 const lines = workflow.split('\n');
 
+const dependabotPath = resolve(__dirname, '../../../.github/dependabot.yml');
+const dependabot = readFileSync(dependabotPath, 'utf-8');
+
 describe('.github/workflows/deploy.yml', () => {
   it('should trigger on push to main', () => {
     expect(workflow).toContain('push:');
@@ -16,6 +19,23 @@ describe('.github/workflows/deploy.yml', () => {
 
   it('should trigger on push to staging', () => {
     expect(workflow).toContain('- staging');
+  });
+
+  it('should define an audit job', () => {
+    expect(workflow).toContain('audit:');
+  });
+
+  it('should run pnpm audit with high audit level in audit job', () => {
+    expect(workflow).toContain('pnpm audit --audit-level=high');
+  });
+
+  it('should run audit job before build-and-push', () => {
+    const auditIndex = lines.findIndex(l => l.includes('audit:'));
+    const buildIndex = lines.findIndex(l => l.includes('build-and-push:'));
+    expect(auditIndex).toBeLessThan(buildIndex);
+    // build-and-push should declare audit as a dependency
+    const buildNeeds = workflow.match(/build-and-push:[\s\S]*?needs:[\s\S]*?- audit/);
+    expect(buildNeeds).not.toBeNull();
   });
 
   it('should define a build-and-push job', () => {
@@ -112,5 +132,27 @@ describe('.github/workflows/deploy.yml', () => {
 
   it('should use pnpm/action-setup in migrate job', () => {
     expect(workflow).toContain('pnpm/action-setup');
+  });
+});
+
+describe('.github/dependabot.yml', () => {
+  it('should use Dependabot version 2', () => {
+    expect(dependabot).toContain('version: 2');
+  });
+
+  it('should configure npm ecosystem', () => {
+    expect(dependabot).toContain('package-ecosystem: npm');
+  });
+
+  it('should target the root directory', () => {
+    expect(dependabot).toContain('directory: /');
+  });
+
+  it('should schedule weekly updates', () => {
+    expect(dependabot).toContain('interval: weekly');
+  });
+
+  it('should set an open pull requests limit', () => {
+    expect(dependabot).toMatch(/open-pull-requests-limit:\s+\d+/);
   });
 });

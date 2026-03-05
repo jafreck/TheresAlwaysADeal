@@ -22,6 +22,7 @@ export default defineConfig({
           include: [
             "packages/api/**/*.test.ts",
             "packages/db/**/*.test.ts",
+            "packages/email/**/*.test.ts",
             "packages/scraper/**/*.test.ts",
             "packages/worker/**/*.test.ts",
           ],
