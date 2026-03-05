@@ -1,7 +1,0 @@
-```cadre-json
-{
-  "verdict": "pass",
-  "summary": "All changes are correct and well-tested. The five new user profile columns in the DB schema match acceptance criteria (nullable/default values are appropriate), the three Zod validation schemas correctly enforce constraints, and tests cover valid inputs, boundary cases, and rejection of invalid inputs. All existing tests continue to pass (7 pre-existing worker test failures are unrelated, caused by EADDRINUSE).",
-  "issues": []
-}
-```

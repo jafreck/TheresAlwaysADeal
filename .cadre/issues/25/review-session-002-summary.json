@@ -1,6 +1,0 @@
-{
-  "sessionId": "session-002",
-  "verdict": "pass",
-  "summary": "The changes are small, focused fixes: a type cast to `Record<string, unknown>[]` on mock data to fix a TypeScript complaint, a new test for missing optional fields with defaults, and a new test verifying NuqsAdapter/QueryProvider nesting in the layout. All 42 tests pass and no bugs, security issues, or logic errors were found.",
-  "keyFindings": []
-}
