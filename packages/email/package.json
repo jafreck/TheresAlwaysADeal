@@ -13,7 +13,7 @@
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
-    "resend": "^4.0.0",
+    "resend": "^6.9.3",
     "@taad/db": "workspace:*"
   },
   "devDependencies": {
