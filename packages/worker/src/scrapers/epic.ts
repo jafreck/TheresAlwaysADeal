@@ -21,11 +21,17 @@ interface EpicPromotions {
   promotionalOffers: Array<{ promotionalOffers: EpicPromoOffer[] }>;
 }
 
+interface EpicKeyImage {
+  type: string;
+  url: string;
+}
+
 interface EpicElement {
   id: string;
   title: string;
   productSlug: string | null;
   urlSlug: string | null;
+  keyImages: EpicKeyImage[] | null;
   price: { totalPrice: EpicTotalPrice } | null;
   promotions: EpicPromotions | null;
 }
@@ -66,6 +72,7 @@ export default class EpicScraper extends BaseScraper {
         searchStore(count: $count, start: $start, country: $country, locale: $locale, onSale: true, sortBy: "currentPrice", sortDir: "ASC") {
           elements {
             id title productSlug urlSlug
+            keyImages { type url }
             price(country: $country) {
               totalPrice { discountPrice originalPrice discount currencyCode }
             }
@@ -137,6 +144,14 @@ export default class EpicScraper extends BaseScraper {
     const pageSlug = item.productSlug ?? item.urlSlug ?? item.id;
     const storeUrl = `https://store.epicgames.com/en-US/p/${pageSlug}`;
 
+    // Prefer DieselStoreFrontWide, then OfferImageWide, then any available image
+    const keyImages = item.keyImages ?? [];
+    const headerImageUrl =
+      keyImages.find((img) => img.type === "DieselStoreFrontWide")?.url ??
+      keyImages.find((img) => img.type === "OfferImageWide")?.url ??
+      keyImages.find((img) => img.type === "Thumbnail")?.url ??
+      keyImages[0]?.url;
+
     return {
       title: item.title,
       slug: toSlug(item.title),
@@ -148,6 +163,7 @@ export default class EpicScraper extends BaseScraper {
       storeSlug: "epic-games",
       storeGameId: item.id,
       saleEndsAt,
+      headerImageUrl,
     };
   }
 }

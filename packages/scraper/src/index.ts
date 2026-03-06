@@ -8,7 +8,8 @@
  *  - Static HTML retailers  → Cheerio (fast, cheap, no browser overhead)
  *  - JS-rendered retailers  → Playwright (headless Chromium, use sparingly)
  */
-export { BaseScraper, IScraper } from "./types.js";
+export { BaseScraper } from "./types.js";
+export type { IScraper } from "./types.js";
 export type { ScrapedGame, ScraperConfig } from "./types.js";
 export { gameSchema } from "./schemas.js";
 export { buildReferralUrl } from "./referral.js";

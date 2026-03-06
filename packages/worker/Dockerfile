@@ -9,6 +9,7 @@ RUN corepack enable && corepack prepare pnpm@9.15.0 --activate
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml tsconfig.json ./
 COPY packages/api/package.json packages/api/
 COPY packages/db/package.json packages/db/
+COPY packages/email/package.json packages/email/
 COPY packages/scraper/package.json packages/scraper/
 COPY packages/worker/package.json packages/worker/
 COPY packages/web/package.json packages/web/
@@ -18,6 +19,7 @@ RUN pnpm install --frozen-lockfile
 # Copy source files for packages needed to build worker
 COPY packages/worker packages/worker
 COPY packages/db packages/db
+COPY packages/email packages/email
 COPY packages/scraper packages/scraper
 
 # Build @taad/worker and its workspace dependencies (... = include deps)

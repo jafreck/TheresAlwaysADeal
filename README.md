@@ -55,6 +55,47 @@ cp .env.example .env
 # Edit .env with your Neon DATABASE_URL, Upstash REDIS_URL, etc.
 ```
 
+### 2a. Local infra (Postgres + Redis via Docker)
+
+If you want to run TAAD fully local without Neon/Upstash:
+
+```bash
+make infra-up
+```
+
+This runs `docker compose up -d` and, if needed on macOS, starts Colima automatically.
+
+If Docker is unavailable, use Homebrew services instead:
+
+```bash
+brew install postgresql@16 redis
+brew services start postgresql@16
+brew services start redis
+createdb taad || true
+```
+
+Set these values in `.env`:
+
+```dotenv
+DATABASE_URL="postgresql://postgres:postgres@localhost:5432/taad"
+REDIS_URL="redis://localhost:6379"
+UPSTASH_REDIS_REST_URL=""
+UPSTASH_REDIS_REST_TOKEN=""
+```
+
+For Homebrew Postgres, you may need your macOS username instead of `postgres`:
+
+```dotenv
+DATABASE_URL="postgresql://<your-macos-username>@localhost:5432/taad"
+```
+
+Initialize DB schema + seed data:
+
+```bash
+pnpm --filter @taad/db db:push
+pnpm --filter @taad/db db:seed
+```
+
 ### 3. Run database migrations
 
 ```bash
@@ -81,6 +122,8 @@ pnpm dev
 | API (Hono) | `pnpm --filter @taad/api dev` | 3001 |
 | Worker (BullMQ) | `pnpm --filter @taad/worker dev` | — |
 | Scraper (manual run) | `pnpm --filter @taad/scraper dev` | — |
+
+The worker enqueues immediate startup scrape jobs by default (`SCRAPE_ON_STARTUP=true`).
 
 ---
 

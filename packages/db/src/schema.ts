@@ -130,7 +130,9 @@ export const storeListingStats = pgTable("store_listing_stats", {
   allTimeLowLastSeenAt: timestamp("all_time_low_last_seen_at"),
   dealScore: decimal("deal_score", { precision: 5, scale: 2 }),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
-});
+}, (t) => [
+  unique().on(t.storeListingId),
+]);
 
 // ─── Genres ───────────────────────────────────────────────────────────────────
 export const genres = pgTable("genres", {

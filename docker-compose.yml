@@ -1,0 +1,123 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: taad-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: taad
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - taad-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d taad"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    container_name: taad-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - taad-redis-data:/data
+    command: ["redis-server", "--appendonly", "yes"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  # ── Schema push + seed (runs once then exits) ─────────────────────────────
+  db-setup:
+    image: node:20-alpine
+    container_name: taad-db-setup
+    working_dir: /repo
+    volumes:
+      - .:/repo
+    env_file: .env
+    environment:
+      DATABASE_URL: "postgresql://postgres:postgres@postgres:5432/taad"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    entrypoint: ["sh", "-c"]
+    command:
+      - |
+        corepack enable && corepack prepare pnpm@9.15.0 --activate
+        pnpm install --frozen-lockfile
+        pnpm --filter @taad/db build
+        cd packages/db
+        node ./node_modules/drizzle-kit/bin.cjs push --force
+        node --import tsx src/seed.ts
+        echo '✅ DB schema pushed and seeded'
+
+  # ── API server ─────────────────────────────────────────────────────────────
+  api:
+    build:
+      context: .
+      dockerfile: packages/api/Dockerfile
+    container_name: taad-api
+    restart: unless-stopped
+    ports:
+      - "3001:3001"
+    env_file: .env
+    environment:
+      DATABASE_URL: "postgresql://postgres:postgres@postgres:5432/taad"
+      REDIS_URL: "redis://redis:6379"
+      API_PORT: "3001"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      db-setup:
+        condition: service_completed_successfully
+
+  # ── Background worker (scraper + queue processing) ─────────────────────────
+  worker:
+    build:
+      context: .
+      dockerfile: packages/worker/Dockerfile
+    container_name: taad-worker
+    restart: unless-stopped
+    ports:
+      - "4000:4000"
+    env_file: .env
+    environment:
+      DATABASE_URL: "postgresql://postgres:postgres@postgres:5432/taad"
+      REDIS_URL: "redis://redis:6379"
+      PORT: "4000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      db-setup:
+        condition: service_completed_successfully
+
+  # ── Next.js web frontend ──────────────────────────────────────────────────
+  web:
+    build:
+      context: .
+      dockerfile: packages/web/Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: "http://localhost:3001"
+    container_name: taad-web
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    env_file: .env
+    environment:
+      INTERNAL_API_URL: "http://api:3001"
+      NEXT_PUBLIC_API_URL: "http://localhost:3001"
+    depends_on:
+      - api
+
+volumes:
+  taad-postgres-data:
+  taad-redis-data:

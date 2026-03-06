@@ -28,6 +28,7 @@ function makeFreeElement(overrides: Partial<EpicRawItem> = {}): EpicRawItem {
     title: "Free Game",
     productSlug: "free-game",
     urlSlug: "free-game",
+    keyImages: null,
     price: {
       totalPrice: {
         discountPrice: 0,
@@ -56,6 +57,7 @@ function makeSaleElement(overrides: Partial<EpicRawItem> = {}): EpicRawItem {
     title: "Sale Game",
     productSlug: "sale-game",
     urlSlug: "sale-game",
+    keyImages: null,
     price: {
       totalPrice: {
         discountPrice: 999,
@@ -204,6 +206,35 @@ describe("EpicScraper", () => {
       const raw = makeSaleElement({ promotions: null });
       const normalized = scraper.normalizeGame(raw);
       expect(normalized.saleEndsAt).toBeNull();
+    });
+
+    it("extracts headerImageUrl preferring DieselStoreFrontWide", () => {
+      const raw = makeSaleElement({
+        keyImages: [
+          { type: "Thumbnail", url: "https://cdn.epic.com/thumb.jpg" },
+          { type: "DieselStoreFrontWide", url: "https://cdn.epic.com/wide.jpg" },
+          { type: "OfferImageWide", url: "https://cdn.epic.com/offer.jpg" },
+        ],
+      });
+      const normalized = scraper.normalizeGame(raw);
+      expect(normalized.headerImageUrl).toBe("https://cdn.epic.com/wide.jpg");
+    });
+
+    it("falls back to OfferImageWide when DieselStoreFrontWide is absent", () => {
+      const raw = makeSaleElement({
+        keyImages: [
+          { type: "Thumbnail", url: "https://cdn.epic.com/thumb.jpg" },
+          { type: "OfferImageWide", url: "https://cdn.epic.com/offer.jpg" },
+        ],
+      });
+      const normalized = scraper.normalizeGame(raw);
+      expect(normalized.headerImageUrl).toBe("https://cdn.epic.com/offer.jpg");
+    });
+
+    it("returns undefined headerImageUrl when keyImages is null", () => {
+      const raw = makeSaleElement({ keyImages: null });
+      const normalized = scraper.normalizeGame(raw);
+      expect(normalized.headerImageUrl).toBeUndefined();
     });
   });
 });

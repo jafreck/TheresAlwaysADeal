@@ -26,6 +26,14 @@ export class ApiError extends Error {
 const BASE_URL =
   process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
 
+function buildApiUrl(path: string): string {
+  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+  if (normalizedPath.startsWith("/api/")) {
+    return `${BASE_URL}${normalizedPath}`;
+  }
+  return `${BASE_URL}/api/v1${normalizedPath}`;
+}
+
 function getHeaders(): HeadersInit {
   const headers: HeadersInit = {
     "Content-Type": "application/json",
@@ -42,7 +50,7 @@ async function request<T>(
   path: string,
   body?: unknown,
 ): Promise<T> {
-  const res = await fetch(`${BASE_URL}${path}`, {
+  const res = await fetch(buildApiUrl(path), {
     method,
     headers: getHeaders(),
     credentials: "include",

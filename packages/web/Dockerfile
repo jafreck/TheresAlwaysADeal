@@ -16,24 +16,28 @@ COPY packages/web/package.json packages/web/
 
 RUN pnpm install --frozen-lockfile
 
-# Copy source files for packages needed to build api
-COPY packages/api packages/api
+# Copy source for web and its workspace dependencies
+COPY packages/web packages/web
 COPY packages/db packages/db
-COPY packages/email packages/email
 
-# Build @taad/api and its workspace dependencies (... = include deps)
-RUN pnpm --filter=@taad/api... run build
+# NEXT_PUBLIC_ vars must be set at build time for client-side code
+ARG NEXT_PUBLIC_API_URL="http://localhost:3001"
+ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 
-# Create self-contained production deployment directory
-RUN pnpm deploy --filter=@taad/api --prod /app/deploy
+# Build @taad/web and its workspace dependencies
+RUN pnpm --filter=@taad/web... run build
 
 FROM node:20-alpine AS runner
 
 WORKDIR /app
 
-COPY --from=builder /repo/packages/api/dist ./dist
-COPY --from=builder /app/deploy/node_modules ./node_modules
+ENV NODE_ENV=production
+ENV NEXT_TELEMETRY_DISABLED=1
 
-EXPOSE 3001
+# Next.js standalone output bundles everything needed
+COPY --from=builder /repo/packages/web/.next/standalone ./
+COPY --from=builder /repo/packages/web/.next/static ./packages/web/.next/static
 
-CMD ["node", "dist/index.js"]
+EXPOSE 3000
+
+CMD ["node", "packages/web/server.js"]

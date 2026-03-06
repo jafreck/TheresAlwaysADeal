@@ -62,7 +62,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
           />
         )}
       </head>
-      <body className="flex min-h-screen flex-col">
+      <body className="flex min-h-screen flex-col bg-zinc-950 text-zinc-50 antialiased">
         <NuqsAdapter>
         <QueryProvider>
           <Header />

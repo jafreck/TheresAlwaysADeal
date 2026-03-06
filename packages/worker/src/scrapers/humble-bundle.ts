@@ -11,6 +11,8 @@ interface RawSaleItem {
   discount_percent: number;
   human_url: string;
   choice_eligible?: boolean;
+  icon?: string;
+  featured_image_url?: string;
 }
 
 interface RawBundleItem {
@@ -18,6 +20,8 @@ interface RawBundleItem {
   machine_name: string;
   tile_name: string;
   mosaic_url: string;
+  tile_image?: string;
+  hero_image?: string;
   pricing: {
     minimum: { amount: number };
   };
@@ -80,6 +84,7 @@ export class HumbleScraper extends BaseScraper {
     const item = raw as RawItem;
 
     if (item._type === "bundle") {
+      const headerImageUrl = item.hero_image ?? item.tile_image ?? undefined;
       return {
         title: item.tile_name,
         slug: toSlug(item.machine_name),
@@ -88,10 +93,12 @@ export class HumbleScraper extends BaseScraper {
         currency: "USD",
         storeSlug: "humble-bundle",
         storeGameId: item.machine_name,
+        headerImageUrl,
       };
     }
 
     // Individual sale item
+    const headerImageUrl = item.featured_image_url ?? item.icon ?? undefined;
     return {
       title: item.human_name,
       slug: toSlug(item.machine_name),
@@ -103,6 +110,7 @@ export class HumbleScraper extends BaseScraper {
       storeSlug: "humble-bundle",
       storeGameId: item.machine_name,
       choiceIncluded: item.choice_eligible === true ? true : undefined,
+      headerImageUrl,
     };
   }
 }

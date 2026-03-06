@@ -13,6 +13,8 @@ interface FanaticalAlgoliaHit {
   discount?: number;
   steam_link?: string;
   end_time?: number;
+  cover?: string;
+  image?: string;
 }
 
 interface FanaticalAlgoliaResponse {
@@ -129,6 +131,7 @@ export class FanaticalScraper extends BaseScraper {
       storeSlug: "fanatical",
       storeGameId: hit.slug,
       steamAppId,
+      headerImageUrl: hit.cover ?? hit.image ?? undefined,
       expiresAt,
     };
   }

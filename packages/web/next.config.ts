@@ -25,6 +25,8 @@ const securityHeaders = [
 const nextConfig: NextConfig = {
   // Enable React strict mode for highlighting potential issues
   reactStrictMode: true,
+  // Standalone output for Docker deployments
+  output: "standalone",
   // Allow images from external deal/retailer domains
   images: {
     remotePatterns: [
@@ -33,8 +35,11 @@ const nextConfig: NextConfig = {
       { protocol: "https", hostname: "**.walmart.com" },
       { protocol: "https", hostname: "steamcdn-a.akamaihd.net" },
       { protocol: "https", hostname: "cdn.akamai.steamstatic.com" },
+      { protocol: "https", hostname: "shared.akamai.steamstatic.com" },
+      { protocol: "https", hostname: "**.steamstatic.com" },
       { protocol: "https", hostname: "images.gog-statics.com" },
       { protocol: "https", hostname: "cdn1.epicgames.com" },
+      { protocol: "https", hostname: "cdn2.unrealengine.com" },
     ],
   },
   async headers() {

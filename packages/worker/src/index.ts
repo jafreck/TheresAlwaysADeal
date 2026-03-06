@@ -12,6 +12,7 @@ const SCRAPE_CRON = process.env.SCRAPE_CRON ?? "0 */6 * * *";
 const FEATURED_SCRAPE_CRON = process.env.FEATURED_SCRAPE_CRON ?? "0 * * * *";
 const EPIC_SCRAPE_CRON = process.env.EPIC_SCRAPE_CRON ?? "0 0 * * *";
 const STEAM_SYNC_CRON = process.env.STEAM_SYNC_CRON ?? "0 0 * * *";
+const SCRAPE_ON_STARTUP = (process.env.SCRAPE_ON_STARTUP ?? "true") === "true";
 const PORT = Number(process.env.PORT ?? 4000);
 
 // Dead-letter queue for scrape jobs that exhaust all retries
@@ -280,8 +281,23 @@ const ingestWorker = new Worker(
         // Upsert game
         await db
           .insert(games)
-          .values({ title: deal.title, slug: deal.slug })
-          .onConflictDoUpdate({ target: games.slug, set: { title: deal.title, updatedAt: new Date() } });
+          .values({
+            title: deal.title,
+            slug: deal.slug,
+            steamAppId: deal.steamAppId ?? null,
+            description: deal.description ?? null,
+            headerImageUrl: deal.headerImageUrl ?? null,
+          })
+          .onConflictDoUpdate({
+            target: games.slug,
+            set: {
+              title: deal.title,
+              steamAppId: deal.steamAppId ?? undefined,
+              description: deal.description ?? undefined,
+              headerImageUrl: deal.headerImageUrl ?? undefined,
+              updatedAt: new Date(),
+            },
+          });
 
         const [dbGame] = await db.select().from(games).where(eq(games.slug, deal.slug)).limit(1);
         if (!dbGame) continue;
@@ -439,6 +455,7 @@ async function processNotification(job: { data: { storeListingId: string; newPri
       alertId: alert.alertId,
       email: alert.email,
       gameTitle: game.title,
+      imageUrl: game.headerImageUrl ?? "",
       gameId,
       storeListingId,
       storeUrl: listing.storeUrl,
@@ -471,11 +488,12 @@ const allTimeLowWorker = new Worker(
 const emailWorker = new Worker(
   "email",
   async (job) => {
-    const { userId, alertId, email, gameTitle, storeListingId, storeUrl, storeSlug, newPrice } = job.data as {
+    const { userId, alertId, email, gameTitle, imageUrl, storeListingId, storeUrl, storeSlug, newPrice } = job.data as {
       userId: string;
       alertId: string;
       email: string;
       gameTitle: string;
+      imageUrl: string;
       gameId: string;
       storeListingId: string;
       storeUrl: string;
@@ -488,7 +506,7 @@ const emailWorker = new Worker(
 
     const priceData: PriceAlertData = {
       gameTitle,
-      imageUrl: "",
+      imageUrl: imageUrl || "",
       prices: [
         {
           storeName: storeSlug,
@@ -511,14 +529,20 @@ const emailWorker = new Worker(
 // ─── CRON: schedule scrape jobs per store ─────────────────────────────────────
 export async function scheduleScrapers() {
   const allStores = await db.select().from(stores);
-  for (const store of allStores) {
-    const pattern = store.slug === "epic-games" ? EPIC_SCRAPE_CRON : SCRAPE_CRON;
-    await scrapeQueue.add(
-      `scrape-${store.slug}`,
-      { retailerDomain: store.slug },
-      { repeat: { pattern }, attempts: 3 },
-    );
+
+  if (allStores.length === 0) {
+    console.warn(JSON.stringify({ event: "schedule-no-stores", message: "No stores in DB — skipping store-level cron jobs. POST /jobs/schedule after seeding." }));
+  } else {
+    for (const store of allStores) {
+      const pattern = store.slug === "epic-games" ? EPIC_SCRAPE_CRON : SCRAPE_CRON;
+      await scrapeQueue.add(
+        `scrape-${store.slug}`,
+        { retailerDomain: store.slug },
+        { repeat: { pattern }, attempts: 3 },
+      );
+    }
   }
+
   // Schedule hourly featured-deal scrape for Steam
   await featuredScrapeQueue.add(
     "featured-scrape-steam",
@@ -532,6 +556,23 @@ export async function scheduleScrapers() {
     { repeat: { pattern: STEAM_SYNC_CRON } },
   );
   console.log(JSON.stringify({ event: "cron-scheduled", storeCount: allStores.length, pattern: SCRAPE_CRON }));
+
+  // Fire an immediate scrape for every store on startup so data is available right away
+  if (SCRAPE_ON_STARTUP && allStores.length > 0) {
+    for (const store of allStores) {
+      await scrapeQueue.add(
+        `scrape-startup-${store.slug}`,
+        { retailerDomain: store.slug },
+        { attempts: 3 },
+      );
+    }
+    await featuredScrapeQueue.add(
+      "featured-scrape-steam-startup",
+      { retailerDomain: "steam" },
+      { attempts: 3 },
+    );
+    console.log(JSON.stringify({ event: "startup-scrape-enqueued", storeCount: allStores.length }));
+  }
 }
 
 scheduleScrapers().catch((err) => {
@@ -565,6 +606,19 @@ const server = http.createServer(async (req, res) => {
 
     res.writeHead(200, { "Content-Type": "application/json" });
     res.end(JSON.stringify({ scrape, ingest, priceDrop }));
+    return;
+  }
+
+  // Re-run scheduleScrapers (e.g. after seeding the stores table)
+  if (method === "POST" && url.pathname === "/jobs/schedule") {
+    try {
+      await scheduleScrapers();
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ status: "scheduled" }));
+    } catch (err) {
+      res.writeHead(500, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: String(err) }));
+    }
     return;
   }
 

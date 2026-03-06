@@ -37,6 +37,10 @@ const mockProductDetails = {
   id: 1234567890,
   title: "Witcher 3: Wild Hunt",
   slug: "witcher_3_wild_hunt",
+  images: {
+    logo: "https://images.gog.com/witcher3_logo.jpg",
+    logo2x: "https://images.gog.com/witcher3_logo2x.jpg",
+  },
   _embedded: {
     prices: {
       items: [
@@ -155,6 +159,29 @@ describe("GOGScraper", () => {
     it("should generate a URL-safe slug from the title", () => {
       const game = scraper.normalizeGame(rawItem);
       expect(game.slug).toMatch(/^[a-z0-9-]+$/);
+    });
+
+    it("should extract headerImageUrl preferring logo2x", () => {
+      const game = scraper.normalizeGame(rawItem);
+      expect(game.headerImageUrl).toBe("https://images.gog.com/witcher3_logo2x.jpg");
+    });
+
+    it("should fall back to logo when logo2x is absent", () => {
+      const rawNoLogo2x = {
+        catalog: mockProduct,
+        details: { ...mockProductDetails, images: { logo: "https://images.gog.com/logo.jpg" } },
+      };
+      const game = scraper.normalizeGame(rawNoLogo2x);
+      expect(game.headerImageUrl).toBe("https://images.gog.com/logo.jpg");
+    });
+
+    it("should return undefined headerImageUrl when images is absent", () => {
+      const rawNoImages = {
+        catalog: mockProduct,
+        details: { ...mockProductDetails, images: undefined },
+      };
+      const game = scraper.normalizeGame(rawNoImages);
+      expect(game.headerImageUrl).toBeUndefined();
     });
   });
 });

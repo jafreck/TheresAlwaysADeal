@@ -25,6 +25,10 @@ interface GogProductDetails {
   id: number;
   title: string;
   slug: string;
+  images?: {
+    logo?: string;
+    logo2x?: string;
+  };
   _embedded?: {
     prices?: {
       items?: GogPriceItem[];
@@ -67,7 +71,7 @@ export default class GOGScraper extends BaseScraper {
         products.map(async (product): Promise<GogRawItem | null> => {
           try {
             const priceRes = await this.fetchWithRetry(() =>
-              fetch(`${PRODUCTS_URL}/${product.id}?expand=prices&currency=USD`, {
+              fetch(`${PRODUCTS_URL}/${product.id}?expand=prices,images&currency=USD`, {
                 headers: this.headers,
               }),
             );
@@ -114,6 +118,9 @@ export default class GOGScraper extends BaseScraper {
     const gameSlug = catalog.slug || details.slug;
     const storeUrl = `https://www.gog.com/game/${gameSlug}`;
 
+    // Prefer 2x logo for higher resolution, fall back to standard logo
+    const headerImageUrl = details.images?.logo2x ?? details.images?.logo ?? undefined;
+
     return {
       title,
       slug,
@@ -124,6 +131,7 @@ export default class GOGScraper extends BaseScraper {
       currency: "USD",
       storeSlug: "gog",
       storeGameId: String(catalog.id),
+      headerImageUrl,
     };
   }
 }

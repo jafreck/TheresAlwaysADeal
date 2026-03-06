@@ -139,8 +139,13 @@ beforeAll(async () => {
   const dbModule = await import("@taad/db");
   db = dbModule.db;
 
+  // Provide at least one store so scheduleScrapers() succeeds on first attempt
+  (db.select as ReturnType<typeof vi.fn>).mockReturnValueOnce(
+    buildSelectChain([{ id: 1, slug: "steam", name: "Steam" }]),
+  );
+  // Subsequent db.select calls default to empty unless overridden by mockReturnValueOnce
   (db.select as ReturnType<typeof vi.fn>).mockReturnValue(
-    buildSelectChain([]), // scheduleScrapers → no stores
+    buildSelectChain([]),
   );
 
   // Import index.ts — this starts the HTTP server and workers
@@ -151,7 +156,7 @@ beforeAll(async () => {
   Worker = bullmq.Worker;
 
   // Give the server time to bind and for scheduleScrapers() to complete
-  await new Promise((resolve) => setTimeout(resolve, 100));
+  await new Promise((resolve) => setTimeout(resolve, 200));
 
   // Capture queue.add calls made during startup before any test can clear them
   startupQueueAddCalls = [...mockQueueAdd.mock.calls];
@@ -216,6 +221,29 @@ describe("HTTP server", () => {
         { retailerDomain: "gog" },
         expect.objectContaining({ attempts: 3 }),
       );
+    });
+  });
+
+  describe("POST /jobs/schedule", () => {
+    it("should return 200 and re-run scheduleScrapers", async () => {
+      (db.select as ReturnType<typeof vi.fn>).mockReturnValueOnce(
+        buildSelectChain([{ id: 1, slug: "steam", name: "Steam" }]),
+      );
+      mockQueueAdd.mockClear();
+      const { status, body } = await makeRequest("POST", "/jobs/schedule");
+      expect(status).toBe(200);
+      expect(body).toEqual({ status: "scheduled" });
+      // Should have scheduled cron + startup jobs
+      expect(mockQueueAdd).toHaveBeenCalled();
+    });
+
+    it("should handle empty stores gracefully and still return 200", async () => {
+      (db.select as ReturnType<typeof vi.fn>).mockReturnValueOnce(
+        buildSelectChain([]),
+      );
+      const { status, body } = await makeRequest("POST", "/jobs/schedule");
+      expect(status).toBe(200);
+      expect(body).toEqual({ status: "scheduled" });
     });
   });
 
@@ -641,6 +669,85 @@ describe("CRON scheduling", () => {
     expect(featuredCall).toBeDefined();
     expect(featuredCall![1]).toEqual({ retailerDomain: "steam" });
     expect(featuredCall![2]).toMatchObject({ repeat: { pattern: expect.any(String) }, attempts: 3 });
+  });
+
+  it("should have enqueued an immediate featured-scrape-steam-startup job", async () => {
+    const startupCall = startupQueueAddCalls.find(([name]) => name === "featured-scrape-steam-startup");
+    expect(startupCall).toBeDefined();
+    expect(startupCall![1]).toEqual({ retailerDomain: "steam" });
+    expect(startupCall![2]).toMatchObject({ attempts: 3 });
+    // Startup job should NOT have a repeat schedule
+    expect(startupCall![2]).not.toHaveProperty("repeat");
+  });
+
+  it("should have enqueued immediate startup scrape jobs for each store on startup", async () => {
+    // beforeAll provided one store (steam), so we should see a startup scrape for it
+    const startupScrapeCall = startupQueueAddCalls.find(([name]) => name === "scrape-startup-steam");
+    expect(startupScrapeCall).toBeDefined();
+    expect(startupScrapeCall![1]).toEqual({ retailerDomain: "steam" });
+    expect(startupScrapeCall![2]).toMatchObject({ attempts: 3 });
+    expect(startupScrapeCall![2]).not.toHaveProperty("repeat");
+  });
+
+  it("should enqueue immediate startup scrape jobs for each store", async () => {
+    const { scheduleScrapers } = await import("../src/index.js");
+    (db.select as ReturnType<typeof vi.fn>).mockReturnValueOnce(
+      buildSelectChain([{ slug: "steam" }, { slug: "gog" }]),
+    );
+    mockQueueAdd.mockClear();
+
+    await scheduleScrapers();
+
+    // Verify startup scrape jobs (no repeat)
+    expect(mockQueueAdd).toHaveBeenCalledWith(
+      "scrape-startup-steam",
+      { retailerDomain: "steam" },
+      { attempts: 3 },
+    );
+    expect(mockQueueAdd).toHaveBeenCalledWith(
+      "scrape-startup-gog",
+      { retailerDomain: "gog" },
+      { attempts: 3 },
+    );
+    expect(mockQueueAdd).toHaveBeenCalledWith(
+      "featured-scrape-steam-startup",
+      { retailerDomain: "steam" },
+      { attempts: 3 },
+    );
+  });
+
+  it("should skip store-level cron when stores table is empty but still schedule featured + steam-sync", async () => {
+    const { scheduleScrapers } = await import("../src/index.js");
+    (db.select as ReturnType<typeof vi.fn>).mockReturnValueOnce(
+      buildSelectChain([]),
+    );
+    mockQueueAdd.mockClear();
+
+    await scheduleScrapers();
+
+    // Should NOT have any per-store cron jobs
+    const storeCronCalls = mockQueueAdd.mock.calls.filter(([name]) =>
+      typeof name === "string" && name.startsWith("scrape-") && !name.includes("startup"),
+    );
+    expect(storeCronCalls).toHaveLength(0);
+
+    // Should still schedule featured-scrape and steam-sync
+    expect(mockQueueAdd).toHaveBeenCalledWith(
+      "featured-scrape-steam",
+      { retailerDomain: "steam" },
+      expect.objectContaining({ repeat: expect.any(Object) }),
+    );
+    expect(mockQueueAdd).toHaveBeenCalledWith(
+      "steam-sync-all",
+      {},
+      expect.objectContaining({ repeat: expect.any(Object) }),
+    );
+
+    // Should NOT enqueue startup scrape jobs when no stores exist
+    const startupCalls = mockQueueAdd.mock.calls.filter(([name]) =>
+      typeof name === "string" && name.includes("startup"),
+    );
+    expect(startupCalls).toHaveLength(0);
   });
 });
 

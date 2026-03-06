@@ -1,6 +1,14 @@
  
 const BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
+  process.env.INTERNAL_API_URL ?? process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
+
+function buildApiUrl(path: string): string {
+  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+  if (normalizedPath.startsWith("/api/")) {
+    return `${BASE_URL}${normalizedPath}`;
+  }
+  return `${BASE_URL}/api/v1${normalizedPath}`;
+}
 
 export class ServerApiError extends Error {
   constructor(
@@ -25,7 +33,7 @@ export const serverApi = {
       options.next = { revalidate } as NextFetchRequestConfig;
     }
 
-    const res = await fetch(`${BASE_URL}${path}`, options);
+    const res = await fetch(buildApiUrl(path), options);
 
     if (!res.ok) {
       throw new ServerApiError(res.status, res.statusText);
