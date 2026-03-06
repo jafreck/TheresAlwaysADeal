@@ -53,8 +53,9 @@ services:
         pnpm --filter @taad/db build
         cd packages/db
         node ./node_modules/drizzle-kit/bin.cjs push --force
+        PGPASSWORD=postgres psql -h postgres -U postgres -d taad -c "CREATE EXTENSION IF NOT EXISTS pg_trgm;"
         node --import tsx src/seed.ts
-        echo '✅ DB schema pushed and seeded'
+        echo '✅ DB schema pushed, pg_trgm installed, and seeded'
 
   # ── API server ─────────────────────────────────────────────────────────────
   api:

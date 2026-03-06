@@ -101,6 +101,7 @@ app.get("/", cacheMiddleware(300, getRedis), async (c) => {
 
 // GET /search — full-text search with trigram fuzzy matching (5-min cache)
 app.get("/search", cacheMiddleware(300, getRedis), async (c) => {
+  try {
   const parsed = searchQuerySchema.safeParse(c.req.query());
   if (!parsed.success) {
     return c.json({ error: "Invalid query parameters", details: parsed.error.flatten() }, 400);
@@ -200,7 +201,7 @@ app.get("/search", cacheMiddleware(300, getRedis), async (c) => {
             SELECT MAX(ph2.recorded_at) FROM price_history ph2
             WHERE ph2.store_listing_id = sl.id
           )
-        WHERE sl.game_id = ${games.id}
+        WHERE sl.game_id = games.id
       )`.as("best_price"),
     })
     .from(games)
@@ -217,13 +218,13 @@ app.get("/search", cacheMiddleware(300, getRedis), async (c) => {
                   SELECT MAX(ph2.recorded_at) FROM price_history ph2
                   WHERE ph2.store_listing_id = sl.id
                 )
-              WHERE sl.game_id = ${games.id}
+              WHERE sl.game_id = games.id
             ) DESC NULLS LAST`
           : sort === "a_z"
             ? sql`${games.title} ASC`
             : sort === "release_date"
               ? desc(games.createdAt)
-              : sql`ts_rank(to_tsvector('english', ${games.title}), plainto_tsquery('english', ${q})) + similarity(${games.title}, ${q}) DESC`,
+              : desc(sql`ts_rank(to_tsvector('english', ${games.title}), plainto_tsquery('english', ${q})) + similarity(${games.title}, ${q})`),
     )
     .limit(limit)
     .offset(offset);
@@ -235,7 +236,11 @@ app.get("/search", cacheMiddleware(300, getRedis), async (c) => {
   }).catch(() => {});
 
   return c.json(buildEnvelopeResponse(rows, total, page, limit));
-});
+  } catch (err) {
+    console.error("[search] Error:", err);
+    return c.json({ error: "Search failed", message: String(err) }, 500);
+  }
+}); 
 
 // GET /autocomplete — title suggestions via trigram similarity (5-min cache)
 app.get("/autocomplete", cacheMiddleware(300, getRedis), async (c) => {

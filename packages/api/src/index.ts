@@ -90,4 +90,15 @@ const port = Number(process.env.API_PORT ?? 3001);
 
 console.log(`API server starting on port ${port}`);
 
-serve({ fetch: app.fetch, port });
+const server = serve({ fetch: app.fetch, port });
+
+function shutdown() {
+  console.log("Shutting down gracefully…");
+  server.close(() => {
+    _redis?.disconnect();
+    process.exit(0);
+  });
+}
+
+process.on("SIGTERM", shutdown);
+process.on("SIGINT", shutdown);

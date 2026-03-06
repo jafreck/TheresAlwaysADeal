@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import EpicScraper, { type EpicRawItem } from "../../src/scrapers/epic.js";
+import EpicScraper, { type EpicRawItem } from "../../src/scrapers/epic-games.js";
 
 // ─── Mock fetch ───────────────────────────────────────────────────────────────
 const mockFetch = vi.fn();

@@ -1,44 +1,32 @@
 import { BaseScraper, type ScrapedGame, type ScraperConfig } from "@taad/scraper";
 
 const CATALOG_URL = "https://catalog.gog.com/v1/catalog";
-const PRODUCTS_URL = "https://api.gog.com/products";
+
+interface GogMoneyAmount {
+  amount: string;
+  currency: string;
+}
+
+interface GogCatalogPrice {
+  final: string;
+  base: string;
+  discount: string;
+  finalMoney?: GogMoneyAmount;
+  baseMoney?: GogMoneyAmount;
+}
 
 interface GogCatalogProduct {
   id: string;
   title: string;
   slug: string;
+  price?: GogCatalogPrice;
+  coverHorizontal?: string;
+  coverVertical?: string;
 }
 
 interface GogCatalogResponse {
   pages: number;
   products: GogCatalogProduct[];
-}
-
-interface GogPriceItem {
-  /** Price in cents as a string, e.g. "999" = $9.99 */
-  basePrice: string;
-  finalPrice: string;
-  discount: string;
-}
-
-interface GogProductDetails {
-  id: number;
-  title: string;
-  slug: string;
-  images?: {
-    logo?: string;
-    logo2x?: string;
-  };
-  _embedded?: {
-    prices?: {
-      items?: GogPriceItem[];
-    };
-  };
-}
-
-interface GogRawItem {
-  catalog: GogCatalogProduct;
-  details: GogProductDetails;
 }
 
 export default class GOGScraper extends BaseScraper {
@@ -47,7 +35,7 @@ export default class GOGScraper extends BaseScraper {
   }
 
   async fetchGames(): Promise<unknown[]> {
-    const allProducts: GogRawItem[] = [];
+    const allProducts: GogCatalogProduct[] = [];
     let page = 1;
     let totalPages = 1;
 
@@ -65,27 +53,7 @@ export default class GOGScraper extends BaseScraper {
       totalPages = data.pages ?? 1;
 
       const products = data.products ?? [];
-
-      // Fetch pricing details for each product on this page
-      const pageItems = await Promise.all(
-        products.map(async (product): Promise<GogRawItem | null> => {
-          try {
-            const priceRes = await this.fetchWithRetry(() =>
-              fetch(`${PRODUCTS_URL}/${product.id}?expand=prices,images&currency=USD`, {
-                headers: this.headers,
-              }),
-            );
-            const details = (await priceRes.json()) as GogProductDetails;
-            return { catalog: product, details };
-          } catch {
-            return null;
-          }
-        }),
-      );
-
-      for (const item of pageItems) {
-        if (item !== null) allProducts.push(item);
-      }
+      allProducts.push(...products);
 
       page++;
     } while (page <= totalPages);
@@ -94,43 +62,43 @@ export default class GOGScraper extends BaseScraper {
   }
 
   normalizeGame(raw: unknown): ScrapedGame {
-    const { catalog, details } = raw as GogRawItem;
+    const product = raw as GogCatalogProduct;
 
-    const priceItem = details._embedded?.prices?.items?.[0];
-    if (!priceItem) {
-      throw new Error(`No price data for GOG product ${catalog.id}`);
+    if (!product.price) {
+      throw new Error(`No price data for GOG product ${product.id}`);
     }
 
-    // GOG prices are in cents as integer strings, e.g. "999" = $9.99
-    const finalPriceCents = parseInt(priceItem.finalPrice, 10);
-    const basePriceCents = parseInt(priceItem.basePrice, 10);
-    const discountPercent = parseFloat(priceItem.discount);
+    // Catalog API returns prices as dollar strings like "$4.79" or via finalMoney/baseMoney
+    const finalPrice = product.price.finalMoney
+      ? parseFloat(product.price.finalMoney.amount)
+      : parseFloat(product.price.final.replace(/[^0-9.]/g, ""));
+    const basePrice = product.price.baseMoney
+      ? parseFloat(product.price.baseMoney.amount)
+      : parseFloat(product.price.base.replace(/[^0-9.]/g, ""));
 
-    const price = finalPriceCents / 100;
-    const originalPrice = basePriceCents / 100;
+    // Discount is a string like "-60%" or "0%"
+    const discountPercent = Math.abs(parseInt(product.price.discount, 10)) || 0;
 
-    const title = catalog.title || details.title;
+    const title = product.title;
     const slug = title
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, "-")
       .replace(/^-|-$/g, "");
 
-    const gameSlug = catalog.slug || details.slug;
-    const storeUrl = `https://www.gog.com/game/${gameSlug}`;
+    const storeUrl = `https://www.gog.com/game/${product.slug}`;
 
-    // Prefer 2x logo for higher resolution, fall back to standard logo
-    const headerImageUrl = details.images?.logo2x ?? details.images?.logo ?? undefined;
+    const headerImageUrl = product.coverHorizontal ?? product.coverVertical ?? undefined;
 
     return {
       title,
       slug,
       storeUrl,
-      price,
-      originalPrice,
+      price: finalPrice,
+      originalPrice: basePrice,
       discountPercent,
-      currency: "USD",
+      currency: product.price.finalMoney?.currency ?? "USD",
       storeSlug: "gog",
-      storeGameId: String(catalog.id),
+      storeGameId: String(product.id),
       headerImageUrl,
     };
   }

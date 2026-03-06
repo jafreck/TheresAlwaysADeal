@@ -1,4 +1,5 @@
 import Image from "next/image";
+import Link from "next/link";
 import { cn } from "@/lib/utils";
 import PriceBadge from "./PriceBadge";
 import DiscountBadge from "./DiscountBadge";
@@ -20,7 +21,7 @@ export interface GameCardProps {
 
 export default function GameCard({
   gameTitle,
-  gameSlug: _gameSlug,
+  gameSlug,
   headerImageUrl,
   currentPrice,
   originalPrice,
@@ -37,45 +38,49 @@ export default function GameCard({
         className,
       )}
     >
-      <div className="relative aspect-video w-full overflow-hidden">
-        <Image
-          src={headerImageUrl}
-          alt={gameTitle}
-          fill
-          sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
-          className="object-cover transition-transform group-hover:scale-105"
-        />
-      </div>
-
-      <div className="flex flex-1 flex-col gap-3 p-4">
-        <h3 className="line-clamp-2 text-base font-semibold leading-tight">
-          {gameTitle}
-        </h3>
-
-        {storeName && (
-          <div className="flex items-center gap-2">
-            <StoreIcon storeName={storeName} logoUrl={storeLogoUrl} size={20} />
-            <span className="text-sm text-muted">{storeName}</span>
-          </div>
-        )}
-
-        <div className="mt-auto flex items-center gap-2">
-          <PriceBadge
-            currentPrice={currentPrice}
-            originalPrice={originalPrice}
+      <Link href={`/games/${gameSlug}`} className="contents">
+        <div className="relative aspect-video w-full overflow-hidden">
+          <Image
+            src={headerImageUrl}
+            alt={gameTitle}
+            fill
+            sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+            className="object-cover transition-transform group-hover:scale-105"
           />
-          {discount > 0 && <DiscountBadge discount={discount} />}
         </div>
 
-        {storeName && (
+        <div className="flex flex-1 flex-col gap-3 p-4">
+          <h3 className="line-clamp-2 text-base font-semibold leading-tight">
+            {gameTitle}
+          </h3>
+
+          {storeName && (
+            <div className="flex items-center gap-2">
+              <StoreIcon storeName={storeName} logoUrl={storeLogoUrl} size={20} />
+              <span className="text-sm text-muted">{storeName}</span>
+            </div>
+          )}
+
+          <div className="mt-auto flex items-center gap-2">
+            <PriceBadge
+              currentPrice={currentPrice}
+              originalPrice={originalPrice}
+            />
+            {discount > 0 && <DiscountBadge discount={discount} />}
+          </div>
+        </div>
+      </Link>
+
+      {storeName && (
+        <div className="px-4 pb-4">
           <BuyButton
             href={storeUrl}
             storeName={storeName}
             gameName={gameTitle}
             className="w-full"
           />
-        )}
-      </div>
+        </div>
+      )}
     </article>
   );
 }

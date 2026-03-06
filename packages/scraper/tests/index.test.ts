@@ -15,7 +15,7 @@ vi.mock("drizzle-orm", () => ({
 }));
 
 // Verify all public exports are accessible from the package index
-import { BaseScraper, gameSchema, buildReferralUrl, FanaticalScraper } from "../src/index.js";
+import { BaseScraper, gameSchema, buildReferralUrl } from "../src/index.js";
 import type { ScrapedGame, ScraperConfig } from "../src/index.js";
 
 describe("index re-exports", () => {
@@ -52,10 +52,6 @@ describe("index re-exports", () => {
   it("should export buildReferralUrl", () => {
     expect(buildReferralUrl).toBeDefined();
     expect(typeof buildReferralUrl).toBe("function");
-  });
-
-  it("should export FanaticalScraper", () => {
-    expect(FanaticalScraper).toBeDefined();
   });
 
   it("should return URL unchanged from buildReferralUrl when no env var is set", () => {

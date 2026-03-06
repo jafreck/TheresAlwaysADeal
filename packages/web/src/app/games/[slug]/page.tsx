@@ -13,9 +13,8 @@ import BestPriceCard from "@/components/BestPriceCard";
 import PriceComparisonTable, {
   type StoreListingRow,
 } from "@/components/PriceComparisonTable";
-import PriceHistoryChart, {
-  toChartEntries,
-} from "@/components/PriceHistoryChart";
+import PriceHistoryChart from "@/components/PriceHistoryChart";
+import { toChartEntries } from "@/lib/price-history";
 import WishlistButton from "@/components/WishlistButton";
 import PriceAlertModal from "@/components/PriceAlertModal";
 import SimilarGames from "@/components/SimilarGames";

@@ -71,6 +71,9 @@ vi.mock("@/components/PriceHistoryChart", () => ({
   default: function MockPriceHistoryChart(props: Record<string, unknown>) {
     return { type: "PriceHistoryChart", props, key: null };
   },
+}));
+
+vi.mock("@/lib/price-history", () => ({
   toChartEntries: (entries: unknown[]) =>
     entries.map((e: Record<string, unknown>) => ({
       storeListingId: String(e.storeListingId),

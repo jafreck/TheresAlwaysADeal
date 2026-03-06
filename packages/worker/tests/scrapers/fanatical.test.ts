@@ -14,7 +14,7 @@ vi.mock("drizzle-orm", () => ({
   and: vi.fn(),
 }));
 
-import { FanaticalScraper } from "../src/fanatical.js";
+import { FanaticalScraper } from "../../src/scrapers/fanatical.js";
 
 describe("FanaticalScraper", () => {
   let scraper: FanaticalScraper;
@@ -80,16 +80,13 @@ describe("FanaticalScraper", () => {
         end_time: endTime,
       };
 
-      const result = scraper.normalizeGame(hit) as ReturnType<typeof scraper.normalizeGame> & {
-        expiresAt?: Date;
-      };
+      const result = scraper.normalizeGame(hit);
 
       expect(result.title).toBe("Awesome Bundle");
       expect(result.storeUrl).toContain("bundle/awesome-bundle");
       expect(result.price).toBe(4.99);
       expect(result.discountPercent).toBe(90);
-      expect(result.expiresAt).toBeInstanceOf(Date);
-      expect(result.expiresAt?.getTime()).toBe(endTime * 1000);
+      expect(result.saleEndsAt).toBe(new Date(endTime * 1000).toISOString());
     });
 
     it("extracts steamAppId from steam_link field", () => {

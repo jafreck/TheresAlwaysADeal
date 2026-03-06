@@ -116,11 +116,20 @@ describe('FreeGamesSection', () => {
     expect(articles[1].key).toBe('subnautica-Steam');
   });
 
+  it('should link each game to the detail page', () => {
+    const element = FreeGamesSection({ games: [makeGame()] });
+    const body = element.props.children[1];
+    const article = body.props.children[0];
+    const link = article.props.children[0];
+    expect(link.props.href).toBe('/games/subnautica');
+  });
+
   it('should render a FREE badge', () => {
     const element = FreeGamesSection({ games: [makeGame()] });
     const body = element.props.children[1];
     const article = body.props.children[0];
-    const imageContainer = article.props.children[0];
+    const link = article.props.children[0];
+    const imageContainer = link.props.children[0];
     const children = imageContainer.props.children;
     // children is [Image, FREE badge]
     const badge = Array.isArray(children) ? children[1] : null;
@@ -132,7 +141,8 @@ describe('FreeGamesSection', () => {
     const element = FreeGamesSection({ games: [makeGame()] });
     const body = element.props.children[1];
     const article = body.props.children[0];
-    const content = article.props.children[1];
+    const link = article.props.children[0];
+    const content = link.props.children[1];
     const title = content.props.children[0];
     expect(title.type).toBe('h3');
     expect(title.props.children).toBe('Subnautica');
@@ -143,7 +153,8 @@ describe('FreeGamesSection', () => {
     const element = FreeGamesSection({ games: [game] });
     const body = element.props.children[1];
     const article = body.props.children[0];
-    const content = article.props.children[1];
+    const link = article.props.children[0];
+    const content = link.props.children[1];
     const storeRow = content.props.children[1];
     const storeIcon = storeRow.props.children[0];
     expect(typeof storeIcon.type).toBe('function');
@@ -155,7 +166,8 @@ describe('FreeGamesSection', () => {
     const element = FreeGamesSection({ games: [game] });
     const body = element.props.children[1];
     const article = body.props.children[0];
-    const content = article.props.children[1];
+    const link = article.props.children[0];
+    const content = link.props.children[1];
     const expiryRow = content.props.children[2];
     expect(expiryRow).toBeTruthy();
     // children: ["Ends in:", " ", <CountdownTimer />]
@@ -170,7 +182,8 @@ describe('FreeGamesSection', () => {
     const element = FreeGamesSection({ games: [game] });
     const body = element.props.children[1];
     const article = body.props.children[0];
-    const content = article.props.children[1];
+    const link = article.props.children[0];
+    const content = link.props.children[1];
     const expiryRow = content.props.children[2];
     expect(expiryRow).toBeTruthy();
     const children = expiryRow.props.children;
@@ -183,7 +196,8 @@ describe('FreeGamesSection', () => {
     const element = FreeGamesSection({ games: [game] });
     const body = element.props.children[1];
     const article = body.props.children[0];
-    const content = article.props.children[1];
+    const link = article.props.children[0];
+    const content = link.props.children[1];
     const expiryRow = content.props.children[2];
     expect(expiryRow).toBeFalsy();
   });
@@ -193,8 +207,8 @@ describe('FreeGamesSection', () => {
     const element = FreeGamesSection({ games: [game] });
     const body = element.props.children[1];
     const article = body.props.children[0];
-    const content = article.props.children[1];
-    const cta = content.props.children[3];
+    const buyWrapper = article.props.children[1];
+    const cta = buyWrapper.props.children;
     expect(cta.type).toBe('a');
     expect(cta.props.href).toBe('https://store.epicgames.com/subnautica');
     expect(cta.props['aria-label']).toBe('Get Subnautica free on Epic Games');

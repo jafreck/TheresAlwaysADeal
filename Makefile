@@ -15,10 +15,15 @@ ensure-docker:
 	fi
 
 # ─── Full stack (app + infra) ─────────────────────────────────────────────────
-.PHONY: up down restart ps logs build
+.PHONY: up up-build down restart ps logs build
 
-## Start everything: postgres, redis, db setup, api, worker, web
+## Start everything (reuses cached images; run `make up-build` after code changes)
 up: ensure-docker
+	@docker compose up -d
+	@docker compose ps
+
+## Start everything with a full image rebuild
+up-build: ensure-docker
 	@docker compose up -d --build
 	@docker compose ps
 
@@ -27,7 +32,7 @@ down:
 	@docker compose down
 
 ## Rebuild and restart all containers
-restart: down up
+restart: down up-build
 
 ## Show running container status
 ps:
