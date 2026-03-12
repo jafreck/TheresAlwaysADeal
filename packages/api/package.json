@@ -20,7 +20,7 @@
     "@taad/email": "workspace:*",
     "drizzle-orm": "^0.45.1",
     "bcryptjs": "^3.0.3",
-    "hono": "^4.12.4",
+    "hono": "^4.12.7",
     "jsonwebtoken": "^9.0.3",
     "ioredis": "^5.10.0",
     "zod": "^4.3.6"
